@@ -1,6 +1,5 @@
 import cv2 as cv
 from functions import *
-import numpy as np
 
 img = cv.imread("Python OpenCV\Photos\park.jpg")
 #cv.imshow("Boston", img)
