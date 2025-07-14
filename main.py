@@ -4,7 +4,7 @@ import csv
 import Pre_process as prp
 
 # 1) Core constants
-VIDEO_PATH       = "Test Imaging/Video2.mp4"
+VIDEO_PATH       = "Test Imaging/Video11.mp4"
 BG_PATH          = "Test Imaging/table_background.png"
 FRAME_LIMIT_AVG  = 50
 CLEAN_SECONDS    = 2.0
