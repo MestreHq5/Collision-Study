@@ -10,8 +10,8 @@ FRAME_LIMIT_AVG  = 50
 CLEAN_SECONDS    = 2.0
 BLUR_KERNEL      = (7, 7)
 
-GREEN_LOWER = np.array([50, 100, 100])
-GREEN_UPPER = np.array([70, 255, 255])
+GREEN_LOWER = np.array([40, 80, 80])
+GREEN_UPPER = np.array([90, 255, 255])
 BLUE_LOWER  = np.array([100, 100, 100])
 BLUE_UPPER  = np.array([130, 255, 255])
 
@@ -141,5 +141,5 @@ def main(debug: bool = False):
 
 if __name__ == "__main__":
     # set debug=True while tuning HSV/morphology, then False for batch runs
-    main(debug=True)
+    main(debug=False)
 

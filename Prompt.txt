@@ -1,0 +1,72 @@
+
+
+---
+
+Hi ChatGPT,
+
+I’m working on a collision‑analysis project for my university’s Department of Mechanics. The goal is to record a hockey‑table experiment, detect each disk, track its rotation via an off‑center circular mark (blue or green), and analyze collisions.
+
+---
+
+**Project goal**
+
+* Record a tabletop hockey experiment
+* Detect and segment each puck in video frames
+* Track each puck’s rotation via an off‑center colored marker (blue or green)
+* Compute collision events, angles, speeds, and restitution coefficients
+
+**Code & pipeline so far**
+
+1. **`Pre_process.py`**
+
+   * `segment_disks(frame)`: background subtraction → threshold → opening → circle‐fitting → returns list of puck centers & radii
+   * `detect_marker_center(roi, center, radius)`: crop disk ROI → HSV threshold for blue/green → morphological filtering → blob detection → marker center
+2. **`main.py`**
+
+   * Captures video frames → updates background model → calls segmentation + marker detection → logs results to CSV → runs unit tests
+3. **Hardware Prep**
+
+   * Plan to paint pucks matte‑black for higher contrast
+
+**Recent tweaks & results**
+
+* **Expanded green HSV range** from `[50,100,100]–[70,255,255]` to `[40,80,80]–[90,255,255]`
+  → This alone restored reliable green‑mark recall under motion blur.
+* **PyTest skeleton** drafted in `tests/test_preprocess.py` to compare detected centers (puck & marker) against a ground‑truth CSV (`data/ground_truth.csv`) and frame images (`data/frames/frame_####.png`).
+
+**Remaining needs**
+
+1. **Test integration**
+
+   * Wire the PyTest fixture up to your real CSV and image folder
+   * Write parameterized tests for:
+
+     * Marker detection accuracy (tolerance in pixels)
+     * Disk segmentation (count, centers & radii)
+     * Edge cases (missing/occluded markers, overlapping pucks)
+2. **Detection refinements**
+
+   * **Pre‑smoothing** (Gaussian or bilateral) before HSV thresholding
+   * **Adaptive HSV thresholds** (track running mean±std of marker color per puck)
+   * **Scaled morphology** (kernel size ∝ disk radius + extra closing/dilation)
+   * (Optional) deblurring filters or CIE Lab thresholding
+3. **Automated parameter tuning**
+
+   * Script to sweep HSV bounds & kernel sizes, record detection rates, visualize heatmap
+4. **CI & robustness**
+
+   * Integrate tests into GitHub Actions or similar
+   * Add performance metrics (recall, precision) and regression alerts
+5. **Future GUI & analysis**
+
+   * (Later) Build a PySide6 or Dash front‑end for real‑time tracking, playback & collision summaries
+
+**Ask:**
+Guide me through:
+
+* Completing the pytest setup (fixtures, folder paths, helper functions)
+* Writing concrete test cases for both segmentation and marker detection
+* Adding any needed helper utilities (e.g. ROI cropping, error metrics)
+* Structuring a CI pipeline to run these tests on every commit
+
+Let’s start by fleshing out the `tests/test_preprocess.py` file so it actually loads my CSV/images and asserts both puck and marker accuracy.

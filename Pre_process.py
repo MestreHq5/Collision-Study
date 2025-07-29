@@ -152,9 +152,10 @@ def segment_disks(
             cv2.THRESH_BINARY
         )
 
-    # 3) Morphological open to clean
+    # 3) Morphological open then close to clean and fill any holes
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, morph_kernel)
     clean = cv2.morphologyEx(bin_mask, cv2.MORPH_OPEN, kernel)
+    clean = cv2.morphologyEx(clean, cv2.MORPH_CLOSE, kernel)
 
     # 4) Find contours
     contours, _ = cv2.findContours(
@@ -221,18 +222,28 @@ def detect_marker_center(
     x2, y2 = min(x_c + pad, w), min(y_c + pad, h)
     roi = frame[y1:y2, x1:x2]
 
-    # Convert to HSV and threshold
-    hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+    # Pre‑smooth the ROI to mitigate motion blur, then convert to HSV
+    roi_blur = cv2.GaussianBlur(roi, (5, 5), 0)
+    hsv      = cv2.cvtColor(roi_blur, cv2.COLOR_BGR2HSV)
+    h, s, v = cv2.split(hsv)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+    v = clahe.apply(v)
+    hsv = cv2.merge((h, s, v))
     raw_mask = cv2.inRange(hsv, hsv_lower, hsv_upper)
     if debug:
         cv2.imshow("ROI", roi)
         cv2.imshow("Raw Mask", raw_mask)
 
-    # Clean up mask
+    # Restrict to inside the disk and then clean up mask
+    center_x = x_c - x1
+    center_y = y_c - y1
+    mask_disk = np.zeros_like(raw_mask)
+    cv2.circle(mask_disk, (center_x, center_y), int(disk_radius), 255, -1)
+    raw_mask = cv2.bitwise_and(raw_mask, mask_disk)
     mask = cv2.medianBlur(raw_mask, 5)
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5,5))
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7,7))
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN,  kernel, iterations=1)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=2)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=3)
     if debug:
         cv2.imshow("Clean Mask", mask)
         cv2.waitKey(1)
