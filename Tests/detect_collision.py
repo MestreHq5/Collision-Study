@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 
 # ==== EDIT THESE CONSTANTS MANUALLY ====
-CSV_PATH              = "disk_tracks.csv"
+CSV_PATH              = "C:/Users/gonca/Desktop/Collisions DEM/Collision-Study/disk_tracks.csv"
 OUTPUT_PATH           = "collisions_simple.csv"
 
 FPS                   = 60.0      # frames per second

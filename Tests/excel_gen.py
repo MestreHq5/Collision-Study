@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # List of Usefull Paths
-CSV_PATH   = "disk_tracks.csv"
+CSV_PATH   = "C:/Users/gonca/Desktop/Collisions DEM/Collision-Study/disk_tracks.csv"
 EXCEL_PATH = "disk_tracks_by_color.xlsx"
 PLOT_PATH  = "trajectories.png"
 

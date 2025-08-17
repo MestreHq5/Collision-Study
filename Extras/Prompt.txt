@@ -70,3 +70,42 @@ Guide me through:
 * Structuring a CI pipeline to run these tests on every commit
 
 Let’s start by fleshing out the `tests/test_preprocess.py` file so it actually loads my CSV/images and asserts both puck and marker accuracy.
+
+
+📌 Project Context (Hockey Table Collision Analysis)
+
+You’re working on a hockey-table collision analysis pipeline:
+
+main.py → records detections (disk center & colored marker) into disk_tracks.csv.
+
+detect_collisions_simple.py → finds collision frames from motion changes → saves collisions_simple.csv.
+
+compute_velocities_min8.py → computes linear & angular velocities for each disk before and after collisions → saves velocities_summary.csv.
+
+✅ Already done
+
+Tracking working (green disk = ID 0, blue = ID 1).
+
+Collision detection script generates collisions_simple.csv.
+
+Velocity computation simplified:
+
+Only radian angular velocity (no degrees).
+
+Uses all available frames before/after each collision (bounded by neighbor collisions or edges).
+
+Output = 8 values total per collision (per disk):
+
+linear_before_mm_s, linear_after_mm_s
+
+angular_before_rad_s, angular_after_rad_s
+
+❓ Pending / To decide
+
+Whether to add extra derived quantities (e.g. coefficient of restitution).
+
+Whether to merge collision_frames directly into velocity outputs for easier referencing.
+
+Whether to add robustness filters (radius band check for marker validity).
+
+Whether to visualize velocity evolution over time (not just before/after).
