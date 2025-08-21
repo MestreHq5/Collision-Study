@@ -83,16 +83,68 @@ def median_before_after(series: pd.Series, f_center: int, f_min: int, f_max: int
 
     return mb, ma
 
-def restitution_coef(df_out, collision_frame):
+def restitution_coef(df_out):
     
     # Separation Speed Value
-    val = df_out.loc[
-    (df_out["disk_id"] == 0) & (df_out["collision_frame"] == 120),
+    green_disk_sep = df_out.loc[
+    (df_out["disk_id"] == 0),
+    "linear_after_mm_s"
+    ].values[0]
+    
+    blue_disk_sep = df_out.loc[
+    (df_out["disk_id"] == 1),
+    "linear_after_mm_s"
+    ].values[0]
+    
+    sep_speed = green_disk_sep - blue_disk_sep
+    
+    green_disk_apr = df_out.loc[
+    (df_out["disk_id"] == 0),
     "linear_before_mm_s"
     ].values[0]
     
+    blue_disk_apr = df_out.loc[
+    (df_out["disk_id"] == 1),
+    "linear_before_mm_s"
+    ].values[0]
+    
+    apr_speed = green_disk_apr - blue_disk_apr
+    
+    
+    coef = sep_speed / apr_speed
     
     return coef
+
+def check_linear_moment(df_out):
+    
+    # Separation Speed Value
+    green_disk_sep = df_out.loc[
+    (df_out["disk_id"] == 0),
+    "linear_after_mm_s"
+    ].values[0]
+    
+    blue_disk_sep = df_out.loc[
+    (df_out["disk_id"] == 1),
+    "linear_after_mm_s"
+    ].values[0]
+    
+    green_disk_apr = df_out.loc[
+    (df_out["disk_id"] == 0),
+    "linear_before_mm_s"
+    ].values[0]
+    
+    blue_disk_apr = df_out.loc[
+    (df_out["disk_id"] == 1),
+    "linear_before_mm_s"
+    ].values[0]
+    
+    linear_before = green_disk_apr + blue_disk_apr
+    linear_after = green_disk_sep + green_disk_sep
+    
+    deviation = (linear_after - linear_before) / linear_before
+    
+    return deviation
+
 
 def main():
     df, collisions = load_data(TRACKS_CSV, COLLISIONS_CSV)
@@ -131,9 +183,12 @@ def main():
     print(f"\nSaved -> {OUTPUT_CSV}")
     
     # Check the value of the Restitution Coeficient
-    rest_coef = restitution_coef(out, col)
+    rest_coef = restitution_coef(out)
+    print(f"Estimated Restitution Coeficient: {rest_coef}")
     
     # Check Linear Moment Conservation
+    deviation = check_linear_moment(out)
+    print(f"Estimated Linear Moment Deviation: {deviation}")
     
     # Check Energy Drop
     
