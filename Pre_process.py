@@ -11,8 +11,6 @@ import cv2
 import numpy as np
 
 
-
-
 def estimate_background_median(
     video_path: str,
     clean_seconds: float,
@@ -21,6 +19,7 @@ def estimate_background_median(
     output_path: str = "table_background.png",
     return_image: bool = False
 ) -> Union[str, Tuple[str, np.ndarray]]:
+    
     """
     Estimate a stable background image by taking the per-pixel median
     of up to `frame_sample_limit` frames sampled evenly over the first
@@ -47,7 +46,8 @@ def estimate_background_median(
         ValueError:  If fps is invalid, or parameters are out of range.
         RuntimeError:If no frames could be read for the background.
     """
-    # --- 1) Open and validate video ---
+    
+    # 1) Open and validate video
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
         raise IOError(f"Cannot open video: {video_path}")
@@ -58,42 +58,44 @@ def estimate_background_median(
         raise ValueError(f"Invalid FPS detected ({fps}).")
 
     max_clean_frames = int(fps * clean_seconds)
-    if max_clean_frames < 1:
+    if max_clean_frames < 6:
         cap.release()
-        raise ValueError(f"clean_seconds too small ({clean_seconds}s yields 0 frames).")
+        raise ValueError(f"Number of clean_seconds is too small ({clean_seconds}s yields less than 6 frames).")
 
     num_samples = min(frame_sample_limit, max_clean_frames)
-    if num_samples < 1:
-        cap.release()
-        raise ValueError(f"frame_sample_limit must be ≥1 (got {frame_sample_limit}).")
 
-    # --- 2) Sample frames evenly ---
+
+    # 2) Sample frames evenly
     frame_indices = np.linspace(0, max_clean_frames - 1, num_samples, dtype=int)
     frames = []
     for idx in frame_indices:
         cap.set(cv2.CAP_PROP_POS_FRAMES, int(idx))
         ret, frame = cap.read()
         if ret:
-            frames.append(frame)
+            
+            # Apply Gaussian Blur to every frame
+            if blur_kernel is not None:
+                kx, ky = blur_kernel
+                frame_blured = cv2.GaussianBlur(frame, (kx, ky), 0)
+                frames.append(frame_blured)
+            
+            else:
+                frames.append(frame)
+            
     cap.release()
 
     if not frames:
         raise RuntimeError("No frames read for background estimation.")
 
     if len(frames) < num_samples:
-        print(f"Warning: only {len(frames)} / {num_samples} frames were read.")
+        # Warning: Not fatal, but suggests another try of the experiment
+        print(f"Warning: only {len(frames)} / {num_samples} frames were read.") 
 
-    # --- 3) Compute median background ---
+    
+    # 3) Compute median background ---
     bg_median = np.median(np.stack(frames, axis=0), axis=0).astype(np.uint8)
 
-    # --- 4) Optional blur to smooth out noise ---
-    if blur_kernel is not None:
-        kx, ky = blur_kernel
-        if kx % 2 == 0 or ky % 2 == 0:
-            raise ValueError("Blur kernel dimensions must be odd integers.")
-        bg_median = cv2.GaussianBlur(bg_median, (kx, ky), 0)
-
-    # --- 5) Save to disk (making dirs if needed) ---
+    # 4) Save to disk (making dirs if needed) ---
     out_dir = os.path.dirname(output_path)
     if out_dir and not os.path.exists(out_dir):
         os.makedirs(out_dir, exist_ok=True)
@@ -102,7 +104,7 @@ def estimate_background_median(
     if not success:
         raise IOError(f"Failed to write background image to {output_path}")
 
-    # --- 6) Return result ---
+    # 6) Return result
     if return_image:
         return output_path, bg_median
     return output_path

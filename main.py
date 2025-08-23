@@ -1,22 +1,31 @@
+# Detection 
 import cv2
+
+# Process Modules
 import numpy as np
+
+# Built-in modules
 import csv
 import math
-import Pre_process as prp
 
-# 1) Core constants
+# Personal Modules
+import Pre_process as prp 
+
+# 1) Core global constants
 VIDEO_PATH       = "Test Imaging/Video11.mp4"
 BG_PATH          = "Test Imaging/table_background.png"
-FRAME_LIMIT_AVG  = 50
-CLEAN_SECONDS    = 2.0
-BLUR_KERNEL      = (7, 7)
 
+FRAME_LIMIT_AVG  = 60 # maximum amount of frames needed to average the background 
+CLEAN_SECONDS    = 2.0 # first part of the video where script averages the background
+BLUR_KERNEL      = (5, 5) # diemnsion of the kernel used in the Gaussian Blur   
+
+# HSV ranges for the offset mark
 GREEN_LOWER = np.array([40, 80, 80])
 GREEN_UPPER = np.array([90, 255, 255])
 BLUE_LOWER  = np.array([100, 100, 100])
 BLUE_UPPER  = np.array([130, 255, 255])
 
-# real disk diameter in mm (adjust to your actual size)
+# Real disk diameter in mm 
 DISK_DIAMETER_MM = 80.0
 
 # Stable color -> ID mapping (your requirement)
@@ -103,7 +112,8 @@ class IDAssigner:
 
 
 def main(debug: bool = False):
-    # 1) Estimate (or reload) background
+    
+    # 1) Average background from a clean interval at the beggining of the filming
     bg_path = prp.estimate_background_median(
         video_path         = VIDEO_PATH,
         clean_seconds      = CLEAN_SECONDS,
@@ -112,7 +122,10 @@ def main(debug: bool = False):
         output_path        = BG_PATH,
         return_image       = False
     )
+    
     background = cv2.imread(bg_path)
+    
+    # Check if there was no error with the averaging 
     if background is None:
         raise RuntimeError(f"Failed to load background at {bg_path}")
 
