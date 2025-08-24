@@ -151,7 +151,7 @@ def main(debug: bool = False):
         # 3) Segment disks
         disks = prp.segment_disks(
             frame, background,
-            thresh_val=50, use_otsu=False,
+            thresh_val=50,
             morph_kernel=(5,5),
             min_radius=10, max_radius=200
         )

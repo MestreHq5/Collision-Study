@@ -112,22 +112,20 @@ def estimate_background_median(
 
 def segment_disks(
     frame: np.ndarray,
-    background: np.ndarray,
+    background: np.ndarray, # Computed earlier on estimate_background_median
     thresh_val: Union[int, float] = 50,
-    use_otsu: bool = False,
     morph_kernel: Tuple[int, int] = (5, 5),
     min_radius: float = 45,
-    max_radius: float = 65
+    max_radius: float = 65,
 ) -> List[Dict]:
     """
     Subtracts `background` from `frame`, thresholds the difference, cleans it up,
-    finds disk‐shaped contours, and returns their centers & radii in pixels.
+    finds disk‐shaped contours, and returns their centers & radius in pixels.
 
     Args:
-      frame:         Current BGR video frame (HxWx3).
+      frame:         Current BGR video frame (H, W, 3).
       background:    Same‐shape BGR median background image.
       thresh_val:    Fixed threshold level (0–255). Ignored if use_otsu=True.
-      use_otsu:      If True, use Otsu’s method to pick thresh_val automatically.
       morph_kernel:  Kernel size for morphological open to remove noise.
       min_radius:    Discard detections smaller than this radius [px].
       max_radius:    Discard detections larger than this radius [px].
@@ -142,19 +140,11 @@ def segment_disks(
     diff = cv2.absdiff(frame, background)
     gray = cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY)
 
-    # 2) Threshold
-    if use_otsu:
-        _, bin_mask = cv2.threshold(
-            gray, 0, 255,
-            cv2.THRESH_BINARY + cv2.THRESH_OTSU
-        )
-    else:
-        _, bin_mask = cv2.threshold(
-            gray, thresh_val, 255,
-            cv2.THRESH_BINARY
-        )
+    # 2) Threshold using a manual 'optimal' value    
+    _, bin_mask = cv2.threshold(gray, thresh_val, 255, cv2.THRESH_BINARY)
 
-    # 3) Morphological open then close to clean and fill any holes
+
+    # 3) Morphological open then close to clean and fill any holes or clear any specles
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, morph_kernel)
     clean = cv2.morphologyEx(bin_mask, cv2.MORPH_OPEN, kernel)
     clean = cv2.morphologyEx(clean, cv2.MORPH_CLOSE, kernel)
@@ -164,20 +154,21 @@ def segment_disks(
         clean, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
     )
 
+    # 5) Filter contours based on radious and circularity 
     disks = []
     for cnt in contours:
-        # 4a) Minimum enclosing circle
+        # First test:  Minimum enclosing circle
         (x, y), r = cv2.minEnclosingCircle(cnt)
         if not (min_radius <= r <= max_radius):
             continue
 
-        # 4b) Optionally filter by circularity
+        # Second test: Filter by circularity
         area = cv2.contourArea(cnt)
         perimeter = cv2.arcLength(cnt, True)
         if perimeter <= 0:
             continue
         circularity = 4 * np.pi * area / (perimeter * perimeter)
-        if circularity < 0.7:  # tweak threshold if needed
+        if circularity < 0.7:  # Optimize if needed (0.7 seems fine from the tests made)
             continue
 
         disks.append({
