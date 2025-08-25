@@ -167,13 +167,12 @@ def main(debug: bool = False):
         frame_dets = []
         for d in disks:
             cx_px, cy_px = d["center"]
-            r_px         = float(d["radius"])
+            r_px = float(d["radius"])
 
             # Try green
             mark = prp.detect_marker_center(
                 frame, (cx_px, cy_px), r_px,
-                GREEN_LOWER, GREEN_UPPER,
-                debug=debug
+                GREEN_LOWER, GREEN_UPPER
             )
             marker_color = None
             if mark is not None:
@@ -182,8 +181,7 @@ def main(debug: bool = False):
                 # Try blue
                 mark = prp.detect_marker_center(
                     frame, (cx_px, cy_px), r_px,
-                    BLUE_LOWER, BLUE_UPPER,
-                    debug=debug
+                    BLUE_LOWER, BLUE_UPPER
                 )
                 if mark is not None:
                     marker_color = "blue"

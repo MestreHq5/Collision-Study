@@ -110,7 +110,7 @@ def estimate_background_median(
     return output_path
 
 
-def segment_disks(
+def segment_disks(  
     frame: np.ndarray,
     background: np.ndarray, # Computed earlier on estimate_background_median
     thresh_val: Union[int, float] = 50,
@@ -186,7 +186,6 @@ def detect_marker_center(
     disk_radius: float,
     hsv_lower: np.ndarray,
     hsv_upper: np.ndarray,
-    debug: bool = False,
     pad_factor: float = 2,
     min_area: float = 10
 ) -> Optional[Tuple[int, int]]:
@@ -208,55 +207,58 @@ def detect_marker_center(
     Returns:
       (x,y) pixel coordinates of the mark's centroid in full frame, or None.
     """
-    x_c, y_c = map(int, disk_center)
-    pad = int(disk_radius * pad_factor)
-    h, w = frame.shape[:2]
-    x1, y1 = max(x_c - pad, 0), max(y_c - pad, 0)
-    x2, y2 = min(x_c + pad, w), min(y_c + pad, h)
-    roi = frame[y1:y2, x1:x2]
+    
+    # 1) ROI extraction 
+    x_c, y_c = map(int, disk_center) # convert pixel values to integers
+    pad = int(disk_radius * pad_factor) # compute a reasonable extent for the ROI (padding)
+    h, w = frame.shape[:2] # get frame dimensions
+    
+    
+    x1, y1 = max(x_c - pad, 0), max(y_c - pad, 0) # Clamped to the (0,0) --> position of the upper-left corner
+    x2, y2 = min(x_c + pad, w), min(y_c + pad, h) # Clamped to the (w,h) --> position of the lower-right corner (image restriction)
+    
+    roi = frame[y1:y2, x1:x2] # ROI in-frame image
 
-    # Pre‑smooth the ROI to mitigate motion blur, then convert to HSV
+    # 2) Pre‑smooth the ROI to mitigate motion blur, then convert to HSV
     roi_blur = cv2.GaussianBlur(roi, (5, 5), 0)
-    hsv      = cv2.cvtColor(roi_blur, cv2.COLOR_BGR2HSV)
+    hsv = cv2.cvtColor(roi_blur, cv2.COLOR_BGR2HSV)
     h, s, v = cv2.split(hsv)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+      
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8)) # Perform CLAHE contrast enhancement
     v = clahe.apply(v)
-    hsv = cv2.merge((h, s, v))
-    raw_mask = cv2.inRange(hsv, hsv_lower, hsv_upper)
-    if debug:
-        cv2.imshow("ROI", roi)
-        cv2.imshow("Raw Mask", raw_mask)
+    hsv = cv2.merge((h, s, v)) # merge the new CLAHE enhanced V chanel
+    raw_mask = cv2.inRange(hsv, hsv_lower, hsv_upper) 
 
-    # Restrict to inside the disk and then clean up mask
+    # 3) Restrict to inside the disk
     center_x = x_c - x1
     center_y = y_c - y1
     mask_disk = np.zeros_like(raw_mask)
     cv2.circle(mask_disk, (center_x, center_y), int(disk_radius), 255, -1)
     raw_mask = cv2.bitwise_and(raw_mask, mask_disk)
+    
+    # 4) Blur and Morphological Cleanup
     mask = cv2.medianBlur(raw_mask, 5)
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7,7))
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN,  kernel, iterations=1)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=3)
-    if debug:
-        cv2.imshow("Clean Mask", mask)
-        cv2.waitKey(1)
 
-    # Find contours
+
+    # 5) Find Contours --> as seen already on segment_disks()
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not contours:
-        return None
+        return None 
 
-    # Pick the largest contour and check area
-    c = max(contours, key=cv2.contourArea)
-    area = cv2.contourArea(c)
+    # 6) Pick the largest contour and check area
+    marker = max(contours, key=cv2.contourArea)
+    area = cv2.contourArea(marker)
     if area < min_area:
         return None
 
-    M = cv2.moments(c)
+    M = cv2.moments(marker) # Zeroth-order and first-order moments
     if M["m00"] == 0:
         return None
 
-    # Compute centroid and map back to full frame coords
+    # 7 Map centroid positions from ROI ---> full frame
     cx = int(M["m10"] / M["m00"]) + x1
     cy = int(M["m01"] / M["m00"]) + y1
     return (cx, cy)
