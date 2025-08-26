@@ -1,2 +1,4 @@
 Diameter 80mm
 Height 5.5mm
+
+Possible Elipse Morphology on segment_disks

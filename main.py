@@ -111,7 +111,11 @@ class IDAssigner:
         return [(pid, assigned[pid]) for pid in sorted(assigned.keys())]
 
 
-def main(debug: bool = False):
+def info(info_type, message):
+    print(f"[{info_type}] {message}")
+
+
+def main():
     
     # 1) Average background from a clean interval at the beggining of the filming
     bg_path = prp.estimate_background_median(
@@ -122,33 +126,37 @@ def main(debug: bool = False):
         output_path        = BG_PATH,
         return_image       = False
     )
-    
     background = cv2.imread(bg_path)
-    
-    # Check if there was no error with the averaging 
-    if background is None:
-        raise RuntimeError(f"Failed to load background at {bg_path}")
 
+    if background is None:
+        raise RuntimeError(f"Failed to load background at {bg_path}") # Error checking --> fatal program will end
+
+    info("Done", "Background Averaged")
+    
     # 2) Open video
     cap = cv2.VideoCapture(VIDEO_PATH)
     if not cap.isOpened():
-        raise IOError(f"Cannot open video {VIDEO_PATH}")
+        raise IOError(f"Cannot open video {VIDEO_PATH}")  # Error checking --> fatal program will end
 
+    # Gets FPS (crucial for velocities, linear and angular)
     fps = cap.get(cv2.CAP_PROP_FPS)
-    dt  = 1.0 / fps if fps > 0 else 1/30  # currently unused, but kept for future kinematics
+    info("Info", f"FPS: {fps:.2f}")
+    dt  = 1.0 / fps if fps > 0 else 1/30  # Time elapsed per frame
+    info("Info", f"Per frame time: {dt:.4f}s")
 
+    # Variables, list of arrays for detections (each indice has a list with values of possible disk detections)
     scale_mm_per_px = None
     all_detections = []  # each entry: [frame, disk_id, cx_mm, cy_mm, mx_mm, my_mm, r_px]
-
     frame_idx = 0
     assigner = IDAssigner(COLOR_ID_MAP)
 
+    # 3) Main loop --> through each frame
     while True:
         ret, frame = cap.read()
         if not ret:
             break
 
-        # 3) Segment disks
+        # 4) Segment disks
         disks = prp.segment_disks(
             frame, background,
             thresh_val=50,
@@ -156,37 +164,36 @@ def main(debug: bool = False):
             min_radius=10, max_radius=200
         )
 
-        # 4) Compute scale on first detection (use first disk)
+        # 5) Compute scale on first detection (use first disk)
         if scale_mm_per_px is None and disks:
             first_rpx = float(disks[0]["radius"])
             if first_rpx > 0:
                 scale_mm_per_px = DISK_DIAMETER_MM / (2.0 * first_rpx)
-                print(f"[Info] Computed scale: {scale_mm_per_px:.3f} mm/px")
+                info("Info", f"Computed scale: {scale_mm_per_px:.3f} mm/px")
 
-        # Build per-disk detections with marker color
+
+        # 6) Build per-disk detections with marker color
         frame_dets = []
         for d in disks:
             cx_px, cy_px = d["center"]
             r_px = float(d["radius"])
 
-            # Try green
-            mark = prp.detect_marker_center(
-                frame, (cx_px, cy_px), r_px,
-                GREEN_LOWER, GREEN_UPPER
-            )
+            # Try to find the green disk
+            mark = prp.detect_marker_center(frame, (cx_px, cy_px), r_px, GREEN_LOWER, GREEN_UPPER)
             marker_color = None
+            
             if mark is not None:
                 marker_color = "green"
+            
             else:
-                # Try blue
-                mark = prp.detect_marker_center(
-                    frame, (cx_px, cy_px), r_px,
-                    BLUE_LOWER, BLUE_UPPER
-                )
+                # Try blue if green not found
+                mark = prp.detect_marker_center(frame, (cx_px, cy_px), r_px, BLUE_LOWER, BLUE_UPPER)
+                
                 if mark is not None:
                     marker_color = "blue"
 
-            # Drawing (disk & marker)
+            
+            # 7) Drawing (disk & marker) on the original video
             cv2.circle(frame, (int(cx_px), int(cy_px)), int(r_px), (0, 255, 0), 2)
             cv2.circle(frame, (int(cx_px), int(cy_px)), 4, (0, 0, 255), -1)
             if mark is not None:
@@ -195,6 +202,7 @@ def main(debug: bool = False):
             else:
                 mx_px = my_px = None
 
+            # 8 Append this disk detection in a conventional way --> further usefull for CSV or Excel Export
             frame_dets.append({
                 "center": (float(cx_px), float(cy_px)),
                 "radius": r_px,
@@ -202,15 +210,14 @@ def main(debug: bool = False):
                 "marker_color": marker_color
             })
 
-        # Assign stable IDs (0/1) for this frame
+        # Assign stable IDs (0/1) for this frame --> usefull if a marker not found (continuity)
         assigned = assigner.assign(frame_dets)
 
-        # Save to CSV (mm units for centers & marker)
+        # 9) Save to CSV (mm units for centers & marker)
         for puck_id, det in assigned:
             cx_px, cy_px = det["center"]
             r_px = det["radius"]
             if scale_mm_per_px is None:
-                # If scale is unknown (unlikely once we have a disk), skip writing this row
                 continue
             cx_mm = cx_px * scale_mm_per_px
             cy_mm = cy_px * scale_mm_per_px
@@ -226,11 +233,11 @@ def main(debug: bool = False):
                 frame_idx, puck_id,
                 cx_mm, cy_mm,
                 mx_mm, my_mm,
-                r_px
-                # If you want the color in the CSV, also append: det["marker_color"]
+                r_px,
+                det["marker_color"]
             ])
 
-        # 6) Show and optionally quit
+        # 10) Show and optionally quit
         cv2.imshow("Tracking", frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
@@ -252,9 +259,10 @@ def main(debug: bool = False):
         ])
         writer.writerows(all_detections)
 
-    print(f"[Done] Saved {len(all_detections)} detections to disk_tracks.csv")
+    info("Done", f"Saved {len(all_detections)} detections to disk_tracks.csv")
 
 
+
+# Main function call
 if __name__ == "__main__":
-    # set debug=True while tuning HSV/morphology, then False for batch runs
-    main(debug=False)
+    main()
