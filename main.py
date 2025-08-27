@@ -254,8 +254,7 @@ def main():
             "frame", "disk_id",
             "cx_mm", "cy_mm",
             "mx_mm", "my_mm",
-            "r_px"
-            # If you added color above, add header: "marker_color"
+            "r_px", "marker_color"
         ])
         writer.writerows(all_detections)
 
