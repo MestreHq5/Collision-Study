@@ -7,17 +7,20 @@ import numpy as np
 # Built-in modules
 import csv
 import math
+import os
+from pathlib import Path
 
 # Personal Modules
 import Pre_process as prp 
 
 # 1) Core global constants
 VIDEO_PATH       = "Test Imaging/Video11.mp4"
-BG_PATH          = "Test Imaging/table_background.png"
+BG_PATH          = ""
 
 FRAME_LIMIT_AVG  = 60 # maximum amount of frames needed to average the background 
-CLEAN_SECONDS    = 2.0 # first part of the video where script averages the background
-BLUR_KERNEL      = (5, 5) # diemnsion of the kernel used in the Gaussian Blur   
+CLEAN_SECONDS = 2.0 # first part of the video where script averages the background
+BLUR_KERNEL  = (5, 5) # diemnsion of the kernel used in the Gaussian Blur  
+DEFAULT_MASS = 0.0118 # default mass  
 
 # HSV ranges for the offset mark
 GREEN_LOWER = np.array([40, 80, 80])
@@ -115,9 +118,15 @@ def info(info_type, message):
     print(f"[{info_type}] {message}")
 
 
-def main():
+def main(group_number, test_name = "Collision_Study", mass_green = DEFAULT_MASS, mass_blue = DEFAULT_MASS, radius_green = DISK_DIAMETER_MM/2, radius_blue = DISK_DIAMETER_MM/2):
     
     # 1) Average background from a clean interval at the beggining of the filming
+    global_path = file_manager(test_name, group_number)
+    BG_PATH = global_path / "background.png"
+
+
+    
+    
     bg_path = prp.estimate_background_median(
         video_path         = VIDEO_PATH,
         clean_seconds      = CLEAN_SECONDS,
@@ -262,6 +271,6 @@ def main():
 
 
 
-# Main function call
+# Main function call ---> delete when importing to the gui or flow manager
 if __name__ == "__main__":
-    main()
+    main(101)
