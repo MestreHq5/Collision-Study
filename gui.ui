@@ -54,7 +54,7 @@
        <string notr="true">background-color:white;</string>
       </property>
       <property name="currentIndex">
-       <number>2</number>
+       <number>3</number>
       </property>
       <widget class="QWidget" name="Page_1">
        <property name="sizePolicy">
@@ -210,10 +210,10 @@ QPushButton:disabled {
             <string notr="true">background-color: white;
 color: black; 
 font-weight: bold;
-padding-left: 10px;</string>
+padding-left: 20px;</string>
            </property>
            <property name="text">
-            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Raio Disco Verde (mm):&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:20pt;&quot;&gt;Raio Disco Verde (mm):&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
            </property>
           </widget>
          </item>
@@ -228,7 +228,8 @@ padding-left: 10px;</string>
            <property name="styleSheet">
             <string notr="true">background-color: white;
 color: black; 
-border: 3px solid #009de0;</string>
+border: 3px solid #009de0;
+font-size: 20px;</string>
            </property>
            <property name="placeholderText">
             <string>---&gt; Ex: 01</string>
@@ -247,10 +248,10 @@ border: 3px solid #009de0;</string>
             <string notr="true">background-color: white;
 color: black; 
 font-weight: bold;
-padding-left: 10px;</string>
+padding-left: 20px;</string>
            </property>
            <property name="text">
-            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Massa Disco Azul (g): &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:20pt;&quot;&gt;Massa Disco Azul (g): &lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
            </property>
           </widget>
          </item>
@@ -265,10 +266,11 @@ padding-left: 10px;</string>
            <property name="styleSheet">
             <string notr="true">background-color: white;
 color: black; 
-border: 3px solid #009de0;</string>
+border: 3px solid #009de0;
+font-size: 20px;</string>
            </property>
            <property name="placeholderText">
-            <string>---&gt; Default: 11.8g</string>
+            <string>---&gt; Ex: 11.8</string>
            </property>
           </widget>
          </item>
@@ -284,10 +286,10 @@ border: 3px solid #009de0;</string>
             <string notr="true">background-color: white;
 color: black; 
 font-weight: bold;
-padding-left: 10px;</string>
+padding-left: 20px;</string>
            </property>
            <property name="text">
-            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Número Grupo: &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:20pt;&quot;&gt;Número Grupo: &lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
            </property>
           </widget>
          </item>
@@ -303,10 +305,10 @@ padding-left: 10px;</string>
             <string notr="true">background-color: white;
 color: black; 
 font-weight: bold;
-padding-left: 10px;</string>
+padding-left: 20px;</string>
            </property>
            <property name="text">
-            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Massa Disco Verde (g): &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:20pt;&quot;&gt;Massa Disco Verde (g): &lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
            </property>
           </widget>
          </item>
@@ -322,10 +324,10 @@ padding-left: 10px;</string>
             <string notr="true">background-color: white;
 color: black; 
 font-weight: bold;
-padding-left: 10px;</string>
+padding-left: 20px;</string>
            </property>
            <property name="text">
-            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Raio Disco Azul (mm):&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:20pt;&quot;&gt;Raio Disco Azul (mm):&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
            </property>
           </widget>
          </item>
@@ -340,10 +342,11 @@ padding-left: 10px;</string>
            <property name="styleSheet">
             <string notr="true">background-color: white;
 color: black; 
-border: 3px solid #009de0;</string>
+border: 3px solid #009de0;
+font-size: 20px;</string>
            </property>
            <property name="placeholderText">
-            <string>---&gt; Default: 11.8g</string>
+            <string>---&gt; Ex: 11.8</string>
            </property>
           </widget>
          </item>
@@ -358,10 +361,11 @@ border: 3px solid #009de0;</string>
            <property name="styleSheet">
             <string notr="true">background-color: white;
 color: black; 
-border: 3px solid #009de0;</string>
+border: 3px solid #009de0;
+font-size: 20px;</string>
            </property>
            <property name="placeholderText">
-            <string>---&gt; Default: 40mm</string>
+            <string>---&gt; Ex: 40</string>
            </property>
           </widget>
          </item>
@@ -376,10 +380,11 @@ border: 3px solid #009de0;</string>
            <property name="styleSheet">
             <string notr="true">background-color: white;
 color: black; 
-border: 3px solid #009de0;</string>
+border: 3px solid #009de0;
+font-size: 20px;</string>
            </property>
            <property name="placeholderText">
-            <string>--&gt; Default: 40mm</string>
+            <string>--&gt; Ex: 40</string>
            </property>
           </widget>
          </item>
@@ -414,9 +419,169 @@ QPushButton:disabled {
            </property>
           </widget>
          </item>
+         <item row="5" column="0">
+          <widget class="QLabel" name="warning">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="styleSheet">
+            <string notr="true">background-color: white;
+color: red; 
+font-weight: bold;
+padding-left: 20px;
+font-size: 20px;</string>
+           </property>
+           <property name="text">
+            <string/>
+           </property>
+          </widget>
+         </item>
         </layout>
        </widget>
       </widget>
+      <widget class="QWidget" name="Page_4">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+       <widget class="QWidget" name="verticalLayoutWidget">
+        <property name="geometry">
+         <rect>
+          <x>9</x>
+          <y>9</y>
+          <width>721</width>
+          <height>521</height>
+         </rect>
+        </property>
+        <layout class="QVBoxLayout" name="verticalLayout_5">
+         <item>
+          <widget class="QLabel" name="videoLabel">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="styleSheet">
+            <string notr="true">background-color: white;</string>
+           </property>
+           <property name="text">
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout">
+           <property name="bottomMargin">
+            <number>10</number>
+           </property>
+           <item>
+            <widget class="QPushButton" name="btnRecord">
+             <property name="styleSheet">
+              <string notr="true">QPushButton {
+    color: black;
+    background-color: #3dcc6a;
+	border-radius: 10px;
+    padding: 6px 12px;
+	font-weight: bold;
+}
+
+QPushButton:hover {
+    color: black;
+    background-color: #2e9950;  
+}
+
+QPushButton:pressed {
+    color: black;
+    background-color: #268043;  
+}
+
+QPushButton:disabled {
+    color: #aaaaaa;
+    background-color: #cccccc;
+}</string>
+             </property>
+             <property name="text">
+              <string>START RECORDING</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="btnStop">
+             <property name="styleSheet">
+              <string notr="true">QPushButton {
+    color: black;
+    background-color: #cc0c0c;
+	border-radius: 10px;
+    padding: 6px 12px;
+	font-weight: bold;
+}
+
+QPushButton:hover {
+    color: black;
+    background-color: #b30b0b;  
+}
+
+QPushButton:pressed {
+    color: black;
+    background-color: #800808;  
+}
+
+QPushButton:disabled {
+    color: #aaaaaa;
+    background-color: #cccccc;
+}</string>
+             </property>
+             <property name="text">
+              <string>STOP RECORDING</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="btnNext4">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
+             <property name="styleSheet">
+              <string notr="true">QPushButton {
+    color: white;
+    background-color: #009de0;
+	border-radius: 10px;
+    padding: 6px 12px;
+	font-weight: bold;
+}
+
+QPushButton:hover {
+    color: white;
+    background-color: #007bb5;  
+}
+
+QPushButton:pressed {
+    color: white;
+    background-color: #005f87;  
+}
+
+QPushButton:disabled {
+    color: #aaaaaa;
+    background-color: #cccccc;
+}</string>
+             </property>
+             <property name="text">
+              <string>Seguinte</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+        </layout>
+       </widget>
+      </widget>
+      <widget class="QWidget" name="Page_5"/>
      </widget>
     </item>
    </layout>

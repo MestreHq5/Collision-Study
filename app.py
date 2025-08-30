@@ -2,12 +2,12 @@
 
 from PySide6.QtWidgets import QApplication, QMainWindow, QStackedWidget, QPushButton, QLabel, QLineEdit
 from PySide6.QtUiTools import QUiLoader
-from PySide6.QtCore import QFile, QObject, Signal, Slot
-import os
+from PySide6.QtCore import QFile
 
 
 # Personal Imports for wiring navigation
 import helper as hp
+from webcam import WebcamSimple
 
 
 class Controller(QMainWindow):
@@ -20,11 +20,11 @@ class Controller(QMainWindow):
         self.ui = loader.load(f, self); f.close()
         self.setCentralWidget(self.ui)
 
-
         # Identify Widgets used in the Qt Designer ---> Done by page so it's easier to work
         
         # Global
         self.stack: QStackedWidget = self.ui.findChild(QStackedWidget, "stack")
+        self.cam = None
         
         # Page 1
         self.title1: QLabel = self.ui.findChild(QLabel, "title1")
@@ -48,21 +48,31 @@ class Controller(QMainWindow):
         self.blue_rad_val: QLineEdit = self.ui.findChild(QLineEdit, "disk_r_b_val")
         
         self.btnValidate: QPushButton = self.ui.findChild(QPushButton, "validate")
+        self.warning_Label: QLabel = self.ui.findChild(QLabel, "warning")
         
-        
-        # Inputs --> Page 3 
-        group = self.group.text()
-        group_val = self.group
+        # Page 4
+        self.videoLabel: QLabel = self.ui.findChild(QLabel, "videoLabel")
+        self.btnRecord: QPushButton = self.ui.findChild(QPushButton, "btnRecord")
+        self.btnStop: QPushButton = self.ui.findChild(QPushButton, "btnStop")
+        self.btnNext4: QPushButton = self.ui.findChild(QPushButton, "btnNext4")
         
         
         # Connect navigation ---> Done by page so it's easier to work
         self.btnStart.clicked.connect(lambda: self.stack.setCurrentIndex(1))
         self.btnNext2.clicked.connect(lambda: self.stack.setCurrentIndex(2))
         
-        self.btnValidate.clicked.connect(lambda: hp.validate_input())
-   
+        self.btnValidate.clicked.connect(lambda: hp.validator(self))
+
+    
+        self.btnRecord.clicked.connect(lambda: hp.on_record(self))
+        self.btnStop.clicked.connect(lambda: hp.on_stop(self))
+        
+        self.btnNext4.clicked.connect(lambda: self.stack.setCurrentIndex(4))
+        
+        
         # Start at page 0
         self.stack.setCurrentIndex(0)
+    
 
 
 
