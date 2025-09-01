@@ -54,7 +54,7 @@
        <string notr="true">background-color:white;</string>
       </property>
       <property name="currentIndex">
-       <number>3</number>
+       <number>4</number>
       </property>
       <widget class="QWidget" name="Page_1">
        <property name="sizePolicy">
@@ -173,7 +173,7 @@ QPushButton:disabled {
 }</string>
             </property>
             <property name="text">
-             <string>Seguinte</string>
+             <string>SEGUINTE</string>
             </property>
            </widget>
           </item>
@@ -415,7 +415,7 @@ QPushButton:disabled {
 }</string>
            </property>
            <property name="text">
-            <string>Validar</string>
+            <string>VALIDAR</string>
            </property>
           </widget>
          </item>
@@ -572,7 +572,7 @@ QPushButton:disabled {
 }</string>
              </property>
              <property name="text">
-              <string>Seguinte</string>
+              <string>SEGUINTE</string>
              </property>
             </widget>
            </item>
@@ -581,7 +581,105 @@ QPushButton:disabled {
         </layout>
        </widget>
       </widget>
-      <widget class="QWidget" name="Page_5"/>
+      <widget class="QWidget" name="Page_5">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+       <widget class="QWidget" name="verticalLayoutWidget_2">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>9</y>
+          <width>721</width>
+          <height>521</height>
+         </rect>
+        </property>
+        <layout class="QVBoxLayout" name="verticalLayout_6">
+         <item>
+          <widget class="QLabel" name="trajectoriesLabel">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>TextLabel</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_2">
+           <item>
+            <widget class="QPushButton" name="btnRedo">
+             <property name="styleSheet">
+              <string notr="true">QPushButton {
+    color: white;
+    background-color: #009de0;
+	border-radius: 10px;
+    padding: 6px 12px;
+	font-weight: bold;
+}
+
+QPushButton:hover {
+    color: white;
+    background-color: #007bb5;  
+}
+
+QPushButton:pressed {
+    color: white;
+    background-color: #005f87;  
+}
+
+QPushButton:disabled {
+    color: #aaaaaa;
+    background-color: #cccccc;
+}</string>
+             </property>
+             <property name="text">
+              <string>REPETIR</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="btnNext">
+             <property name="styleSheet">
+              <string notr="true">QPushButton {
+    color: white;
+    background-color: #009de0;
+	border-radius: 10px;
+    padding: 6px 12px;
+	font-weight: bold;
+}
+
+QPushButton:hover {
+    color: white;
+    background-color: #007bb5;  
+}
+
+QPushButton:pressed {
+    color: white;
+    background-color: #005f87;  
+}
+
+QPushButton:disabled {
+    color: #aaaaaa;
+    background-color: #cccccc;
+}</string>
+             </property>
+             <property name="text">
+              <string>ACEITAR</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+        </layout>
+       </widget>
+      </widget>
      </widget>
     </item>
    </layout>

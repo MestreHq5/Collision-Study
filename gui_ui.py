@@ -415,6 +415,80 @@ class Ui_MainWindow(object):
         self.stack.addWidget(self.Page_4)
         self.Page_5 = QWidget()
         self.Page_5.setObjectName(u"Page_5")
+        sizePolicy.setHeightForWidth(self.Page_5.sizePolicy().hasHeightForWidth())
+        self.Page_5.setSizePolicy(sizePolicy)
+        self.verticalLayoutWidget_2 = QWidget(self.Page_5)
+        self.verticalLayoutWidget_2.setObjectName(u"verticalLayoutWidget_2")
+        self.verticalLayoutWidget_2.setGeometry(QRect(10, 9, 721, 521))
+        self.verticalLayout_6 = QVBoxLayout(self.verticalLayoutWidget_2)
+        self.verticalLayout_6.setObjectName(u"verticalLayout_6")
+        self.verticalLayout_6.setContentsMargins(0, 0, 0, 0)
+        self.trajectoriesLabel = QLabel(self.verticalLayoutWidget_2)
+        self.trajectoriesLabel.setObjectName(u"trajectoriesLabel")
+        sizePolicy.setHeightForWidth(self.trajectoriesLabel.sizePolicy().hasHeightForWidth())
+        self.trajectoriesLabel.setSizePolicy(sizePolicy)
+
+        self.verticalLayout_6.addWidget(self.trajectoriesLabel)
+
+        self.horizontalLayout_2 = QHBoxLayout()
+        self.horizontalLayout_2.setObjectName(u"horizontalLayout_2")
+        self.btnRedo = QPushButton(self.verticalLayoutWidget_2)
+        self.btnRedo.setObjectName(u"btnRedo")
+        self.btnRedo.setStyleSheet(u"QPushButton {\n"
+"    color: white;\n"
+"    background-color: #009de0;\n"
+"	border-radius: 10px;\n"
+"    padding: 6px 12px;\n"
+"	font-weight: bold;\n"
+"}\n"
+"\n"
+"QPushButton:hover {\n"
+"    color: white;\n"
+"    background-color: #007bb5;  \n"
+"}\n"
+"\n"
+"QPushButton:pressed {\n"
+"    color: white;\n"
+"    background-color: #005f87;  \n"
+"}\n"
+"\n"
+"QPushButton:disabled {\n"
+"    color: #aaaaaa;\n"
+"    background-color: #cccccc;\n"
+"}")
+
+        self.horizontalLayout_2.addWidget(self.btnRedo)
+
+        self.btnNext = QPushButton(self.verticalLayoutWidget_2)
+        self.btnNext.setObjectName(u"btnNext")
+        self.btnNext.setStyleSheet(u"QPushButton {\n"
+"    color: white;\n"
+"    background-color: #009de0;\n"
+"	border-radius: 10px;\n"
+"    padding: 6px 12px;\n"
+"	font-weight: bold;\n"
+"}\n"
+"\n"
+"QPushButton:hover {\n"
+"    color: white;\n"
+"    background-color: #007bb5;  \n"
+"}\n"
+"\n"
+"QPushButton:pressed {\n"
+"    color: white;\n"
+"    background-color: #005f87;  \n"
+"}\n"
+"\n"
+"QPushButton:disabled {\n"
+"    color: #aaaaaa;\n"
+"    background-color: #cccccc;\n"
+"}")
+
+        self.horizontalLayout_2.addWidget(self.btnNext)
+
+
+        self.verticalLayout_6.addLayout(self.horizontalLayout_2)
+
         self.stack.addWidget(self.Page_5)
 
         self.verticalLayout_2.addWidget(self.stack)
@@ -423,7 +497,7 @@ class Ui_MainWindow(object):
 
         self.retranslateUi(MainWindow)
 
-        self.stack.setCurrentIndex(3)
+        self.stack.setCurrentIndex(4)
 
 
         QMetaObject.connectSlotsByName(MainWindow)
@@ -435,7 +509,7 @@ class Ui_MainWindow(object):
         self.subtitle1.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\"><span style=\" font-size:20pt; color:#000000;\">Computer Vision App with Python</span></p></body></html>", None))
         self.btnStart.setText(QCoreApplication.translate("MainWindow", u"START", None))
         self.instructions.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p><span style=\" font-size:16pt;\">Pr\u00e9-Ensaio: </span></p><p><span style=\" font-size:16pt;\">---&gt; Ler o guia;</span></p><p><span style=\" font-size:16pt;\">---&gt; Massa dos discos;</span></p><p><span style=\" font-size:16pt;\">---&gt; Raio dos discos;</span></p><p><span style=\" font-size:16pt;\"><br/></span></p><p><span style=\" font-size:16pt;\">Ensaio: </span></p><p><span style=\" font-size:16pt;\">---&gt; Deixar 2 segundos depois do in\u00edcio da grava\u00e7\u00e3o;</span></p><p><span style=\" font-size:16pt;\">---&gt; Lan\u00e7ar os discos e verificar se a colis\u00e3o ocorre;<br/>---&gt; N\u00e3o deixar que os discos voltem a entrar na \u00e1rea de grava\u00e7\u00e3o;</span></p><p><span style=\" font-size:16pt;\">---&gt; Verificar a dete\u00e7\u00e3o e repetir se necess\u00e1rio.<br/></span></p></body></html>", None))
-        self.btnNext2.setText(QCoreApplication.translate("MainWindow", u"Seguinte", None))
+        self.btnNext2.setText(QCoreApplication.translate("MainWindow", u"SEGUINTE", None))
         self.disk_r_g.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p><span style=\" font-size:20pt;\">Raio Disco Verde (mm):</span></p></body></html>", None))
         self.group_val.setPlaceholderText(QCoreApplication.translate("MainWindow", u"---> Ex: 01", None))
         self.disk_m_b.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p><span style=\" font-size:20pt;\">Massa Disco Azul (g): </span></p></body></html>", None))
@@ -446,11 +520,14 @@ class Ui_MainWindow(object):
         self.disk_m_g_val.setPlaceholderText(QCoreApplication.translate("MainWindow", u"---> Ex: 11.8", None))
         self.disk_r_b_val.setPlaceholderText(QCoreApplication.translate("MainWindow", u"---> Ex: 40", None))
         self.disk_r_g_val.setPlaceholderText(QCoreApplication.translate("MainWindow", u"--> Ex: 40", None))
-        self.validate.setText(QCoreApplication.translate("MainWindow", u"Validar", None))
+        self.validate.setText(QCoreApplication.translate("MainWindow", u"VALIDAR", None))
         self.warning.setText("")
         self.videoLabel.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p><br/></p></body></html>", None))
         self.btnRecord.setText(QCoreApplication.translate("MainWindow", u"START RECORDING", None))
         self.btnStop.setText(QCoreApplication.translate("MainWindow", u"STOP RECORDING", None))
-        self.btnNext4.setText(QCoreApplication.translate("MainWindow", u"Seguinte", None))
+        self.btnNext4.setText(QCoreApplication.translate("MainWindow", u"SEGUINTE", None))
+        self.trajectoriesLabel.setText(QCoreApplication.translate("MainWindow", u"TextLabel", None))
+        self.btnRedo.setText(QCoreApplication.translate("MainWindow", u"REPETIR", None))
+        self.btnNext.setText(QCoreApplication.translate("MainWindow", u"ACEITAR", None))
     # retranslateUi
 

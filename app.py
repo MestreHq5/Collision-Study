@@ -257,15 +257,15 @@ class CameraWorker(QThread):
 
 class MainWindow(QMainWindow):
     def __init__(self):
+        # Initialize and Load the GUI
         super().__init__()
         uic.loadUi("gui.ui", self)  
         self.resize(self.width(), self.height() + 20)
 
-
-        # Identify Widgets used in the Qt Designer ---> Done by page so it's easier to work
-
+        # --- Identify Widgets used in the Qt Designer ---> Done by page so it's easier to work ---
         # Global
         self.stack: QStackedWidget = self.findChild(QStackedWidget, "stack")
+        self.showUpdate = False
 
         # Page 1
         self.title1: QLabel = self.findChild(QLabel, "title1")
@@ -295,8 +295,14 @@ class MainWindow(QMainWindow):
         self.btnRecord: QPushButton = self.findChild(QPushButton, "btnRecord")
         self.btnStop: QPushButton = self.findChild(QPushButton, "btnStop")
         self.btnNext4: QPushButton = self.findChild(QPushButton, "btnNext4")
+        
+        # Page 5
+        self.trajectoriesLabel: QLabel = self.findChild(QLabel, "trajectoriesLabel") 
+        self.btnRedo: QPushButton = self.findChild(QPushButton, "btnRedo") 
+        self.btnNext5: QPushButton = self.findChild(QPushButton, "btnNext5")
 
-        # Connect navigation ---> Done by page so it's easier to work
+
+        # Connect navigation ---> (Safeguards against bad widget connection)
         if self.btnStart and self.stack:
             self.btnStart.clicked.connect(lambda: self.stack.setCurrentIndex(1))
         if self.btnNext2 and self.stack:
@@ -313,6 +319,19 @@ class MainWindow(QMainWindow):
         if self.btnNext4 and self.stack:
             self.btnNext4.clicked.connect(lambda: self.stack.setCurrentIndex(4))
 
+        if self.btnRecord:
+            self.btnRecord.setEnabled(False)
+        if self.btnStop:
+            self.btnStop.setEnabled(False)
+        if self.btnNext4:
+            self.btnNext4.setEnabled(False)
+            
+        if self.btnRedo and self.stack:
+            self.btnRedo.clicked.connect(lambda: self.stack.setCurrentIndex(3)) 
+            
+        if self.btnNext5 and self.stack:    
+            self.btnNext5.clicked.connect(lambda: self.stack.setCurrentIndex(5))
+        
         # Start at page 0
         if self.stack:
             self.stack.setCurrentIndex(0)
@@ -326,64 +345,64 @@ class MainWindow(QMainWindow):
         self.worker.ImageUpdate.connect(self.on_image_update)
         self.worker.ConfigReady.connect(self.on_cam_config)
         
-        if self.btnRecord:
-            self.btnRecord.setEnabled(False)
-        if self.btnStop:
-            self.btnStop.setEnabled(False)
-        if self.btnNext4:
-            self.btnNext4.setEnabled(False)
-        
-        # 1) Ensure there's a status bar (Designer one will be returned; if none, Qt creates one)
-        self._sb = self.statusBar()   # QMainWindow creates or returns the existing status bar
-
-        # 2) Connect worker info signals to handlers that update the status bar
+        # Create and Update a StatusBar
+        self._sb = self.statusBar()
         self.worker.ConfigReady.connect(self.on_cam_config)
-        self.worker.StatsUpdate.connect(self.on_cam_stats)   # if you added StatsUpdate
-
-        # Optional: keep last config text so stats can append to it nicely
+        self.worker.StatsUpdate.connect(self.on_cam_stats)
         self._last_cfg_msg = ""
 
     
     def on_cam_config(self, w, h, fps, backend):
-        self._last_cfg_msg = f"Câmera: {w}×{h} @ {fps:.1f} fps via {backend.upper()}"
-        self._sb.showMessage(self._last_cfg_msg)  # persistent until overwritten
+        # Update StatusBar Message
+        self._last_cfg_msg = f"Camera: {w}×{h} @ {fps:.1f} fps by {backend.upper()}"
+        self._sb.showMessage(self._last_cfg_msg)
+
 
     def on_cam_stats(self, fps_eff: float):
-        # show measured fps for a couple seconds without losing the base config message
-        self._sb.showMessage(f"{self._last_cfg_msg} | Efetivo: {fps_eff:.1f} fps", 2000)
+        # Effective FPS Display on StatusBar
+        self._sb.showMessage(f"{self._last_cfg_msg} | Effective: {fps_eff:.1f} fps", 2000)
+        
+        if not self.showUpdate:
+            print(f"[INFO] {self._last_cfg_msg} | Effective: {fps_eff:.1f}")
+            self.showUpdate = True
+    
     
     def on_image_update(self, qimage: QImage):
+        # Safeguard Against Bugs (bad connection on __init__)
         if not self.videoLabel:
             return
-        pix = QPixmap.fromImage(qimage).scaled(
-            self.videoLabel.size(),
+        
+        # Convert to a Qt Readable Format
+        pix = QPixmap.fromImage(qimage).scaled(self.videoLabel.size(),
             Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation,
-        )
+            Qt.TransformationMode.SmoothTransformation)
         self.videoLabel.setPixmap(pix)
 
-        # First time we actually display a frame -> enable Record
+        # Enable Record once Camera is UP
         if not self.preview_ready:
             self.preview_ready = True
             if self.btnRecord:
+                print("[INFO] Camera Started")
                 self.btnRecord.setEnabled(True)
 
+
     def stop_camera(self):
+        # Closes the CameraWorker Thread
         if hasattr(self, "worker") and self.worker.isRunning():
             self.worker.stop()
 
+
     def closeEvent(self, event):
+        # Closes Camera Related Events
         self.stop_camera()
         super().closeEvent(event)
 
 
 # Initialize the App
 def main():
+    print("[INFO] App Starting")
     app = QApplication(sys.argv)
     win = MainWindow()
     win.show()
     sys.exit(app.exec())
 
-
-if __name__ == "__main__":
-    main()

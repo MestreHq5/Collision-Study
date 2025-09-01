@@ -4,3 +4,7 @@ Height 5.5mm
 Possible Elipse Morphology on segment_disks
 
 main function --> group_number, test name, mass for every disk, radius for every disk 
+
+Questions:
+
+1. What triggers the closeEvent() function

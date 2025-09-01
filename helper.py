@@ -3,44 +3,35 @@ import os
 
 
 def file_manager(parent_folder: str, child_folder: str) -> Path:
-    """
-    On Windows: create Desktop/parent_folder and /child_folder if not exists.
-    Return the Path to the child folder.
-    """
-    # 1. Desktop path
+    # Creates a folder in Desktop and a subfolder for every trial (Ex: Students Groups)
+
     desktop = Path(os.path.expanduser("~")) / "Desktop"
 
-    # 2. Main folder
     base = desktop / parent_folder
     base.mkdir(parents=True, exist_ok=True)
 
-    # 3. Subfolder
     sub = base / str(child_folder)
     sub.mkdir(parents=True, exist_ok=True)
 
-    # 4. Return full path
     return sub
 
 
-# ---------------------------
-# Camera / Recording Controls
-# ---------------------------
-
-# hp.camera_open(...)
 def camera_open(controller):
+    # Starts the CameraWorker Thread
     if hasattr(controller, "worker") and not controller.worker.isRunning():
+        print("[START] Camera Thread")
         controller.worker.start()
 
-    # arriving to camera page: lock controls until preview is real
+    # Locking Controls untill LiveStream
     controller.preview_ready = False
     controller.btnRecord.setEnabled(False)
     controller.btnStop.setEnabled(False)
     controller.btnNext4.setEnabled(False)
     return
 
-# hp.on_record(...)
+
 def on_record(controller):
-    # hard guard in case someone re-enables the button accidentally
+    # Prevent Record while another Record is Running
     if not getattr(controller, "preview_ready", False):
         return  # no stream yet, ignore
 
@@ -52,12 +43,8 @@ def on_record(controller):
     return
 
 
-
 def on_stop(controller):
-    """
-    Stop recording; keep preview running.
-    Re-enable Record and Next; disable Stop.
-    """
+    # Stop Record if UP
     if hasattr(controller, "worker") and controller.worker.isRunning():
         controller.worker.stop_record()
 
@@ -65,13 +52,10 @@ def on_stop(controller):
     controller.btnRecord.setEnabled(True)
     controller.btnStop.setEnabled(False)
     controller.btnNext4.setEnabled(True)
+    print("[INFO] Camera Stopped")
 
     return
 
-
-# ---------------------------
-# Validation & Helpers
-# ---------------------------
 
 def validate_input(group, massB, massG, radiusB, radiusG):
     # Check the Input Values
@@ -80,31 +64,31 @@ def validate_input(group, massB, massG, radiusB, radiusG):
     if group is not None and group != "":
         group = str(group)
     else:
-        message = "GRUPO INVÁLIDO"
+        message = "INVALID GROUP"
         return message
 
     try:
         massB = float(massB)
     except ValueError:
-        message = "MASSA DO DISCO AZUL INVÁLIDA"
+        message = "INVALID BLUE DISK MASS"
         return message
 
     try:
         massG = float(massG)
     except ValueError:
-        message = "MASSA DO DISCO VERDE INVÁLIDA"
+        message = "INVALID GREEN DISK MASS"
         return message
 
     try:
         radiusB = float(radiusB)
     except ValueError:
-        message = "RAIO DO DISCO AZUL INVÁLIDO"
+        message = "INVALID BLUE DISK RADIUS"
         return message
 
     try:
         radiusG = float(radiusG)
     except ValueError:
-        message = "RAIO DO DISCO VERDE INVÁLIDO"
+        message = "INVALID GREEN DISK RADIUS"
         return message
 
     return message
@@ -128,9 +112,7 @@ def validator(self):
     green_rad_val = self.green_rad_val.text()
     blue_rad_val = self.blue_rad_val.text()
 
-    message = validate_input(
-        group_val, blue_mass_val, green_mass_val, blue_rad_val, green_rad_val
-    )
+    message = validate_input(group_val, blue_mass_val, green_mass_val, blue_rad_val, green_rad_val)
 
     if message == "":
         # Move to camera page (index 3)
@@ -138,10 +120,12 @@ def validator(self):
 
         # Prepare save path and start preview
         self.path = file_manager("Collision_Study", group_val)
+        print("[INFO] Valid Inputs")
         camera_open(self)
 
     else:
         self.warning_Label.setText(message)
+        print(f"[WARN]: {message}")
         eraser(self)
 
     return
