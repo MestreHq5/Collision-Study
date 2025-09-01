@@ -1,5 +1,4 @@
 # Default Imports from PySide6 and the Qt framework
-
 import sys
 import time
 from PyQt6 import uic
@@ -9,7 +8,7 @@ from PyQt6.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QSta
 
 # Block Warnings from MSMF
 import os
-os.environ["OPENCV_LOG_LEVEL"] = "SILENT"  # or "ERROR"
+os.environ["OPENCV_LOG_LEVEL"] = "SILENT" 
 
 import cv2
 try:
@@ -25,73 +24,74 @@ from pathlib import Path
 
 class CameraWorker(QThread):
     ImageUpdate = pyqtSignal(QImage)
-    ConfigReady = pyqtSignal(int, int, float, str)  # width, height, fps, backend_name
+    ConfigReady = pyqtSignal(int, int, float, str)
     StatsUpdate = pyqtSignal(float) 
 
     def __init__(self, camera_index=0, parent=None):
+        # Initialize Class an Object Attrs
         super().__init__(parent)
         self._active = False
         self._camera_index = camera_index
         self._t0 = None
         self._frame_count = 0
 
-        # recording state
+        # Recording State
         self._recording = False
         self._writer = None
         self._target_fps = None
-        self._size = None          # (width, height)
+        self._size = None 
         self._path = None
 
         self._config_emitted = False
         self._backend_used = 'unknown'
 
-        # Silence OpenCV warnings (e.g., MSMF warn lines)
+        # Silence OpenCV WARNS
         try:
             cv2.utils.logging.setLogLevel(cv2.utils.logging.LOG_LEVEL_ERROR)
         except Exception:
             pass
 
-    # ---------- internals ----------
 
     def _open_with_backend(self, backend_name: str):
-        """backend_name in {'dshow','msmf','any'}"""
+        # Try different Codecs for Video Capture
         code = {
             'dshow': getattr(cv2, 'CAP_DSHOW', 700),
             'msmf' : getattr(cv2, 'CAP_MSMF', 0),
             'any'  : cv2.CAP_ANY
         }[backend_name]
+        
+        # VideoCapture Variable
         cap = cv2.VideoCapture(self._camera_index, code)
         if not cap.isOpened():
             cap.release()
             return None
         return cap
 
+
     def _try_configure(self, cap):
-        """
-        Try largest → smaller at 60 fps, then at 30 fps.
-        Accept the first combo that yields frames reasonably close to the ask.
-        """
+        # Preferential Record Combos 
         prefs = (
-            [(3840, 2160, 60), (2560, 1440, 60), (1920, 1080, 60), (1280, 720, 60)]
-            + [(3840, 2160, 30), (2560, 1440, 30), (1920, 1080, 30), (1280, 720, 30)]
+            [(1920, 1080, 60), (1280, 720, 60)]
+            + [(2560, 1440, 30), (1920, 1080, 30), (1280, 720, 30)]
         )
         for w, h, fps in prefs:
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH,  w)
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, w)
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
-            cap.set(cv2.CAP_PROP_FPS,          fps)
+            cap.set(cv2.CAP_PROP_FPS, fps)
 
+            # Test if a Camera Supports this Setup (Record Combo)
             ok, test = cap.read()
             if not ok or test is None:
                 continue
 
+            # Accept if Reasonably Close (USB Cams Often Return Near Values)
             fh, fw = test.shape[:2]
-            # accept if reasonably close (USB cams often return near values)
             if abs(fw - w) <= 32 and abs(fh - h) <= 32:
                 self._size = (fw, fh)
                 self._target_fps = float(fps)
                 return True
 
-        # Fallback: whatever camera gives
+        # Fallback: Whatever is avaiable from the Camera
         ok, test = cap.read()
         if ok and test is not None:
             fh, fw = test.shape[:2]
@@ -103,11 +103,9 @@ class CameraWorker(QThread):
             return True
         return False
 
+
     def _probe_viable(self, cap, max_frames=8):
-        """
-        Some DSHOW setups return 'ok' frames that are all black.
-        Read a few frames and check that at least one isn't completely black.
-        """
+        # Check if DSHOW is not Sending Black Frames
         got = 0
         nonblack = 0
         for _ in range(max_frames):
@@ -115,56 +113,62 @@ class CameraWorker(QThread):
             if not ok or f is None:
                 continue
             got += 1
-            # If ALL pixels are zero, this returns 0 (definitely black)
+            # If All Pixels hold 0, Frame = Black
             gray = cv2.cvtColor(f, cv2.COLOR_BGR2GRAY)
             if cv2.countNonZero(gray) > 0:
                 nonblack += 1
-            if got >= 3:  # enough to judge
+            if got >= 3:  # Enough to evaluate
                 break
         return got >= 1 and nonblack >= 1
 
+
     def _emit_config_once(self, cap):
+        # Sends a Signal once if _size is Known
         if self._config_emitted or self._size is None:
             return
+        
+        # Get the Width, Height and FPS 
         w, h = int(self._size[0]), int(self._size[1])
         fps = float(self._target_fps or cap.get(cv2.CAP_PROP_FPS) or 0.0)
         self.ConfigReady.emit(w, h, fps, self._backend_used)
         self._config_emitted = True
 
-    # ---------- thread main ----------
+
 
     def run(self):
+        # Main Thread Loop
         self._active = True
 
-        # Order: try DSHOW first; if not viable, fall back to MSMF; finally ANY
+        # Tries Different Codecs in Order of Preference
         order = ['msmf', 'dshow', 'any']
         cap = None
         try:
-            for be in order:
-                c = self._open_with_backend(be)
-                if c is None:
+            for codec in order:
+                possible_capture = self._open_with_backend(codec)
+                if possible_capture is None:
                     continue
-                if not self._try_configure(c):
-                    c.release()
+                if not self._try_configure(possible_capture):
+                    possible_capture.release()
                     continue
-                # ensure backend is actually giving non-black frames
-                if not self._probe_viable(c):
-                    c.release()
+                if not self._probe_viable(possible_capture):
+                    possible_capture.release()
                     continue
 
-                cap = c
-                self._backend_used = be
+                cap = possible_capture
+                self._backend_used = codec
                 break
 
+            # Abort if Camera not Avaiable
             if cap is None:
-                return  # no camera available
+                print("[WARN] Camera not Avaiable: RESTART")
+                return  
 
-            # announce configuration (size/fps/backend)
+            # Identify Size, FPS and Codec
             self._emit_config_once(cap)
             self._t0 = time.time()
             self._frame_count = 0
 
-            # main loop
+            # Actual Main Loop
             while self._active:
                 ok, frame_bgr = cap.read()
                 if not ok:
@@ -173,19 +177,20 @@ class CameraWorker(QThread):
                 if self._size is None:
                     h, w = frame_bgr.shape[:2]
                     self._size = (w, h)
-                    self._emit_config_once(cap)
+                    self._emit_config_once(cap) # Start Timer and Counter
 
-                # preview (mirror horizontally for user view)
+                # Preview (Live Stream) --> Inverted Horizontaly for user
                 rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
                 rgb = cv2.flip(rgb, 1)
                 h, w, ch = rgb.shape
                 qimg = QImage(rgb.data, w, h, ch * w, QImage.Format.Format_RGB888)
                 self.ImageUpdate.emit(qimg)
 
-                # recording (write original orientation)
+                # Write the Video if Set to Record and Writter is Active
                 if self._recording and self._writer is not None:
                     self._writer.write(frame_bgr)
-                    
+                
+                # Efective Frame Rate --> Avoid Erroneous Info from Camera (Possibly Forced Before)    
                 self._frame_count += 1
                 now = time.time()
                 if now - self._t0 >= 2.0:  # 2-second window
@@ -195,61 +200,65 @@ class CameraWorker(QThread):
                     self._frame_count = 0
 
         finally:
+            # Releases Writter and VideoCapture
             if self._writer is not None:
                 self._writer.release()
                 self._writer = None
             if cap is not None:
                 cap.release()
 
-    # ---------- recording API ----------
 
     def start_record(self, path, fps=None):
-        """
-        Start video-only recording to `path`. Overwrites previous recording.
-        Writes MP4 (mp4v); falls back to AVI (MJPG) if needed.
-        """
+        # Start Saving Raw Camera Frames
         if self._size is None:
             self._size = (1920, 1080)
         if fps is None:
             fps = float(self._target_fps or 30)
 
-        # close previous writer (overwrite policy)
+        # Close Previus Writter (Override)
         if self._writer is not None:
             self._writer.release()
             self._writer = None
 
+        # Creates New Directory 
         p = Path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
 
+        # Opens a Video Writter (MP4)
         w, h = int(self._size[0]), int(self._size[1])
-
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         writer = cv2.VideoWriter(str(p), fourcc, float(fps), (w, h))
 
+        # If Fails --> Fallback to AVI
         if not writer.isOpened():
-            # fallback to AVI MJPG with same basename
             avi_path = p.with_suffix(".avi")
             fourcc = cv2.VideoWriter_fourcc(*"MJPG")
             writer = cv2.VideoWriter(str(avi_path), fourcc, float(fps), (w, h))
             if writer.isOpened():
+                print("[DONE] AVI Selected")
                 self._path = avi_path
             else:
-                return  # give up; do not enter recording state
+                print("[WARN] Failed to Write")
+                return
         else:
+            print("[DONE] MP4 Selected")
             self._path = p
 
+        # Add Writter as Object Attr and Updates Recording State
         self._writer = writer
         self._recording = True
 
     def stop_record(self):
+        # Stops Recording and Releases Writter
         if self._writer is not None:
             self._writer.release()
             self._writer = None
         self._recording = False
 
-    # ---------- stop thread ----------
 
     def stop(self):
+        # Stop Thread
+        print("[EXIT] Camera Thread")
         self._active = False
         self.wait(500)
 

@@ -5,6 +5,11 @@ Possible Elipse Morphology on segment_disks
 
 main function --> group_number, test name, mass for every disk, radius for every disk 
 
+Assertion next_dts <= 0x7fffffff failed at libavformat/movenc.c:1082
+QThreadStorage: entry 1 destroyed before end of thread 0x13d834fa5c0
+QThreadStorage: entry 0 destroyed before end of thread 0x13d834fa5c0
+
 Questions:
 
 1. What triggers the closeEvent() function
+2. What is a video codec? 

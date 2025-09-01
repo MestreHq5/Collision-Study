@@ -52,7 +52,7 @@ def on_stop(controller):
     controller.btnRecord.setEnabled(True)
     controller.btnStop.setEnabled(False)
     controller.btnNext4.setEnabled(True)
-    print("[INFO] Camera Stopped")
+    print("[INFO] Recording Stopped")
 
     return
 
