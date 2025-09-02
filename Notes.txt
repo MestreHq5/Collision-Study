@@ -12,4 +12,8 @@ QThreadStorage: entry 0 destroyed before end of thread 0x13d834fa5c0
 Questions:
 
 1. What triggers the closeEvent() function
-2. What is a video codec? 
+
+Possible issues: 
+--> Camera [0] or Camera [1]
+--> Frame Rate (Displayed vs real)
+

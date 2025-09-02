@@ -1,5 +1,6 @@
 from pathlib import Path
 import os
+import detector as dtc
 
 
 def file_manager(parent_folder: str, child_folder: str) -> Path:
@@ -129,3 +130,15 @@ def validator(self):
         eraser(self)
 
     return
+
+
+def generate(self):
+    video_path = self.worker._path
+    parent_path = self.worker._path.parent
+    bg_path = parent_path / "table_background.png"
+    detection_video_path = parent_path /"detection.mp4"
+    csv_path = parent_path / "disk_tracks.csv"
+    
+    dtc.main(video_path, bg_path, detection_video_path, csv_path, self.worker.fps_eff)
+    self.btnPreview.setEnabled(True)
+    print("After")

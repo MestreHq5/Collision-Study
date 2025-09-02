@@ -142,7 +142,7 @@ QPushButton:disabled {
 background-color: white;</string>
             </property>
             <property name="text">
-             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;Pré-Ensaio: &lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;---&amp;gt; Ler o guia;&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;---&amp;gt; Massa dos discos;&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;---&amp;gt; Raio dos discos;&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;&lt;br/&gt;&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;Ensaio: &lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;---&amp;gt; Deixar 2 segundos depois do início da gravação;&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;---&amp;gt; Lançar os discos e verificar se a colisão ocorre;&lt;br/&gt;---&amp;gt; Não deixar que os discos voltem a entrar na área de gravação;&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;---&amp;gt; Verificar a deteção e repetir se necessário.&lt;br/&gt;&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;Before Experiment: &lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;---&amp;gt; Read the Guide;&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;---&amp;gt; Get disk masses (g);&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;---&amp;gt; Measure Disks Radius (mm);&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;&lt;br/&gt;&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;During the Experiment: &lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;---&amp;gt; Let 2 clean seconds after the start of the recording;&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;---&amp;gt; Throw the disks and verify if the collision occours;&lt;br/&gt;---&amp;gt; Don't let the disk to reenter the filming area;&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;---&amp;gt; Verify detection and repeat if necessary.&lt;br/&gt;&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
             </property>
            </widget>
           </item>
@@ -173,7 +173,7 @@ QPushButton:disabled {
 }</string>
             </property>
             <property name="text">
-             <string>SEGUINTE</string>
+             <string>NEXT</string>
             </property>
            </widget>
           </item>
@@ -213,7 +213,7 @@ font-weight: bold;
 padding-left: 20px;</string>
            </property>
            <property name="text">
-            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:20pt;&quot;&gt;Raio Disco Verde (mm):&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:20pt;&quot;&gt;Green Disk Radius (mm):&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
            </property>
           </widget>
          </item>
@@ -251,7 +251,7 @@ font-weight: bold;
 padding-left: 20px;</string>
            </property>
            <property name="text">
-            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:20pt;&quot;&gt;Massa Disco Azul (g): &lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:20pt;&quot;&gt;Blue Disk Mass (g):&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
            </property>
           </widget>
          </item>
@@ -289,7 +289,7 @@ font-weight: bold;
 padding-left: 20px;</string>
            </property>
            <property name="text">
-            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:20pt;&quot;&gt;Número Grupo: &lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:20pt;&quot;&gt;Group Number:&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
            </property>
           </widget>
          </item>
@@ -308,7 +308,7 @@ font-weight: bold;
 padding-left: 20px;</string>
            </property>
            <property name="text">
-            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:20pt;&quot;&gt;Massa Disco Verde (g): &lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:20pt;&quot;&gt;Green Disk Mass (g):&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
            </property>
           </widget>
          </item>
@@ -327,7 +327,7 @@ font-weight: bold;
 padding-left: 20px;</string>
            </property>
            <property name="text">
-            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:20pt;&quot;&gt;Raio Disco Azul (mm):&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:20pt;&quot;&gt;Blue Disk Radius (mm):&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
            </property>
           </widget>
          </item>
@@ -415,7 +415,7 @@ QPushButton:disabled {
 }</string>
            </property>
            <property name="text">
-            <string>VALIDAR</string>
+            <string>VALIDATE</string>
            </property>
           </widget>
          </item>
@@ -432,7 +432,7 @@ QPushButton:disabled {
 color: red; 
 font-weight: bold;
 padding-left: 20px;
-font-size: 20px;</string>
+font-size: 18px;</string>
            </property>
            <property name="text">
             <string/>
@@ -572,7 +572,7 @@ QPushButton:disabled {
 }</string>
              </property>
              <property name="text">
-              <string>SEGUINTE</string>
+              <string>NEXT</string>
              </property>
             </widget>
            </item>
@@ -599,7 +599,7 @@ QPushButton:disabled {
         </property>
         <layout class="QVBoxLayout" name="verticalLayout_6">
          <item>
-          <widget class="QLabel" name="trajectoriesLabel">
+          <widget class="QLabel" name="detectionLabel">
            <property name="sizePolicy">
             <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
              <horstretch>0</horstretch>
@@ -614,7 +614,7 @@ QPushButton:disabled {
          <item>
           <layout class="QHBoxLayout" name="horizontalLayout_2">
            <item>
-            <widget class="QPushButton" name="btnRedo">
+            <widget class="QPushButton" name="btnGen">
              <property name="styleSheet">
               <string notr="true">QPushButton {
     color: white;
@@ -640,12 +640,15 @@ QPushButton:disabled {
 }</string>
              </property>
              <property name="text">
-              <string>REPETIR</string>
+              <string>GENERATE </string>
              </property>
             </widget>
            </item>
            <item>
-            <widget class="QPushButton" name="btnNext">
+            <widget class="QPushButton" name="btnPreview">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
              <property name="styleSheet">
               <string notr="true">QPushButton {
     color: white;
@@ -671,7 +674,75 @@ QPushButton:disabled {
 }</string>
              </property>
              <property name="text">
-              <string>ACEITAR</string>
+              <string>PREVIEW</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="btnRedo">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
+             <property name="styleSheet">
+              <string notr="true">QPushButton {
+    color: white;
+    background-color: #009de0;
+	border-radius: 10px;
+    padding: 6px 12px;
+	font-weight: bold;
+}
+
+QPushButton:hover {
+    color: white;
+    background-color: #007bb5;  
+}
+
+QPushButton:pressed {
+    color: white;
+    background-color: #005f87;  
+}
+
+QPushButton:disabled {
+    color: #aaaaaa;
+    background-color: #cccccc;
+}</string>
+             </property>
+             <property name="text">
+              <string>REPEATE</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="btnNext5">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
+             <property name="styleSheet">
+              <string notr="true">QPushButton {
+    color: white;
+    background-color: #009de0;
+	border-radius: 10px;
+    padding: 6px 12px;
+	font-weight: bold;
+}
+
+QPushButton:hover {
+    color: white;
+    background-color: #007bb5;  
+}
+
+QPushButton:pressed {
+    color: white;
+    background-color: #005f87;  
+}
+
+QPushButton:disabled {
+    color: #aaaaaa;
+    background-color: #cccccc;
+}</string>
+             </property>
+             <property name="text">
+              <string>ACCEPT</string>
              </property>
             </widget>
            </item>

@@ -14,9 +14,6 @@ from pathlib import Path
 import Pre_process as prp 
 
 # 1) Core global constants
-VIDEO_PATH       = "Test Imaging/Video11.mp4"
-BG_PATH          = ""
-
 FRAME_LIMIT_AVG  = 60 # maximum amount of frames needed to average the background 
 CLEAN_SECONDS = 2.0 # first part of the video where script averages the background
 BLUR_KERNEL  = (5, 5) # diemnsion of the kernel used in the Gaussian Blur  
@@ -118,21 +115,15 @@ def info(info_type, message):
     print(f"[{info_type}] {message}")
 
 
-def main(group_number, test_name = "Collision_Study", mass_green = DEFAULT_MASS, mass_blue = DEFAULT_MASS, radius_green = DISK_DIAMETER_MM/2, radius_blue = DISK_DIAMETER_MM/2):
+def main(video_path, bg_path, dtc_path, csv_path, fps_eff):
     
     # 1) Average background from a clean interval at the beggining of the filming
-    global_path = file_manager(test_name, group_number)
-    BG_PATH = global_path / "background.png"
-
-
-    
-    
     bg_path = prp.estimate_background_median(
-        video_path         = VIDEO_PATH,
+        video_path         = video_path,
         clean_seconds      = CLEAN_SECONDS,
         frame_sample_limit = FRAME_LIMIT_AVG,
         blur_kernel        = BLUR_KERNEL,
-        output_path        = BG_PATH,
+        output_path        = bg_path,
         return_image       = False
     )
     background = cv2.imread(bg_path)
@@ -143,12 +134,12 @@ def main(group_number, test_name = "Collision_Study", mass_green = DEFAULT_MASS,
     info("Done", "Background Averaged")
     
     # 2) Open video
-    cap = cv2.VideoCapture(VIDEO_PATH)
+    cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
-        raise IOError(f"Cannot open video {VIDEO_PATH}")  # Error checking --> fatal program will end
+        raise IOError(f"Cannot open video {video_path}")  # Error checking --> fatal program will end
 
     # Gets FPS (crucial for velocities, linear and angular)
-    fps = cap.get(cv2.CAP_PROP_FPS)
+    fps = min([30, 60], key=lambda x: abs(x - fps_eff))
     info("Info", f"FPS: {fps:.2f}")
     dt  = 1.0 / fps if fps > 0 else 1/30  # Time elapsed per frame
     info("Info", f"Per frame time: {dt:.4f}s")
@@ -158,6 +149,13 @@ def main(group_number, test_name = "Collision_Study", mass_green = DEFAULT_MASS,
     all_detections = []  # each entry: [frame, disk_id, cx_mm, cy_mm, mx_mm, my_mm, r_px]
     frame_idx = 0
     assigner = IDAssigner(COLOR_ID_MAP)
+    
+    # before the loop, open the writer
+    w   = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    h   = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    out = cv2.VideoWriter(dtc_path, fourcc, fps, (w, h))
 
     # 3) Main loop --> through each frame
     while True:
@@ -246,18 +244,17 @@ def main(group_number, test_name = "Collision_Study", mass_green = DEFAULT_MASS,
                 det["marker_color"]
             ])
 
-        # 10) Show and optionally quit
-        cv2.imshow("Tracking", frame)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+        # 10) Write the frame down
+        out.write(frame)
+
 
         frame_idx += 1
 
     cap.release()
-    cv2.destroyAllWindows()
+    out.release()
 
     # 7) Dump CSV
-    with open("disk_tracks.csv", "w", newline="") as f:
+    with open(csv_path, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow([
             "frame", "disk_id",
@@ -271,6 +268,4 @@ def main(group_number, test_name = "Collision_Study", mass_green = DEFAULT_MASS,
 
 
 
-# Main function call ---> delete when importing to the gui or flow manager
-if __name__ == "__main__":
-    main(101)
+

@@ -53,7 +53,7 @@ class CameraWorker(QThread):
 
 
     def _open_with_backend(self, backend_name: str):
-        # Try different Codecs for Video Capture
+        # Try different Multimedia Frameworks for Video Capture
         code = {
             'dshow': getattr(cv2, 'CAP_DSHOW', 700),
             'msmf' : getattr(cv2, 'CAP_MSMF', 0),
@@ -134,12 +134,11 @@ class CameraWorker(QThread):
         self._config_emitted = True
 
 
-
     def run(self):
         # Main Thread Loop
         self._active = True
 
-        # Tries Different Codecs in Order of Preference
+        # Tries Different Frameworks (and respective codecs) in Order of Preference
         order = ['msmf', 'dshow', 'any']
         cap = None
         try:
@@ -195,6 +194,7 @@ class CameraWorker(QThread):
                 now = time.time()
                 if now - self._t0 >= 2.0:  # 2-second window
                     fps_eff = self._frame_count / (now - self._t0)
+                    self.fps_eff = fps_eff
                     self.StatsUpdate.emit(fps_eff)
                     self._t0 = now
                     self._frame_count = 0
@@ -247,6 +247,7 @@ class CameraWorker(QThread):
         # Add Writter as Object Attr and Updates Recording State
         self._writer = writer
         self._recording = True
+
 
     def stop_record(self):
         # Stops Recording and Releases Writter
@@ -306,7 +307,9 @@ class MainWindow(QMainWindow):
         self.btnNext4: QPushButton = self.findChild(QPushButton, "btnNext4")
         
         # Page 5
-        self.trajectoriesLabel: QLabel = self.findChild(QLabel, "trajectoriesLabel") 
+        self.detectionLabel: QLabel = self.findChild(QLabel, "detectionLabel")
+        self.btnGen: QPushButton = self.findChild(QPushButton, "btnGen")
+        self.btnPreview: QPushButton = self.findChild(QPushButton, "btnPreview")
         self.btnRedo: QPushButton = self.findChild(QPushButton, "btnRedo") 
         self.btnNext5: QPushButton = self.findChild(QPushButton, "btnNext5")
 
@@ -314,6 +317,7 @@ class MainWindow(QMainWindow):
         # Connect navigation ---> (Safeguards against bad widget connection)
         if self.btnStart and self.stack:
             self.btnStart.clicked.connect(lambda: self.stack.setCurrentIndex(1))
+        
         if self.btnNext2 and self.stack:
             self.btnNext2.clicked.connect(lambda: self.stack.setCurrentIndex(2))
 
@@ -324,7 +328,6 @@ class MainWindow(QMainWindow):
             self.btnRecord.clicked.connect(lambda: hp.on_record(self))
         if self.btnStop:
             self.btnStop.clicked.connect(lambda: hp.on_stop(self))
-
         if self.btnNext4 and self.stack:
             self.btnNext4.clicked.connect(lambda: self.stack.setCurrentIndex(4))
 
@@ -334,12 +337,22 @@ class MainWindow(QMainWindow):
             self.btnStop.setEnabled(False)
         if self.btnNext4:
             self.btnNext4.setEnabled(False)
-            
+        
+        if self.btnGen and self.stack:
+            self.btnGen.clicked.connect(lambda: (self.btnGen.setEnabled(False), hp.generate(self)))
         if self.btnRedo and self.stack:
             self.btnRedo.clicked.connect(lambda: self.stack.setCurrentIndex(3)) 
-            
         if self.btnNext5 and self.stack:    
             self.btnNext5.clicked.connect(lambda: self.stack.setCurrentIndex(5))
+            
+        if self.btnPreview and self.stack:
+            self.btnPreview.setEnabled(False)
+        if self.btnRedo and self.stack:
+            self.btnRedo.setEnabled(False)
+        if self.btnNext5 and self.stack: 
+            self.btnNext5.setEnabled(False)
+            
+            
         
         # Start at page 0
         if self.stack:
