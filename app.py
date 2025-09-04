@@ -182,7 +182,7 @@ class CameraWorker(QThread):
                 rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
                 rgb = cv2.flip(rgb, 1)
                 h, w, ch = rgb.shape
-                qimg = QImage(rgb.data, w, h, ch * w, QImage.Format.Format_RGB888)
+                qimg = QImage(rgb.data, w, h, ch * w, QImage.Format.Format_RGB888).copy()
                 self.ImageUpdate.emit(qimg)
 
                 # Write the Video if Set to Record and Writter is Active
@@ -340,6 +340,8 @@ class MainWindow(QMainWindow):
         
         if self.btnGen and self.stack:
             self.btnGen.clicked.connect(lambda: (self.btnGen.setEnabled(False), hp.generate(self)))
+        if self.btnPreview and self.stack:
+            self.btnPreview.clicked.connect(lambda: hp.preview(self))
         if self.btnRedo and self.stack:
             self.btnRedo.clicked.connect(lambda: self.stack.setCurrentIndex(3)) 
         if self.btnNext5 and self.stack:    

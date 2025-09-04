@@ -1,6 +1,9 @@
 from pathlib import Path
 import os
 import detector as dtc
+import Post_process as ptp
+from PyQt6.QtGui import QPixmap
+from PyQt6.QtCore import Qt
 
 
 def file_manager(parent_folder: str, child_folder: str) -> Path:
@@ -135,10 +138,34 @@ def validator(self):
 def generate(self):
     video_path = self.worker._path
     parent_path = self.worker._path.parent
+    self.parent_path = parent_path
     bg_path = parent_path / "table_background.png"
     detection_video_path = parent_path /"detection.mp4"
     csv_path = parent_path / "disk_tracks.csv"
     
     dtc.main(video_path, bg_path, detection_video_path, csv_path, self.worker.fps_eff)
     self.btnPreview.setEnabled(True)
-    print("After")
+    return
+
+
+def preview(self):
+    
+    # Path Logic
+    #csv_path = self.parent_path / "disk_tracks.csv"
+    output_path = self.parent_path / "trajectories.png"
+    fps = self.worker.fps_eff
+    
+    # Trajectories Function Call
+    csv_path = "C:/Users/gonca/Desktop/disk_tracks.csv"
+    ptp.visualize_trajectories(csv_path, output_path, fps, show_equal_aspect=True)
+    
+    # Button Arithmetic
+    self.btnPreview.setEnabled(False)
+    self.btnRedo.setEnabled(True)
+    self.btnNext5.setEnabled(True)
+    
+    # Label Preview
+    pixmap = QPixmap(str(output_path))
+    scaled = pixmap.scaled(self.detectionLabel.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+    self.detectionLabel.setPixmap(scaled)
+    

@@ -5,9 +5,14 @@ Possible Elipse Morphology on segment_disks
 
 main function --> group_number, test name, mass for every disk, radius for every disk 
 
-Assertion next_dts <= 0x7fffffff failed at libavformat/movenc.c:1082
-QThreadStorage: entry 1 destroyed before end of thread 0x13d834fa5c0
-QThreadStorage: entry 0 destroyed before end of thread 0x13d834fa5c0
+
+[mpeg4 @ 0000026f5232b1c0] Invalid pts (152) <= last (152)
+[ERROR:0@5.079] global cap_ffmpeg_impl.hpp:2467 icv_av_write_frame_FFMPEG Error sending frame to encoder (avcodec_send_frame)
+[INFO] Recording Stopped
+Traceback (most recent call last):
+  File "c:\Users\gonca\Desktop\Collisions DEM\Collision-Study\app.py", line 190, in run
+    self._writer.write(frame_bgr)
+cv2.error: Unknown C++ exception from OpenCV code
 
 Questions:
 
@@ -17,3 +22,102 @@ Possible issues:
 --> Camera [0] or Camera [1]
 --> Frame Rate (Displayed vs real)
 
+Short version: keep your stop() on CameraWorker — it’s the right way to shut the capture thread down — but make sure you actually call it at the right times. Your symptoms (a couple seconds of pause, then the whole app quits) are consistent with the camera thread and/or OpenCV resources still being alive while you start post-processing, or some cleanup firing after the event loop regains control.
+
+Here’s a robust setup that fixes this without deleting features:
+
+What to change
+1) Stop the camera before leaving the recording page
+Call stop_camera() right before you switch pages (or whenever you’re done recording), and wait until the thread is finished.
+
+python
+Copy
+def on_next_from_recording(self):
+    # Make sure camera thread is fully stopped before processing
+    self.stop_camera()
+    if self.worker.isRunning():
+        self.worker.wait()            # block until finished
+    self.stack.setCurrentIndex(4)     # now go to detection page
+
+# wiring
+if self.btnNext4 and self.stack:
+    self.btnNext4.clicked.connect(self.on_next_from_recording)
+(If you prefer, also stop it automatically whenever the stacked page changes away from the recording page.)
+
+python
+Copy
+RECORDING_PAGE = 3  # adjust to your index
+self.stack.currentChanged.connect(self._on_page_changed)
+
+def _on_page_changed(self, idx):
+    if idx != RECORDING_PAGE and self.worker.isRunning():
+        self.stop_camera()
+        self.worker.wait()
+2) Also stop before running detection (extra safety)
+If the user jumps straight to “Generate,” make sure the camera is off:
+
+python
+Copy
+def generate(self):
+    # ensure camera thread is not running while we read/process videos
+    if self.worker.isRunning():
+        self.stop_camera()
+        self.worker.wait()
+
+    video_path = self.worker._path
+    parent_path = self.worker._path.parent
+    bg_path = parent_path / "table_background.png"
+    detection_video_path = parent_path / "detection.mp4"
+    csv_path = parent_path / "disk_tracks.csv"
+
+    # run headless; no cv2.imshow/destroy*
+    dtc.main(video_path, bg_path, detection_video_path, csv_path, getattr(self.worker, "fps_eff", 30.0))
+    if self.btnPreview: self.btnPreview.setEnabled(True)
+    print("After")
+3) Keep your stop() (it’s fine)
+Your implementation is OK:
+
+python
+Copy
+def stop(self):
+    print("[EXIT] Camera Thread")
+    self._active = False
+    self.wait(500)
+It flips the loop flag and waits a bit; the finally: in run() releases the VideoWriter and VideoCapture. You can extend the wait if you want to be 100% sure it’s done:
+
+python
+Copy
+def stop(self):
+    self._active = False
+    self.wait()  # wait indefinitely until finished
+(Only do this from the GUI thread, not from inside the worker thread.)
+
+4) Make sure you never call OpenCV HighGUI in detection
+You said you removed cv2.destroyAllWindows(). Good. Also ensure there’s no cv2.imshow or cv2.waitKey anywhere in the detection path when running inside the Qt app. If you keep them for CLI runs, gate them behind a flag (e.g., show=False).
+
+5) Add a tiny bit of instrumentation (to prove what’s quitting you)
+In MainWindow.__init__:
+
+python
+Copy
+app = QApplication.instance()
+if app:
+    app.aboutToQuit.connect(lambda: print("[QT] aboutToQuit fired"))
+At startup (in main()), you can also do:
+
+python
+Copy
+# optional: prevents unexpected quits if any non-main Qt window closes
+# app.setQuitOnLastWindowClosed(False)
+If you see [QT] aboutToQuit fired right before shutdown, something called quit/exit (or you closed the last window). With the camera thread stopped and HighGUI removed, that should stop happening.
+
+TL;DR
+Keep CameraWorker.stop().
+
+Call it before leaving the recording page and before running detection; also wait() for the thread to finish.
+
+No HighGUI calls during detection when running in your Qt app.
+
+Add one-line instrumentation to confirm if Qt is being asked to quit.
+
+If you still get unexpected exits after those tweaks, ping me the tail of dtc.main and any other places that might call quit/exit, and I’ll pinpoint the exact line.

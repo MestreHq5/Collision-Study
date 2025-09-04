@@ -265,6 +265,7 @@ def main(video_path, bg_path, dtc_path, csv_path, fps_eff):
         writer.writerows(all_detections)
 
     info("Done", f"Saved {len(all_detections)} detections to disk_tracks.csv")
+    return
 
 
 
