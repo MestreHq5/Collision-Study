@@ -165,7 +165,52 @@ def preview(self):
     self.btnNext5.setEnabled(True)
     
     # Label Preview
+    self.detectionLabel.setScaledContents(False)
     pixmap = QPixmap(str(output_path))
     scaled = pixmap.scaled(self.detectionLabel.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
     self.detectionLabel.setPixmap(scaled)
+
+
+def genData(self):
+    pass
+
+def analisysPage(self):
     
+    # Button Logic
+    self.btnGen.setEnabled(True)
+    self.btnPreview.setEnabled(False)
+    self.btnRedo.setEnabled(False)
+    self.btnNext5.setEnabled(False)
+
+    # Page Logic 
+    self.detectionLabel.clear()
+    self.stack.setCurrentIndex(4)
+
+    
+def redo(self):
+    
+    # Page Logic
+    self.stack.setCurrentIndex(3)
+    self.btnNext4.setEnabled(False)
+    
+
+def scaler(self):
+    # Import Logo
+    logo = QPixmap("Images/logoIST.png")
+
+    # Scale Contents 
+    scaled = logo.scaled(
+    self.target_size,
+    Qt.AspectRatioMode.KeepAspectRatio,
+    Qt.TransformationMode.SmoothTransformation
+    )
+    
+    # Apply to the QLabel's
+    self.istlogo1.setScaledContents(False) 
+    self.istlogo1.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    self.istlogo1.setPixmap(scaled)
+    
+    self.istlogo6.setScaledContents(False) 
+    self.istlogo6.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    self.istlogo6.setPixmap(scaled)
+   

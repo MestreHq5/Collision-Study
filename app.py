@@ -2,9 +2,9 @@
 import sys
 import time
 from PyQt6 import uic
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize
 from PyQt6.QtGui import QImage, QPixmap
-from PyQt6.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QStackedWidget, QLineEdit, QStatusBar
+from PyQt6.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QStackedWidget, QLineEdit, QStatusBar 
 
 # Block Warnings from MSMF
 import os
@@ -271,6 +271,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         uic.loadUi("gui.ui", self)  
         self.resize(self.width(), self.height() + 20)
+        self.target_size = QSize(300, 300)
 
         # --- Identify Widgets used in the Qt Designer ---> Done by page so it's easier to work ---
         # Global
@@ -280,6 +281,7 @@ class MainWindow(QMainWindow):
         # Page 1
         self.title1: QLabel = self.findChild(QLabel, "title1")
         self.subtitle1: QLabel = self.findChild(QLabel, "subtitle1")
+        self.istlogo1: QLabel = self.findChild(QLabel, "istlogo1")
         self.btnStart: QPushButton = self.findChild(QPushButton, "btnStart")
 
         # Page 2
@@ -312,8 +314,14 @@ class MainWindow(QMainWindow):
         self.btnPreview: QPushButton = self.findChild(QPushButton, "btnPreview")
         self.btnRedo: QPushButton = self.findChild(QPushButton, "btnRedo") 
         self.btnNext5: QPushButton = self.findChild(QPushButton, "btnNext5")
-
-
+        
+        # Page6
+        self.istlogo6: QLabel = self.findChild(QLabel, "istlogo6")
+        
+        # Image Work
+        hp.scaler(self)
+   
+    
         # Connect navigation ---> (Safeguards against bad widget connection)
         if self.btnStart and self.stack:
             self.btnStart.clicked.connect(lambda: self.stack.setCurrentIndex(1))
@@ -329,7 +337,7 @@ class MainWindow(QMainWindow):
         if self.btnStop:
             self.btnStop.clicked.connect(lambda: hp.on_stop(self))
         if self.btnNext4 and self.stack:
-            self.btnNext4.clicked.connect(lambda: self.stack.setCurrentIndex(4))
+            self.btnNext4.clicked.connect(lambda: hp.analisysPage(self))
 
         if self.btnRecord:
             self.btnRecord.setEnabled(False)
@@ -341,9 +349,9 @@ class MainWindow(QMainWindow):
         if self.btnGen and self.stack:
             self.btnGen.clicked.connect(lambda: (self.btnGen.setEnabled(False), hp.generate(self)))
         if self.btnPreview and self.stack:
-            self.btnPreview.clicked.connect(lambda: hp.preview(self))
+            self.btnPreview.clicked.connect(lambda: (hp.preview(self), hp.genData(self)))
         if self.btnRedo and self.stack:
-            self.btnRedo.clicked.connect(lambda: self.stack.setCurrentIndex(3)) 
+            self.btnRedo.clicked.connect(lambda: hp.redo(self)) 
         if self.btnNext5 and self.stack:    
             self.btnNext5.clicked.connect(lambda: self.stack.setCurrentIndex(5))
             

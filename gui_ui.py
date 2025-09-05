@@ -3,7 +3,7 @@
 ################################################################################
 ## Form generated from reading UI file 'gui.ui'
 ##
-## Created by: Qt User Interface Compiler version 6.8.1
+## Created by: Qt User Interface Compiler version 6.9.1
 ##
 ## WARNING! All changes made in this file will be lost when recompiling UI file!
 ################################################################################
@@ -23,7 +23,7 @@ class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         if not MainWindow.objectName():
             MainWindow.setObjectName(u"MainWindow")
-        MainWindow.resize(738, 539)
+        MainWindow.resize(742, 535)
         sizePolicy = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
@@ -61,6 +61,11 @@ class Ui_MainWindow(object):
 
         self.vertical.addWidget(self.subtitle1, 0, Qt.AlignmentFlag.AlignHCenter|Qt.AlignmentFlag.AlignTop)
 
+        self.istlogo1 = QLabel(self.Page_1)
+        self.istlogo1.setObjectName(u"istlogo1")
+
+        self.vertical.addWidget(self.istlogo1)
+
         self.btnStart = QPushButton(self.Page_1)
         self.btnStart.setObjectName(u"btnStart")
         self.btnStart.setStyleSheet(u"QPushButton {\n"
@@ -88,7 +93,7 @@ class Ui_MainWindow(object):
 "")
         self.btnStart.setIconSize(QSize(16, 16))
 
-        self.vertical.addWidget(self.btnStart, 0, Qt.AlignmentFlag.AlignHCenter|Qt.AlignmentFlag.AlignTop)
+        self.vertical.addWidget(self.btnStart, 0, Qt.AlignmentFlag.AlignHCenter|Qt.AlignmentFlag.AlignVCenter)
 
 
         self.verticalLayout_3.addLayout(self.vertical)
@@ -547,6 +552,49 @@ class Ui_MainWindow(object):
         self.verticalLayout_6.addLayout(self.horizontalLayout_2)
 
         self.stack.addWidget(self.Page_5)
+        self.Page_6 = QWidget()
+        self.Page_6.setObjectName(u"Page_6")
+        self.verticalLayoutWidget_3 = QWidget(self.Page_6)
+        self.verticalLayoutWidget_3.setObjectName(u"verticalLayoutWidget_3")
+        self.verticalLayoutWidget_3.setGeometry(QRect(10, 0, 731, 521))
+        self.verticalLayout_7 = QVBoxLayout(self.verticalLayoutWidget_3)
+        self.verticalLayout_7.setObjectName(u"verticalLayout_7")
+        self.verticalLayout_7.setContentsMargins(0, 0, 0, 0)
+        self.title6 = QLabel(self.verticalLayoutWidget_3)
+        self.title6.setObjectName(u"title6")
+        self.title6.setStyleSheet(u"padding-top: 20px")
+
+        self.verticalLayout_7.addWidget(self.title6, 0, Qt.AlignmentFlag.AlignBottom)
+
+        self.subtitle6 = QLabel(self.verticalLayoutWidget_3)
+        self.subtitle6.setObjectName(u"subtitle6")
+
+        self.verticalLayout_7.addWidget(self.subtitle6, 0, Qt.AlignmentFlag.AlignTop)
+
+        self.istlogo6 = QLabel(self.verticalLayoutWidget_3)
+        self.istlogo6.setObjectName(u"istlogo6")
+        sizePolicy3 = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        sizePolicy3.setHorizontalStretch(0)
+        sizePolicy3.setVerticalStretch(0)
+        sizePolicy3.setHeightForWidth(self.istlogo6.sizePolicy().hasHeightForWidth())
+        self.istlogo6.setSizePolicy(sizePolicy3)
+        self.istlogo6.setStyleSheet(u"padding-bottom: 30px;")
+        self.istlogo6.setPixmap(QPixmap(u":/img/logoIST.png"))
+        self.istlogo6.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.verticalLayout_7.addWidget(self.istlogo6)
+
+        self.credits = QLabel(self.verticalLayoutWidget_3)
+        self.credits.setObjectName(u"credits")
+        sizePolicy4 = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
+        sizePolicy4.setHorizontalStretch(0)
+        sizePolicy4.setVerticalStretch(0)
+        sizePolicy4.setHeightForWidth(self.credits.sizePolicy().hasHeightForWidth())
+        self.credits.setSizePolicy(sizePolicy4)
+
+        self.verticalLayout_7.addWidget(self.credits)
+
+        self.stack.addWidget(self.Page_6)
 
         self.verticalLayout_2.addWidget(self.stack)
 
@@ -554,7 +602,7 @@ class Ui_MainWindow(object):
 
         self.retranslateUi(MainWindow)
 
-        self.stack.setCurrentIndex(4)
+        self.stack.setCurrentIndex(0)
 
 
         QMetaObject.connectSlotsByName(MainWindow)
@@ -564,6 +612,7 @@ class Ui_MainWindow(object):
         MainWindow.setWindowTitle(QCoreApplication.translate("MainWindow", u"MainWindow", None))
         self.title1.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\"><span style=\" font-size:44pt; font-weight:700; color:#009de0;\">Collision Study Dynamics</span></p></body></html>", None))
         self.subtitle1.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\"><span style=\" font-size:20pt; color:#000000;\">Computer Vision App with Python</span></p></body></html>", None))
+        self.istlogo1.setText(QCoreApplication.translate("MainWindow", u"TextLabel", None))
         self.btnStart.setText(QCoreApplication.translate("MainWindow", u"START", None))
         self.instructions.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p><span style=\" font-size:16pt;\">Before Experiment: </span></p><p><span style=\" font-size:16pt;\">---&gt; Read the Guide;</span></p><p><span style=\" font-size:16pt;\">---&gt; Get disk masses (g);</span></p><p><span style=\" font-size:16pt;\">---&gt; Measure Disks Radius (mm);</span></p><p><span style=\" font-size:16pt;\"><br/></span></p><p><span style=\" font-size:16pt;\">During the Experiment: </span></p><p><span style=\" font-size:16pt;\">---&gt; Let 2 clean seconds after the start of the recording;</span></p><p><span style=\" font-size:16pt;\">---&gt; Throw the disks and verify if the collision occours;<br/>---&gt; Don't let the disk to reenter the filming area;</span></p><p><span style=\" font-size:16pt;\">---&gt; Verify detection and repeat if necessary.<br/></span></p></body></html>", None))
         self.btnNext2.setText(QCoreApplication.translate("MainWindow", u"NEXT", None))
@@ -588,5 +637,9 @@ class Ui_MainWindow(object):
         self.btnPreview.setText(QCoreApplication.translate("MainWindow", u"PREVIEW", None))
         self.btnRedo.setText(QCoreApplication.translate("MainWindow", u"REPEATE", None))
         self.btnNext5.setText(QCoreApplication.translate("MainWindow", u"ACCEPT", None))
+        self.title6.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\"><span style=\" font-size:44pt; font-weight:700; color:#009de0;\">Experiment Finished</span></p></body></html>", None))
+        self.subtitle6.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\"><span style=\" font-size:20pt; color:#000000;\">You Must Check Project Folder for Data</span></p></body></html>", None))
+        self.istlogo6.setText("")
+        self.credits.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\"><span style=\" font-size:12pt; font-weight:700; color:#000000;\">Developed by Gon\u00e7alo Rodrigues</span></p></body></html>", None))
     # retranslateUi
 
