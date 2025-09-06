@@ -13,6 +13,7 @@ REQ_COLS = ["frame","disk_id","cx_mm","cy_mm","mx_mm","my_mm","r_px"]
 def _ensure_sorted(df: pd.DataFrame) -> pd.DataFrame:
     return df.sort_values("frame").reset_index(drop=True)
 
+
 def _add_meter_cols(df_raw: pd.DataFrame) -> pd.DataFrame:
     df = df_raw.copy()
     df["cx"] = df["cx_mm"] / 1000.0
@@ -21,10 +22,12 @@ def _add_meter_cols(df_raw: pd.DataFrame) -> pd.DataFrame:
     df["my"] = df["my_mm"] / 1000.0
     return df
 
+
 def _unwrap_angle(dfm: pd.DataFrame) -> np.ndarray:
     dx = dfm["mx"] - dfm["cx"]
     dy = dfm["my"] - dfm["cy"]
     return np.unwrap(np.arctan2(dy, dx))
+
 
 def _compute_vels(df_m: pd.DataFrame, fps: float) -> pd.DataFrame:
     """
@@ -46,6 +49,7 @@ def _compute_vels(df_m: pd.DataFrame, fps: float) -> pd.DataFrame:
     out["theta_unwrapped_deg"] = np.degrees(theta_unwrapped)  # for students
     return out
 
+
 def _find_collision_frame(df0m: pd.DataFrame, df1m: pd.DataFrame) -> int:
     """
     Forced-unique collision frame = frame of minimal center-to-center distance.
@@ -57,7 +61,7 @@ def _find_collision_frame(df0m: pd.DataFrame, df1m: pd.DataFrame) -> int:
     return int(m.loc[np.hypot(dx, dy).idxmin(), "frame"])
 
 # Metrics
-def _compute_metrics_copy_paste(df0m: pd.DataFrame, df1m: pd.DataFrame, fps: float):
+def _compute_metrics(df0m: pd.DataFrame, df1m: pd.DataFrame, masses: tuple, radius: tuple, fps: float):
     """
     Returns a dict with:
         - collision_frame
@@ -95,8 +99,8 @@ def _compute_metrics_copy_paste(df0m: pd.DataFrame, df1m: pd.DataFrame, fps: flo
     e = float(v_n_after / v_n_before) if (np.isfinite(v_n_before) and v_n_before > 1e-12) else np.nan
 
     # ---- Momentum error (relative; full-data means) ----
-    RADIUS_M = 0.040
-    MASS = {0: 0.0118, 1: 0.0118}
+    RADIUS_M = (radius[0] + radius[1]) / 2
+    MASS = {0: masses[0], 1: masses[1]}
     p_before = np.array([MASS[0]*v0b[0] + MASS[1]*v1b[0],
                          MASS[0]*v0b[1] + MASS[1]*v1b[1]])
     p_after  = np.array([MASS[0]*v0a[0] + MASS[1]*v1a[0],
@@ -220,6 +224,8 @@ def visualize_trajectories(
 def build_student_excel(
     csv_path: str,
     output_xlsx_path: str,
+    masses: tuple,
+    radius: tuple,
     fps: float = 30.0,
     include_metrics: bool = False,
 ) -> int:
@@ -264,7 +270,7 @@ def build_student_excel(
     if include_metrics:
         df0m_vel = _compute_vels(df0m, fps=fps)
         df1m_vel = _compute_vels(df1m, fps=fps)
-        metrics = _compute_metrics_copy_paste(df0m_vel, df1m_vel, fps=fps)
+        metrics = _compute_metrics(df0m_vel, df1m_vel, masses, radius, fps=fps)
         results_df = pd.DataFrame(
             [
                 ("Collision frame (excluded)", metrics["collision_frame"]),
@@ -281,7 +287,7 @@ def build_student_excel(
     outp = Path(output_xlsx_path)
     outp.parent.mkdir(parents=True, exist_ok=True)
     with pd.ExcelWriter(outp, engine="openpyxl") as writer:
-        students_tbl.to_excel(writer, index=False, sheet_name="student_data")
+        students_tbl.to_excel(writer, index=False, sheet_name="Raw_Data")
         if include_metrics and results_df is not None:
             results_df.to_excel(writer, index=False, sheet_name="Results")
 

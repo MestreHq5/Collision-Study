@@ -151,18 +151,13 @@ def generate(self):
 def preview(self):
     
     # Path Logic
-    #csv_path = self.parent_path / "disk_tracks.csv"
+    #csv_path = self.parent_path / "disk_tracks.csv" #########
     output_path = self.parent_path / "trajectories.png"
     fps = self.worker.fps_eff
     
     # Trajectories Function Call
-    csv_path = "C:/Users/gonca/Desktop/disk_tracks.csv"
+    csv_path = "C:/Users/gonca/Desktop/disk_tracks.csv" ##### Delete when done ########
     ptp.visualize_trajectories(csv_path, output_path, fps, show_equal_aspect=True)
-    
-    # Button Arithmetic
-    self.btnPreview.setEnabled(False)
-    self.btnRedo.setEnabled(True)
-    self.btnNext5.setEnabled(True)
     
     # Label Preview
     self.detectionLabel.setScaledContents(False)
@@ -172,7 +167,29 @@ def preview(self):
 
 
 def genData(self):
-    pass
+    # Path Logic
+    #csv_path = self.parent_path / "disk_tracks.csv" ###########
+    output_path = self.parent_path / "data.xlsx"
+    fps = self.worker.fps_eff
+    
+    # Experimental Values Logic
+    green_mass_val = float(self.green_mass_val.text())
+    blue_mass_val = float(self.blue_mass_val.text())
+    green_rad_val = float(self.green_rad_val.text())
+    blue_rad_val = float(self.blue_rad_val.text())
+    
+    masses = (green_mass_val, blue_mass_val)
+    radius = (green_rad_val, blue_rad_val)
+    
+    # Data Generation 
+    csv_path = "C:/Users/gonca/Desktop/disk_tracks.csv" ###### Delete when Done ####
+    ptp.build_student_excel(csv_path, output_path, masses, radius, fps, include_metrics=True)
+    
+    # Button Arithmetic
+    self.btnPreview.setEnabled(False)
+    self.btnRedo.setEnabled(True)
+    self.btnNext5.setEnabled(True)
+    
 
 def analisysPage(self):
     
