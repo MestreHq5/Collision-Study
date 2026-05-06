@@ -16,3 +16,15 @@ cv2.error: Unknown C++ exception from OpenCV code
 
 
 Verify if the Diameter and mass are really needed (maybe use a flag to skip second page)
+
+pyinstaller `
+  --name CollisionStudy `
+  --onedir `
+  --noconfirm `
+  --clean `
+  --console `          
+  --collect-all PyQt6 `
+  --collect-binaries cv2 `
+  --add-data "gui.ui;." `
+  --add-data "Images;Images" `
+  initializer.py

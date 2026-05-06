@@ -1,0 +1,154 @@
+# OpenCV + PyQt Camera: Quick, reliable startup (Windows)
+
+**What you’re seeing**
+
+* External USB cam is ignored (index `1` opens the internal cam or appears to hang).
+* \~6–7 s delay before the preview shows up; logs show it trying DShow then MSMF.
+
+**Why this happens**
+
+* **MSMF** can ignore numeric indices and open the system *default* camera.
+* Forcing **1080p/60** (or similar) *immediately* after open can stall MSMF/driver.
+* MSMF’s **first-frame warm-up** is slow; trying multiple backends + probes multiplies the delay.
+* Extra work in probe/config loops adds to startup time; other apps may be holding the camera.
+
+**Quick wins (high-impact)**
+
+1. **Prefer DirectShow first** (`CAP_DSHOW`); add short **per-backend timeouts**; set `BUFFERSIZE=1` and **MJPG** – DShow honors indices better and starts faster on many USB cams.
+2. Emit the **first frame ASAP** (baseline), then negotiate width/height/FPS; don’t force heavy modes up front.
+3. If you must use MSMF, **open by device name**: `VideoCapture("video=<DEVICE NAME>", CAP_MSMF)` to bypass index issues.
+4. Keep the probe **lean**: a few `grab()` calls, ≤3 reads, simple non-black check.
+5. **Cache** the last working backend + mode to skip multi-backend scan next run.
+6. Make sure no other app (Teams/Zoom/OBS/Chrome) is holding the camera.
+
+**Are 2 seconds enough?**
+
+* Timeouts are **per backend attempt**, not a total cap.
+* Suggested budgets: **DShow** \~1.0–1.5 s open / ≤0.7–0.8 s per read; **MSMF** \~2.0–2.5 s open / ≤0.9 s per read.
+* Total startup can exceed 2 s if you try several backends; **caching** removes that on subsequent runs.
+
+# Drop-in code snippets & diagnostics
+
+## 1) Prefer DShow; per-backend stall guards; MJPG; small buffer
+
+```python
+# Per-backend timeouts (ms): (open_timeout, read_timeout)
+def _backend_timeouts(name):
+    return {
+        'dshow': (1500, 700),
+        'msmf' : (2500, 900),
+        'any'  : (1200, 600),
+    }.get(name, (1500, 700))
+
+def _open_with_backend(self, backend_name):
+    code = {
+        'dshow': getattr(cv2, 'CAP_DSHOW', 700),
+        'msmf' : getattr(cv2, 'CAP_MSMF', 0),
+        'any'  : cv2.CAP_ANY
+    }[backend_name]
+
+    cap = cv2.VideoCapture(self._camera_index, code)
+    if not cap.isOpened():
+        return None
+
+    # Stall guards + small buffer to reduce latency
+    ot, rt = _backend_timeouts(backend_name)
+    for prop, val in [
+        (cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, ot),
+        (cv2.CAP_PROP_READ_TIMEOUT_MSEC, rt),
+        (cv2.CAP_PROP_BUFFERSIZE, 1),
+    ]:
+        try:
+            cap.set(prop, val)
+        except Exception:
+            pass
+
+    # MJPG usually starts faster on USB cams
+    try:
+        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+    except Exception:
+        pass
+
+    return cap
+
+# In run(), try fastest/most reliable first:
+order = ['dshow', 'msmf', 'any']
+```
+
+## 2) Fast-first-frame, then negotiate modes
+
+```python
+def _get_baseline_frame(self, cap, grabs=6):
+    # quick warmup; grab can be cheaper than read on some backends
+    for _ in range(grabs):
+        cap.grab()
+    ok, frm = cap.read()
+    return ok, frm
+
+def _try_configure(self, cap):
+    # 1) Baseline first frame ASAP
+    ok, test = _get_baseline_frame(self, cap)
+    if not ok or test is None:
+        return False
+
+    fh, fw = test.shape[:2]
+    self._size = (fw, fh)
+
+    # 2) Try preferred modes, but bail quickly if they don't take
+    prefs = [(1920,1080,30), (1280,720,60), (1280,720,30), (1920,1080,60)]
+    for w, h, fps in prefs:
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH,  w)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
+        cap.set(cv2.CAP_PROP_FPS,          fps)
+
+        ok, t = cap.read()
+        if not ok or t is None:
+            continue
+        th, tw = t.shape[:2]
+        if abs(tw - w) <= 32 and abs(th - h) <= 32:
+            self._size = (tw, th)
+            self._target_fps = float(fps)
+            return True
+
+    # 3) Fallback: keep baseline; clamp FPS to something sane
+    fps_prop = cap.get(cv2.CAP_PROP_FPS) or 30.0
+    self._target_fps = 30.0 if fps_prop > 30 else max(15.0, float(int(fps_prop)))
+    return True
+```
+
+## 3) MSMF open-by-name to bypass index issues
+
+```python
+def _open_by_name_msmf(self, device_name):
+    # MSMF accepts "video=<DEVICE NAME>"
+    cap = cv2.VideoCapture(f"video={device_name}", cv2.CAP_MSMF)
+    if not cap.isOpened():
+        return None
+    try:
+        cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 2500)
+        cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 900)
+        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+    except Exception:
+        pass
+    return cap
+```
+
+**Tip:** Let your worker accept either `camera_index` **or** `camera_name` and try name-based MSMF first if a name is provided.
+
+**Finding the exact device name (Windows, PowerShell):**
+
+```powershell
+Get-CimInstance Win32_PnPEntity | Where-Object {$_.PNPClass -eq 'Camera'} | Select-Object Name
+```
+
+Use the `Name` value in `video=<NAME>`.
+
+## Diagnostics (quick)
+
+1. Test the external camera explicitly with DShow:
+   `cv2.VideoCapture(1, cv2.CAP_DSHOW)`
+2. If slow, set **MJPG** + `CAP_PROP_BUFFERSIZE=1` before first read.
+3. If index is still ignored, open **by device name** with MSMF.
+4. Close any camera-using apps (Teams/Zoom/OBS/Chrome tabs).
+5. Cache last working `(backend, index/name, w, h, fps)` to skip multi-backend scanning next run.

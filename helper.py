@@ -1,9 +1,15 @@
 from pathlib import Path
+import sys
 import os
 import detector as dtc
 import Post_process as ptp
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import Qt
+
+
+def resource_path(*parts) -> Path:
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).parent))
+    return base.joinpath(*parts)
 
 
 def file_manager(parent_folder: str, child_folder: str) -> Path:
@@ -151,12 +157,12 @@ def generate(self):
 def preview(self):
     
     # Path Logic
-    #csv_path = self.parent_path / "disk_tracks.csv" #########
+    csv_path = self.parent_path / "disk_tracks.csv" #########
     output_path = self.parent_path / "trajectories.png"
     fps = self.worker.fps_eff
     
     # Trajectories Function Call
-    csv_path = "C:/Users/gonca/Desktop/disk_tracks.csv" ##### Delete when done ########
+    #csv_path = "C:/Users/gonca/Desktop/disk_tracks.csv" ##### Delete when done ########
     ptp.visualize_trajectories(csv_path, output_path, fps, show_equal_aspect=True)
     
     # Label Preview
@@ -168,7 +174,7 @@ def preview(self):
 
 def genData(self):
     # Path Logic
-    #csv_path = self.parent_path / "disk_tracks.csv" ###########
+    csv_path = self.parent_path / "disk_tracks.csv" ###########
     output_path = self.parent_path / "data.xlsx"
     fps = self.worker.fps_eff
     
@@ -182,7 +188,7 @@ def genData(self):
     radius = (green_rad_val, blue_rad_val)
     
     # Data Generation 
-    csv_path = "C:/Users/gonca/Desktop/disk_tracks.csv" ###### Delete when Done ####
+    #csv_path = "C:/Users/gonca/Desktop/disk_tracks.csv" ###### Delete when Done ####
     ptp.build_student_excel(csv_path, output_path, masses, radius, fps, include_metrics=True)
     
     # Button Arithmetic
@@ -213,7 +219,7 @@ def redo(self):
 
 def scaler(self):
     # Import Logo
-    logo = QPixmap("Images/logoIST.png")
+    logo = QPixmap(str(resource_path("Images", "logoIST.png")))
 
     # Scale Contents 
     scaled = logo.scaled(

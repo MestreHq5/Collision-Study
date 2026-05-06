@@ -5,6 +5,7 @@ from PyQt6 import uic
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize
 from PyQt6.QtGui import QImage, QPixmap
 from PyQt6.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QStackedWidget, QLineEdit, QStatusBar 
+from pathlib import Path
 
 # Block Warnings from MSMF
 import os
@@ -20,6 +21,16 @@ except Exception:
 # Personal Imports for wiring navigation
 import helper as hp
 from pathlib import Path
+
+
+def resource_path(*parts) -> Path:
+    """
+    Works in dev AND when frozen (PyInstaller onefile/onedir, Nuitka).
+    Looks for bundled files in sys._MEIPASS when frozen.
+    """
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).parent))
+    return base.joinpath(*parts)
+
 
 
 class CameraWorker(QThread):
@@ -269,7 +280,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         # Initialize and Load the GUI
         super().__init__()
-        uic.loadUi("gui.ui", self)  
+        uic.loadUi(str(resource_path("gui.ui")), self)
         self.resize(self.width(), self.height() + 20)
         self.target_size = QSize(300, 300)
 
