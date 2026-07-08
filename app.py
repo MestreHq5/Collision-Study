@@ -4,21 +4,24 @@ import time
 from PyQt6 import uic
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize
 from PyQt6.QtGui import QImage, QPixmap
-from PyQt6.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QStackedWidget, QLineEdit, QStatusBar 
+from PyQt6.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QStackedWidget, QLineEdit
 from pathlib import Path
 
-# Block Warnings from MSMF
+
+# Imports of OpenCV and Operating System 
+import cv2
 import os
+
+# Block Warnings from MSMF
 os.environ["OPENCV_LOG_LEVEL"] = "SILENT" 
 
-import cv2
 try:
     cv2.utils.logging.setLogLevel(cv2.utils.logging.LOG_LEVEL_SILENT)
 except Exception:
     pass
 
 
-# Personal Imports for wiring navigation
+# Imports of other Modules for Wiring and Navigation
 import helper as hp
 from pathlib import Path
 
@@ -277,14 +280,17 @@ class CameraWorker(QThread):
 
 
 class MainWindow(QMainWindow):
+    
     def __init__(self):
+        
         # Initialize and Load the GUI
         super().__init__()
         uic.loadUi(str(resource_path("gui.ui")), self)
         self.resize(self.width(), self.height() + 20)
         self.target_size = QSize(300, 300)
 
-        # --- Identify Widgets used in the Qt Designer ---> Done by page so it's easier to work ---
+        # --- Identify Widgets used in the Qt Designer ---> Done by page so it's easier to identify all ---
+        
         # Global
         self.stack: QStackedWidget = self.findChild(QStackedWidget, "stack")
         self.showUpdate = False
@@ -329,7 +335,7 @@ class MainWindow(QMainWindow):
         # Page6
         self.istlogo6: QLabel = self.findChild(QLabel, "istlogo6")
         
-        # Image Work
+        # Image Work (Size IST Logo)
         hp.scaler(self)
    
     
@@ -396,12 +402,14 @@ class MainWindow(QMainWindow):
 
     
     def on_cam_config(self, w, h, fps, backend):
+        
         # Update StatusBar Message
         self._last_cfg_msg = f"Camera: {w}×{h} @ {fps:.1f} fps by {backend.upper()}"
         self._sb.showMessage(self._last_cfg_msg)
 
 
     def on_cam_stats(self, fps_eff: float):
+        
         # Effective FPS Display on StatusBar
         self._sb.showMessage(f"{self._last_cfg_msg} | Effective: {fps_eff:.1f} fps", 2000)
         
@@ -411,6 +419,7 @@ class MainWindow(QMainWindow):
     
     
     def on_image_update(self, qimage: QImage):
+        
         # Safeguard Against Bugs (bad connection on __init__)
         if not self.videoLabel:
             return
@@ -430,12 +439,14 @@ class MainWindow(QMainWindow):
 
 
     def stop_camera(self):
+        
         # Closes the CameraWorker Thread
         if hasattr(self, "worker") and self.worker.isRunning():
             self.worker.stop()
 
 
     def closeEvent(self, event):
+        
         # Closes Camera Related Events
         self.stop_camera()
         super().closeEvent(event)

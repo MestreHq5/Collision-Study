@@ -1,10 +1,13 @@
 from pathlib import Path
 import sys
 import os
+import shutil
+import cv2
 import detector as dtc
 import Post_process as ptp
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QFileDialog, QMessageBox
 
 
 def resource_path(*parts) -> Path:
@@ -125,14 +128,60 @@ def validator(self):
     message = validate_input(group_val, blue_mass_val, green_mass_val, blue_rad_val, green_rad_val)
 
     if message == "":
-        # Move to camera page (index 3)
-        self.stack.setCurrentIndex(3)
-
-        # Prepare save path and start preview
-        self.path = file_manager("Collision_Study", group_val)
-        print("[INFO] Valid Inputs")
-        camera_open(self)
-
+        
+        # Ask user for mode
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Video Source Selection")
+        msg_box.setText("Would you like to record a live video or submit an existing one?")
+        live_btn = msg_box.addButton("Live Record", QMessageBox.ButtonRole.ActionRole)
+        upload_btn = msg_box.addButton("Submit Existing", QMessageBox.ButtonRole.ActionRole)
+        cancel_btn = msg_box.addButton(QMessageBox.StandardButton.Cancel)
+        
+        msg_box.exec()
+        
+        if msg_box.clickedButton() == live_btn:
+            # Move to camera page (index 3)
+            self.stack.setCurrentIndex(3)
+            # Prepare save path and start preview
+            self.path = file_manager("Collision_Study", group_val)
+            print("[INFO] Valid Inputs - Live Record Mode")
+            camera_open(self)
+            
+        elif msg_box.clickedButton() == upload_btn:
+            # Prepare save path
+            self.path = file_manager("Collision_Study", group_val)
+            
+            # File Dialog
+            file_path, _ = QFileDialog.getOpenFileName(self, "Select Video", "", "Video Files (*.mp4 *.avi *.mov *.mkv)")
+            if file_path:
+                print(f"[INFO] Video Selected: {file_path}")
+                dest_path = self.path / "Recording.mp4"
+                
+                # Check if source and destination are the same to avoid error
+                if Path(file_path).resolve() != dest_path.resolve():
+                    shutil.copy(file_path, dest_path)
+                
+                # Setup Worker for downstream
+                self.worker._path = dest_path
+                
+                # Get FPS
+                cap = cv2.VideoCapture(str(dest_path))
+                fps = cap.get(cv2.CAP_PROP_FPS)
+                cap.release()
+                
+                if fps <= 0:
+                    fps = 30.0 # Fallback
+                self.worker.fps_eff = fps
+                
+                print(f"[INFO] Video FPS: {fps}")
+                
+                # Skip to analysis page
+                analisysPage(self)
+            else:
+                print("[INFO] Video selection cancelled")
+        else:
+            print("[INFO] Selection cancelled")
+            
     else:
         self.warning_Label.setText(message)
         print(f"[WARN]: {message}")
@@ -157,12 +206,11 @@ def generate(self):
 def preview(self):
     
     # Path Logic
-    csv_path = self.parent_path / "disk_tracks.csv" #########
+    csv_path = self.parent_path / "disk_tracks.csv" 
     output_path = self.parent_path / "trajectories.png"
     fps = self.worker.fps_eff
     
     # Trajectories Function Call
-    #csv_path = "C:/Users/gonca/Desktop/disk_tracks.csv" ##### Delete when done ########
     ptp.visualize_trajectories(csv_path, output_path, fps, show_equal_aspect=True)
     
     # Label Preview
@@ -188,7 +236,6 @@ def genData(self):
     radius = (green_rad_val, blue_rad_val)
     
     # Data Generation 
-    #csv_path = "C:/Users/gonca/Desktop/disk_tracks.csv" ###### Delete when Done ####
     ptp.build_student_excel(csv_path, output_path, masses, radius, fps, include_metrics=True)
     
     # Button Arithmetic
