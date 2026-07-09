@@ -138,13 +138,19 @@ def main(video_path, bg_path, dtc_path, csv_path, fps_eff):
     if not cap.isOpened():
         raise IOError(f"Cannot open video {video_path}")  # Error checking --> fatal program will end
 
-    # Gets FPS (crucial for velocities, linear and angular)
-    fps = min([30, 60], key=lambda x: abs(x - fps_eff))
-    info("Info", f"FPS: {fps:.2f}")
-    dt  = 1.0 / fps if fps > 0 else 1/30  # Time elapsed per frame
+    # FIX: Read the exact frame rate directly from the recorded file container metadata
+    file_fps = cap.get(cv2.CAP_PROP_FPS)
+    if file_fps and file_fps > 1.0:
+        fps = file_fps
+    else:
+        # Fallback to estimation only if file metadata tracking fails
+        fps = min([30, 60], key=lambda x: abs(x - fps_eff))
+        
+    info("Info", f"File Container Native FPS: {fps:.2f}")
+    dt  = 1.0 / fps if fps > 0 else 1/60  # Precise time elapsed per frame
     info("Info", f"Per frame time: {dt:.4f}s")
 
-    # Variables, list of arrays for detections (each indice has a list with values of possible disk detections)
+    # Variables, list of arrays for detections
     scale_mm_per_px = None
     all_detections = []  # each entry: [frame, disk_id, cx_mm, cy_mm, mx_mm, my_mm, r_px]
     frame_idx = 0
@@ -209,7 +215,7 @@ def main(video_path, bg_path, dtc_path, csv_path, fps_eff):
             else:
                 mx_px = my_px = None
 
-            # 8 Append this disk detection in a conventional way --> further usefull for CSV or Excel Export
+            # 8 Append this disk detection
             frame_dets.append({
                 "center": (float(cx_px), float(cy_px)),
                 "radius": r_px,
@@ -217,7 +223,7 @@ def main(video_path, bg_path, dtc_path, csv_path, fps_eff):
                 "marker_color": marker_color
             })
 
-        # Assign stable IDs (0/1) for this frame --> usefull if a marker not found (continuity)
+        # Assign stable IDs (0/1) for this frame
         assigned = assigner.assign(frame_dets)
 
         # 9) Save to CSV (mm units for centers & marker)
@@ -266,7 +272,3 @@ def main(video_path, bg_path, dtc_path, csv_path, fps_eff):
 
     info("Done", f"Saved {len(all_detections)} detections to disk_tracks.csv")
     return
-
-
-
-

@@ -82,41 +82,59 @@ class CameraWorker(QThread):
         return cap
 
 
-    def _try_configure(self, cap):
-        # Preferential Record Combos 
-        prefs = (
-            [(1920, 1080, 60), (1280, 720, 60)]
-            + [(2560, 1440, 30), (1920, 1080, 30), (1280, 720, 30)]
-        )
-        for w, h, fps in prefs:
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, w)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
-            cap.set(cv2.CAP_PROP_FPS, fps)
+    def _try_configure(self, cap, backend_name: str):
+            # Target resolutions and frame rates
+            prefs = [
+                (1920, 1080, 60), 
+                (1280, 720, 60), 
+                (1920, 1080, 30)
+            ]
+            
+            for w, h, fps in prefs:
+                # Force compression format if using DirectShow
+                if backend_name == 'dshow':
+                    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+                
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH, w)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
+                cap.set(cv2.CAP_PROP_FPS, fps)
 
-            # Test if a Camera Supports this Setup (Record Combo)
+                # CRITICAL FOR 60 FPS: Disable Auto-Exposure if 60 FPS is targeted.
+                # On Windows DSHOW, 1 turns off auto-exposure (sets to manual).
+                # We then set exposure to a low value (-6 represents ~1/64s exposure time).
+                if fps == 60 and backend_name == 'dshow':
+                    cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1) 
+                    cap.set(cv2.CAP_PROP_EXPOSURE, -6)
+
+                ok, test = cap.read()
+                if not ok or test is None:
+                    continue
+
+                # Check what the backend driver actually granted us
+                granted_w = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+                granted_h = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+                granted_fps = cap.get(cv2.CAP_PROP_FPS)
+                
+                print(f"[DIAGNOSTIC] Backend: {backend_name.upper()} | Requested: {w}x{h}@{fps} FPS "
+                    f"| Driver Granted: {granted_w}x{granted_h}@{granted_fps} FPS")
+
+                fh, fw = test.shape[:2]
+                if abs(fw - w) <= 32 and abs(fh - h) <= 32:
+                    self._size = (fw, fh)
+                    self._target_fps = float(fps)
+                    return True
+
+            # Fallback handling
+            if backend_name == 'dshow':
+                cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
             ok, test = cap.read()
-            if not ok or test is None:
-                continue
-
-            # Accept if Reasonably Close (USB Cams Often Return Near Values)
-            fh, fw = test.shape[:2]
-            if abs(fw - w) <= 32 and abs(fh - h) <= 32:
+            if ok and test is not None:
+                fh, fw = test.shape[:2]
                 self._size = (fw, fh)
-                self._target_fps = float(fps)
+                fps_prop = cap.get(cv2.CAP_PROP_FPS)
+                self._target_fps = float(30 if (not fps_prop or fps_prop <= 1 or fps_prop > 30) else int(fps_prop))
                 return True
-
-        # Fallback: Whatever is avaiable from the Camera
-        ok, test = cap.read()
-        if ok and test is not None:
-            fh, fw = test.shape[:2]
-            self._size = (fw, fh)
-            fps_prop = cap.get(cv2.CAP_PROP_FPS)
-            if not fps_prop or fps_prop <= 1:
-                fps_prop = 30.0
-            self._target_fps = float(30 if fps_prop > 30 else int(fps_prop))
-            return True
-        return False
-
+            return False
 
     def _probe_viable(self, cap, max_frames=8):
         # Check if DSHOW is not Sending Black Frames
@@ -152,15 +170,16 @@ class CameraWorker(QThread):
         # Main Thread Loop
         self._active = True
 
-        # Tries Different Frameworks (and respective codecs) in Order of Preference
-        order = ['msmf', 'dshow', 'any']
+        # Prioritize 'dshow' first to bypass MSMF freeze threads on multi-cam laptops
+        order = ['dshow', 'msmf', 'any']
         cap = None
         try:
             for codec in order:
                 possible_capture = self._open_with_backend(codec)
                 if possible_capture is None:
                     continue
-                if not self._try_configure(possible_capture):
+                # Pass the backend name to optimize stream configuration
+                if not self._try_configure(possible_capture, codec):
                     possible_capture.release()
                     continue
                 if not self._probe_viable(possible_capture):
@@ -424,10 +443,10 @@ class MainWindow(QMainWindow):
         if not self.videoLabel:
             return
         
-        # Convert to a Qt Readable Format
+        # Swapped to FastTransformation to keep the UI thread frame rendering lag-free at 60 FPS
         pix = QPixmap.fromImage(qimage).scaled(self.videoLabel.size(),
             Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation)
+            Qt.TransformationMode.FastTransformation)
         self.videoLabel.setPixmap(pix)
 
         # Enable Record once Camera is UP
@@ -459,4 +478,3 @@ def main():
     win = MainWindow()
     win.show()
     sys.exit(app.exec())
-
