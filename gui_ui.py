@@ -54,7 +54,7 @@ class Ui_MainWindow(object):
         self.title1 = QLabel(self.Page_1)
         self.title1.setObjectName(u"title1")
 
-        self.vertical.addWidget(self.title1, 0, Qt.AlignmentFlag.AlignHCenter|Qt.AlignmentFlag.AlignBottom)
+        self.vertical.addWidget(self.title1)
 
         self.subtitle1 = QLabel(self.Page_1)
         self.subtitle1.setObjectName(u"subtitle1")
@@ -311,113 +311,6 @@ class Ui_MainWindow(object):
         self.gridLayout.addWidget(self.warning, 5, 0, 1, 1)
 
         self.stack.addWidget(self.Page_3)
-        self.Page_4 = QWidget()
-        self.Page_4.setObjectName(u"Page_4")
-        sizePolicy.setHeightForWidth(self.Page_4.sizePolicy().hasHeightForWidth())
-        self.Page_4.setSizePolicy(sizePolicy)
-        self.verticalLayoutWidget = QWidget(self.Page_4)
-        self.verticalLayoutWidget.setObjectName(u"verticalLayoutWidget")
-        self.verticalLayoutWidget.setGeometry(QRect(9, 9, 721, 521))
-        self.verticalLayout_5 = QVBoxLayout(self.verticalLayoutWidget)
-        self.verticalLayout_5.setObjectName(u"verticalLayout_5")
-        self.verticalLayout_5.setContentsMargins(0, 0, 0, 0)
-        self.videoLabel = QLabel(self.verticalLayoutWidget)
-        self.videoLabel.setObjectName(u"videoLabel")
-        sizePolicy.setHeightForWidth(self.videoLabel.sizePolicy().hasHeightForWidth())
-        self.videoLabel.setSizePolicy(sizePolicy)
-        self.videoLabel.setStyleSheet(u"background-color: white;")
-
-        self.verticalLayout_5.addWidget(self.videoLabel)
-
-        self.horizontalLayout = QHBoxLayout()
-        self.horizontalLayout.setObjectName(u"horizontalLayout")
-        self.horizontalLayout.setContentsMargins(-1, -1, -1, 10)
-        self.btnRecord = QPushButton(self.verticalLayoutWidget)
-        self.btnRecord.setObjectName(u"btnRecord")
-        self.btnRecord.setStyleSheet(u"QPushButton {\n"
-"    color: black;\n"
-"    background-color: #3dcc6a;\n"
-"	border-radius: 10px;\n"
-"    padding: 6px 12px;\n"
-"	font-weight: bold;\n"
-"}\n"
-"\n"
-"QPushButton:hover {\n"
-"    color: black;\n"
-"    background-color: #2e9950;  \n"
-"}\n"
-"\n"
-"QPushButton:pressed {\n"
-"    color: black;\n"
-"    background-color: #268043;  \n"
-"}\n"
-"\n"
-"QPushButton:disabled {\n"
-"    color: #aaaaaa;\n"
-"    background-color: #cccccc;\n"
-"}")
-
-        self.horizontalLayout.addWidget(self.btnRecord)
-
-        self.btnStop = QPushButton(self.verticalLayoutWidget)
-        self.btnStop.setObjectName(u"btnStop")
-        self.btnStop.setStyleSheet(u"QPushButton {\n"
-"    color: black;\n"
-"    background-color: #cc0c0c;\n"
-"	border-radius: 10px;\n"
-"    padding: 6px 12px;\n"
-"	font-weight: bold;\n"
-"}\n"
-"\n"
-"QPushButton:hover {\n"
-"    color: black;\n"
-"    background-color: #b30b0b;  \n"
-"}\n"
-"\n"
-"QPushButton:pressed {\n"
-"    color: black;\n"
-"    background-color: #800808;  \n"
-"}\n"
-"\n"
-"QPushButton:disabled {\n"
-"    color: #aaaaaa;\n"
-"    background-color: #cccccc;\n"
-"}")
-
-        self.horizontalLayout.addWidget(self.btnStop)
-
-        self.btnNext4 = QPushButton(self.verticalLayoutWidget)
-        self.btnNext4.setObjectName(u"btnNext4")
-        self.btnNext4.setEnabled(False)
-        self.btnNext4.setStyleSheet(u"QPushButton {\n"
-"    color: white;\n"
-"    background-color: #009de0;\n"
-"	border-radius: 10px;\n"
-"    padding: 6px 12px;\n"
-"	font-weight: bold;\n"
-"}\n"
-"\n"
-"QPushButton:hover {\n"
-"    color: white;\n"
-"    background-color: #007bb5;  \n"
-"}\n"
-"\n"
-"QPushButton:pressed {\n"
-"    color: white;\n"
-"    background-color: #005f87;  \n"
-"}\n"
-"\n"
-"QPushButton:disabled {\n"
-"    color: #aaaaaa;\n"
-"    background-color: #cccccc;\n"
-"}")
-
-        self.horizontalLayout.addWidget(self.btnNext4)
-
-
-        self.verticalLayout_5.addLayout(self.horizontalLayout)
-
-        self.stack.addWidget(self.Page_4)
         self.Page_5 = QWidget()
         self.Page_5.setObjectName(u"Page_5")
         sizePolicy.setHeightForWidth(self.Page_5.sizePolicy().hasHeightForWidth())
@@ -602,7 +495,7 @@ class Ui_MainWindow(object):
 
         self.retranslateUi(MainWindow)
 
-        self.stack.setCurrentIndex(0)
+        self.stack.setCurrentIndex(3)
 
 
         QMetaObject.connectSlotsByName(MainWindow)
@@ -628,10 +521,6 @@ class Ui_MainWindow(object):
         self.disk_r_g_val.setPlaceholderText(QCoreApplication.translate("MainWindow", u"--> Ex: 40", None))
         self.validate.setText(QCoreApplication.translate("MainWindow", u"VALIDATE", None))
         self.warning.setText("")
-        self.videoLabel.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p><br/></p></body></html>", None))
-        self.btnRecord.setText(QCoreApplication.translate("MainWindow", u"START RECORDING", None))
-        self.btnStop.setText(QCoreApplication.translate("MainWindow", u"STOP RECORDING", None))
-        self.btnNext4.setText(QCoreApplication.translate("MainWindow", u"NEXT", None))
         self.detectionLabel.setText(QCoreApplication.translate("MainWindow", u"TextLabel", None))
         self.btnGen.setText(QCoreApplication.translate("MainWindow", u"GENERATE ", None))
         self.btnPreview.setText(QCoreApplication.translate("MainWindow", u"PREVIEW", None))
