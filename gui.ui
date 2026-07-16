@@ -1,834 +1,918 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>MainWindow</class>
- <widget class="QMainWindow" name="MainWindow">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>742</width>
-    <height>535</height>
-   </rect>
-  </property>
-  <property name="sizePolicy">
-   <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-    <horstretch>0</horstretch>
-    <verstretch>0</verstretch>
-   </sizepolicy>
-  </property>
-  <property name="windowTitle">
-   <string>MainWindow</string>
-  </property>
-  <property name="styleSheet">
-   <string notr="true"/>
-  </property>
-  <widget class="QWidget" name="centralwidget">
-   <property name="styleSheet">
-    <string notr="true">background-color: white; </string>
-   </property>
-   <layout class="QVBoxLayout" name="verticalLayout_2">
-    <property name="spacing">
-     <number>0</number>
-    </property>
-    <property name="leftMargin">
-     <number>0</number>
-    </property>
-    <property name="topMargin">
-     <number>0</number>
-    </property>
-    <property name="rightMargin">
-     <number>0</number>
-    </property>
-    <property name="bottomMargin">
-     <number>0</number>
-    </property>
-    <item>
-     <widget class="QStackedWidget" name="stack">
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-        <horstretch>0</horstretch>
-        <verstretch>0</verstretch>
-       </sizepolicy>
-      </property>
-      <property name="styleSheet">
-       <string notr="true">background-color:white;</string>
-      </property>
-      <property name="currentIndex">
-       <number>0</number>
-      </property>
-      <widget class="QWidget" name="Page_1">
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-         <horstretch>0</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
-       </property>
-       <layout class="QVBoxLayout" name="verticalLayout_3">
-        <item>
-         <layout class="QVBoxLayout" name="vertical">
-          <property name="spacing">
-           <number>6</number>
-          </property>
-          <item alignment="Qt::AlignmentFlag::AlignHCenter|Qt::AlignmentFlag::AlignBottom">
-           <widget class="QLabel" name="title1">
-            <property name="text">
-             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:44pt; font-weight:700; color:#009de0;&quot;&gt;Collision Study Dynamics&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-            </property>
-           </widget>
-          </item>
-          <item alignment="Qt::AlignmentFlag::AlignHCenter|Qt::AlignmentFlag::AlignTop">
-           <widget class="QLabel" name="subtitle1">
-            <property name="text">
-             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:20pt; color:#000000;&quot;&gt;Computer Vision App with Python&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QLabel" name="istlogo1">
-            <property name="text">
-             <string>TextLabel</string>
-            </property>
-           </widget>
-          </item>
-          <item alignment="Qt::AlignmentFlag::AlignHCenter|Qt::AlignmentFlag::AlignVCenter">
-           <widget class="QPushButton" name="btnStart">
+    <class>MainWindow</class>
+    <widget class="QMainWindow" name="MainWindow">
+        <property name="geometry">
+            <rect>
+                <x>0</x>
+                <y>0</y>
+                <width>742</width>
+                <height>535</height>
+            </rect>
+        </property>
+        <property name="sizePolicy">
+            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+            </sizepolicy>
+        </property>
+        <property name="windowTitle">
+            <string>MainWindow</string>
+        </property>
+        <property name="styleSheet">
+            <string notr="true" />
+        </property>
+        <widget class="QWidget" name="centralwidget">
             <property name="styleSheet">
-             <string notr="true">QPushButton {
-    color: white;
-    background-color: #009de0;
-	border-radius: 10px;
-    padding: 6px 12px;
-	font-weight: bold;
-}
-
-QPushButton:hover {
-    color: white;
-    background-color: #007bb5;  
-}
-
-QPushButton:pressed {
-    color: white;
-    background-color: #005f87;  
-}
-
-QPushButton:disabled {
-    color: #aaaaaa;
-    background-color: #cccccc;
-}
-</string>
+                <string notr="true">background-color: white; </string>
             </property>
-            <property name="text">
-             <string>START</string>
-            </property>
-            <property name="iconSize">
-             <size>
-              <width>16</width>
-              <height>16</height>
-             </size>
-            </property>
-           </widget>
-          </item>
-         </layout>
-        </item>
-       </layout>
-      </widget>
-      <widget class="QWidget" name="Page_2">
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Maximum" vsizetype="Expanding">
-         <horstretch>0</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
-       </property>
-       <layout class="QVBoxLayout" name="verticalLayout_4">
-        <item>
-         <layout class="QVBoxLayout" name="verticalLayout">
-          <item>
-           <widget class="QLabel" name="instructions">
-            <property name="styleSheet">
-             <string notr="true">color: black;
-background-color: white;</string>
-            </property>
-            <property name="text">
-             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;Before Experiment: &lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;---&amp;gt; Read the Guide;&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;---&amp;gt; Get disk masses (g);&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;---&amp;gt; Measure Disks Radius (mm);&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;&lt;br/&gt;&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;During the Experiment: &lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;---&amp;gt; Let 2 clean seconds after the start of the recording;&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;---&amp;gt; Throw the disks and verify if the collision occours;&lt;br/&gt;---&amp;gt; Don't let the disk to reenter the filming area;&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;---&amp;gt; Verify detection and repeat if necessary.&lt;br/&gt;&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-            </property>
-           </widget>
-          </item>
-          <item alignment="Qt::AlignmentFlag::AlignHCenter">
-           <widget class="QPushButton" name="btnNext2">
-            <property name="styleSheet">
-             <string notr="true">QPushButton {
-    color: white;
-    background-color: #009de0;
-	border-radius: 10px;
-    padding: 6px 12px;
-	font-weight: bold;
-}
+            <layout class="QVBoxLayout" name="verticalLayout_9">
+                <item>
+                    <widget class="QStackedWidget" name="stack">
+                        <property name="sizePolicy">
+                            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                                <horstretch>0</horstretch>
+                                <verstretch>0</verstretch>
+                            </sizepolicy>
+                        </property>
+                        <property name="styleSheet">
+                            <string notr="true">background-color:white;</string>
+                        </property>
+                        <property name="currentIndex">
+                            <number>3</number>
+                        </property>
+                        <widget class="QWidget" name="Page_1">
+                            <property name="sizePolicy">
+                                <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
+                            </property>
+                            <layout class="QVBoxLayout" name="verticalLayout_3">
+                                <item>
+                                    <layout class="QVBoxLayout" name="vertical">
+                                        <property name="spacing">
+                                            <number>6</number>
+                                        </property>
+                                        <item>
+                                            <widget class="QLabel" name="title1">
+                                                <property name="text">
+                                                    <string>
+                                                        &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p
+                                                        align=&quot;center&quot;&gt;&lt;span
+                                                        style=&quot; font-size:44pt;
+                                                        font-weight:700;
+                                                        color:#009de0;&quot;&gt;Collision Study
+                                                        Dynamics&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                        <item
+                                            alignment="Qt::AlignmentFlag::AlignHCenter|Qt::AlignmentFlag::AlignTop">
+                                            <widget class="QLabel" name="subtitle1">
+                                                <property name="text">
+                                                    <string>
+                                                        &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p
+                                                        align=&quot;center&quot;&gt;&lt;span
+                                                        style=&quot; font-size:20pt;
+                                                        color:#000000;&quot;&gt;Computer Vision App
+                                                        with
+                                                        Python&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                        <item>
+                                            <widget class="QLabel" name="istlogo1">
+                                                <property name="text">
+                                                    <string>TextLabel</string>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                        <item
+                                            alignment="Qt::AlignmentFlag::AlignHCenter|Qt::AlignmentFlag::AlignVCenter">
+                                            <widget class="QPushButton" name="btnStart">
+                                                <property name="styleSheet">
+                                                    <string notr="true">QPushButton {
+                                                        color: white;
+                                                        background-color: #009de0;
+                                                        border-radius: 10px;
+                                                        padding: 6px 12px;
+                                                        font-weight: bold;
+                                                        }
 
-QPushButton:hover {
-    color: white;
-    background-color: #007bb5;  
-}
+                                                        QPushButton:hover {
+                                                        color: white;
+                                                        background-color: #007bb5;
+                                                        }
 
-QPushButton:pressed {
-    color: white;
-    background-color: #005f87;  
-}
+                                                        QPushButton:pressed {
+                                                        color: white;
+                                                        background-color: #005f87;
+                                                        }
 
-QPushButton:disabled {
-    color: #aaaaaa;
-    background-color: #cccccc;
-}</string>
-            </property>
-            <property name="text">
-             <string>NEXT</string>
-            </property>
-           </widget>
-          </item>
-         </layout>
-        </item>
-       </layout>
-      </widget>
-      <widget class="QWidget" name="Page_3">
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-         <horstretch>0</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
-       </property>
-       <widget class="QWidget" name="gridLayoutWidget">
-        <property name="geometry">
-         <rect>
-          <x>9</x>
-          <y>9</y>
-          <width>721</width>
-          <height>521</height>
-         </rect>
-        </property>
-        <layout class="QGridLayout" name="gridLayout">
-         <item row="2" column="0">
-          <widget class="QLabel" name="disk_r_g">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="styleSheet">
-            <string notr="true">background-color: white;
-color: black; 
-font-weight: bold;
-padding-left: 20px;</string>
-           </property>
-           <property name="text">
-            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:20pt;&quot;&gt;Green Disk Radius (mm):&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-           </property>
-          </widget>
-         </item>
-         <item row="0" column="1" alignment="Qt::AlignmentFlag::AlignVCenter">
-          <widget class="QLineEdit" name="group_val">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="styleSheet">
-            <string notr="true">background-color: white;
-color: black; 
-border: 3px solid #009de0;
-font-size: 20px;</string>
-           </property>
-           <property name="placeholderText">
-            <string>---&gt; Ex: 01</string>
-           </property>
-          </widget>
-         </item>
-         <item row="3" column="0">
-          <widget class="QLabel" name="disk_m_b">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="styleSheet">
-            <string notr="true">background-color: white;
-color: black; 
-font-weight: bold;
-padding-left: 20px;</string>
-           </property>
-           <property name="text">
-            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:20pt;&quot;&gt;Blue Disk Mass (g):&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-           </property>
-          </widget>
-         </item>
-         <item row="3" column="1" alignment="Qt::AlignmentFlag::AlignVCenter">
-          <widget class="QLineEdit" name="disk_m_b_val">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="styleSheet">
-            <string notr="true">background-color: white;
-color: black; 
-border: 3px solid #009de0;
-font-size: 20px;</string>
-           </property>
-           <property name="placeholderText">
-            <string>---&gt; Ex: 11.8</string>
-           </property>
-          </widget>
-         </item>
-         <item row="0" column="0">
-          <widget class="QLabel" name="group">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="styleSheet">
-            <string notr="true">background-color: white;
-color: black; 
-font-weight: bold;
-padding-left: 20px;</string>
-           </property>
-           <property name="text">
-            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:20pt;&quot;&gt;Group Number:&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-           </property>
-          </widget>
-         </item>
-         <item row="1" column="0">
-          <widget class="QLabel" name="disk_m_g">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="styleSheet">
-            <string notr="true">background-color: white;
-color: black; 
-font-weight: bold;
-padding-left: 20px;</string>
-           </property>
-           <property name="text">
-            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:20pt;&quot;&gt;Green Disk Mass (g):&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-           </property>
-          </widget>
-         </item>
-         <item row="4" column="0">
-          <widget class="QLabel" name="disk_r_b">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="styleSheet">
-            <string notr="true">background-color: white;
-color: black; 
-font-weight: bold;
-padding-left: 20px;</string>
-           </property>
-           <property name="text">
-            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:20pt;&quot;&gt;Blue Disk Radius (mm):&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-           </property>
-          </widget>
-         </item>
-         <item row="1" column="1" alignment="Qt::AlignmentFlag::AlignVCenter">
-          <widget class="QLineEdit" name="disk_m_g_val">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="styleSheet">
-            <string notr="true">background-color: white;
-color: black; 
-border: 3px solid #009de0;
-font-size: 20px;</string>
-           </property>
-           <property name="placeholderText">
-            <string>---&gt; Ex: 11.8</string>
-           </property>
-          </widget>
-         </item>
-         <item row="4" column="1" alignment="Qt::AlignmentFlag::AlignVCenter">
-          <widget class="QLineEdit" name="disk_r_b_val">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="styleSheet">
-            <string notr="true">background-color: white;
-color: black; 
-border: 3px solid #009de0;
-font-size: 20px;</string>
-           </property>
-           <property name="placeholderText">
-            <string>---&gt; Ex: 40</string>
-           </property>
-          </widget>
-         </item>
-         <item row="2" column="1" alignment="Qt::AlignmentFlag::AlignVCenter">
-          <widget class="QLineEdit" name="disk_r_g_val">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="styleSheet">
-            <string notr="true">background-color: white;
-color: black; 
-border: 3px solid #009de0;
-font-size: 20px;</string>
-           </property>
-           <property name="placeholderText">
-            <string>--&gt; Ex: 40</string>
-           </property>
-          </widget>
-         </item>
-         <item row="5" column="1">
-          <widget class="QPushButton" name="validate">
-           <property name="styleSheet">
-            <string notr="true">QPushButton {
-    color: white;
-    background-color: #009de0;
-	border-radius: 10px;
-    padding: 6px 12px;
-	font-weight: bold;
-}
+                                                        QPushButton:disabled {
+                                                        color: #aaaaaa;
+                                                        background-color: #cccccc;
+                                                        }
+                                                    </string>
+                                                </property>
+                                                <property name="text">
+                                                    <string>START</string>
+                                                </property>
+                                                <property name="iconSize">
+                                                    <size>
+                                                        <width>16</width>
+                                                        <height>16</height>
+                                                    </size>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                    </layout>
+                                </item>
+                            </layout>
+                        </widget>
+                        <widget class="QWidget" name="Page_2">
+                            <property name="sizePolicy">
+                                <sizepolicy hsizetype="Maximum" vsizetype="Expanding">
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
+                            </property>
+                            <layout class="QVBoxLayout" name="verticalLayout_4">
+                                <item>
+                                    <layout class="QVBoxLayout" name="verticalLayout">
+                                        <item>
+                                            <widget class="QLabel" name="instructions">
+                                                <property name="styleSheet">
+                                                    <string notr="true">color: black;
+                                                        background-color: white;</string>
+                                                </property>
+                                                <property name="text">
+                                                    <string>
+                                                        &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span
+                                                        style=&quot; font-size:16pt;&quot;&gt;Before
+                                                        Experiment:
+                                                        &lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span
+                                                        style=&quot;
+                                                        font-size:16pt;&quot;&gt;---&amp;gt; Read
+                                                        the
+                                                        Guide;&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span
+                                                        style=&quot;
+                                                        font-size:16pt;&quot;&gt;---&amp;gt; Get
+                                                        disk masses
+                                                        (g);&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span
+                                                        style=&quot;
+                                                        font-size:16pt;&quot;&gt;---&amp;gt; Measure
+                                                        Disks Radius
+                                                        (mm);&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span
+                                                        style=&quot;
+                                                        font-size:16pt;&quot;&gt;&lt;br/&gt;&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span
+                                                        style=&quot; font-size:16pt;&quot;&gt;During
+                                                        the Experiment:
+                                                        &lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span
+                                                        style=&quot;
+                                                        font-size:16pt;&quot;&gt;---&amp;gt; Let 2
+                                                        clean seconds after the start of the
+                                                        recording;&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span
+                                                        style=&quot;
+                                                        font-size:16pt;&quot;&gt;---&amp;gt; Throw
+                                                        the disks and verify if the collision
+                                                        occours;&lt;br/&gt;---&amp;gt; Don't let the
+                                                        disk to reenter the filming
+                                                        area;&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span
+                                                        style=&quot;
+                                                        font-size:16pt;&quot;&gt;---&amp;gt; Verify
+                                                        detection and repeat if
+                                                        necessary.&lt;br/&gt;&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                        <item alignment="Qt::AlignmentFlag::AlignHCenter">
+                                            <widget class="QPushButton" name="btnNext2">
+                                                <property name="styleSheet">
+                                                    <string notr="true">QPushButton {
+                                                        color: white;
+                                                        background-color: #009de0;
+                                                        border-radius: 10px;
+                                                        padding: 6px 12px;
+                                                        font-weight: bold;
+                                                        }
 
-QPushButton:hover {
-    color: white;
-    background-color: #007bb5;  
-}
+                                                        QPushButton:hover {
+                                                        color: white;
+                                                        background-color: #007bb5;
+                                                        }
 
-QPushButton:pressed {
-    color: white;
-    background-color: #005f87;  
-}
+                                                        QPushButton:pressed {
+                                                        color: white;
+                                                        background-color: #005f87;
+                                                        }
 
-QPushButton:disabled {
-    color: #aaaaaa;
-    background-color: #cccccc;
-}</string>
-           </property>
-           <property name="text">
-            <string>VALIDATE</string>
-           </property>
-          </widget>
-         </item>
-         <item row="5" column="0">
-          <widget class="QLabel" name="warning">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="styleSheet">
-            <string notr="true">background-color: white;
-color: red; 
-font-weight: bold;
-padding-left: 20px;
-font-size: 18px;</string>
-           </property>
-           <property name="text">
-            <string/>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </widget>
-      </widget>
-      <widget class="QWidget" name="Page_4">
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-         <horstretch>0</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
-       </property>
-       <widget class="QWidget" name="verticalLayoutWidget">
-        <property name="geometry">
-         <rect>
-          <x>9</x>
-          <y>9</y>
-          <width>721</width>
-          <height>521</height>
-         </rect>
-        </property>
-        <layout class="QVBoxLayout" name="verticalLayout_5">
-         <item>
-          <widget class="QLabel" name="videoLabel">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="styleSheet">
-            <string notr="true">background-color: white;</string>
-           </property>
-           <property name="text">
-            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <layout class="QHBoxLayout" name="horizontalLayout">
-           <property name="bottomMargin">
-            <number>10</number>
-           </property>
-           <item>
-            <widget class="QPushButton" name="btnRecord">
-             <property name="styleSheet">
-              <string notr="true">QPushButton {
-    color: black;
-    background-color: #3dcc6a;
-	border-radius: 10px;
-    padding: 6px 12px;
-	font-weight: bold;
-}
+                                                        QPushButton:disabled {
+                                                        color: #aaaaaa;
+                                                        background-color: #cccccc;
+                                                        }</string>
+                                                </property>
+                                                <property name="text">
+                                                    <string>NEXT</string>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                    </layout>
+                                </item>
+                            </layout>
+                        </widget>
+                        <widget class="QWidget" name="Page_3">
+                            <property name="sizePolicy">
+                                <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
+                            </property>
+                            <layout class="QVBoxLayout" name="verticalLayout_5">
+                                <item>
+                                    <layout class="QGridLayout" name="gridLayout">
+                                        <item row="2" column="0">
+                                            <widget class="QLabel" name="disk_r_g">
+                                                <property name="sizePolicy">
+                                                    <sizepolicy hsizetype="Expanding"
+                                                        vsizetype="Expanding">
+                                                        <horstretch>0</horstretch>
+                                                        <verstretch>0</verstretch>
+                                                    </sizepolicy>
+                                                </property>
+                                                <property name="styleSheet">
+                                                    <string notr="true">background-color: white;
+                                                        color: black;
+                                                        font-weight: bold;
+                                                        padding-left: 20px;</string>
+                                                </property>
+                                                <property name="text">
+                                                    <string>
+                                                        &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span
+                                                        style=&quot; font-size:20pt;&quot;&gt;Green
+                                                        Disk Radius
+                                                        (mm):&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                        <item row="0" column="1"
+                                            alignment="Qt::AlignmentFlag::AlignVCenter">
+                                            <widget class="QLineEdit" name="group_val">
+                                                <property name="sizePolicy">
+                                                    <sizepolicy hsizetype="Expanding"
+                                                        vsizetype="Expanding">
+                                                        <horstretch>0</horstretch>
+                                                        <verstretch>0</verstretch>
+                                                    </sizepolicy>
+                                                </property>
+                                                <property name="styleSheet">
+                                                    <string notr="true">background-color: white;
+                                                        color: black;
+                                                        border: 3px solid #009de0;
+                                                        font-size: 20px;</string>
+                                                </property>
+                                                <property name="placeholderText">
+                                                    <string>---&gt; Ex: 01</string>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                        <item row="3" column="0">
+                                            <widget class="QLabel" name="disk_m_b">
+                                                <property name="sizePolicy">
+                                                    <sizepolicy hsizetype="Expanding"
+                                                        vsizetype="Expanding">
+                                                        <horstretch>0</horstretch>
+                                                        <verstretch>0</verstretch>
+                                                    </sizepolicy>
+                                                </property>
+                                                <property name="styleSheet">
+                                                    <string notr="true">background-color: white;
+                                                        color: black;
+                                                        font-weight: bold;
+                                                        padding-left: 20px;</string>
+                                                </property>
+                                                <property name="text">
+                                                    <string>
+                                                        &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span
+                                                        style=&quot; font-size:20pt;&quot;&gt;Blue
+                                                        Disk Mass
+                                                        (g):&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                        <item row="3" column="1"
+                                            alignment="Qt::AlignmentFlag::AlignVCenter">
+                                            <widget class="QLineEdit" name="disk_m_b_val">
+                                                <property name="sizePolicy">
+                                                    <sizepolicy hsizetype="Expanding"
+                                                        vsizetype="Expanding">
+                                                        <horstretch>0</horstretch>
+                                                        <verstretch>0</verstretch>
+                                                    </sizepolicy>
+                                                </property>
+                                                <property name="styleSheet">
+                                                    <string notr="true">background-color: white;
+                                                        color: black;
+                                                        border: 3px solid #009de0;
+                                                        font-size: 20px;</string>
+                                                </property>
+                                                <property name="placeholderText">
+                                                    <string>---&gt; Ex: 11.8</string>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                        <item row="0" column="0">
+                                            <widget class="QLabel" name="group">
+                                                <property name="sizePolicy">
+                                                    <sizepolicy hsizetype="Expanding"
+                                                        vsizetype="Expanding">
+                                                        <horstretch>0</horstretch>
+                                                        <verstretch>0</verstretch>
+                                                    </sizepolicy>
+                                                </property>
+                                                <property name="styleSheet">
+                                                    <string notr="true">background-color: white;
+                                                        color: black;
+                                                        font-weight: bold;
+                                                        padding-left: 20px;</string>
+                                                </property>
+                                                <property name="text">
+                                                    <string>
+                                                        &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span
+                                                        style=&quot; font-size:20pt;&quot;&gt;Group
+                                                        Number:&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                        <item row="1" column="0">
+                                            <widget class="QLabel" name="disk_m_g">
+                                                <property name="sizePolicy">
+                                                    <sizepolicy hsizetype="Expanding"
+                                                        vsizetype="Expanding">
+                                                        <horstretch>0</horstretch>
+                                                        <verstretch>0</verstretch>
+                                                    </sizepolicy>
+                                                </property>
+                                                <property name="styleSheet">
+                                                    <string notr="true">background-color: white;
+                                                        color: black;
+                                                        font-weight: bold;
+                                                        padding-left: 20px;</string>
+                                                </property>
+                                                <property name="text">
+                                                    <string>
+                                                        &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span
+                                                        style=&quot; font-size:20pt;&quot;&gt;Green
+                                                        Disk Mass
+                                                        (g):&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                        <item row="4" column="0">
+                                            <widget class="QLabel" name="disk_r_b">
+                                                <property name="sizePolicy">
+                                                    <sizepolicy hsizetype="Expanding"
+                                                        vsizetype="Expanding">
+                                                        <horstretch>0</horstretch>
+                                                        <verstretch>0</verstretch>
+                                                    </sizepolicy>
+                                                </property>
+                                                <property name="styleSheet">
+                                                    <string notr="true">background-color: white;
+                                                        color: black;
+                                                        font-weight: bold;
+                                                        padding-left: 20px;</string>
+                                                </property>
+                                                <property name="text">
+                                                    <string>
+                                                        &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span
+                                                        style=&quot; font-size:20pt;&quot;&gt;Blue
+                                                        Disk Radius
+                                                        (mm):&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                        <item row="1" column="1"
+                                            alignment="Qt::AlignmentFlag::AlignVCenter">
+                                            <widget class="QLineEdit" name="disk_m_g_val">
+                                                <property name="sizePolicy">
+                                                    <sizepolicy hsizetype="Expanding"
+                                                        vsizetype="Expanding">
+                                                        <horstretch>0</horstretch>
+                                                        <verstretch>0</verstretch>
+                                                    </sizepolicy>
+                                                </property>
+                                                <property name="styleSheet">
+                                                    <string notr="true">background-color: white;
+                                                        color: black;
+                                                        border: 3px solid #009de0;
+                                                        font-size: 20px;</string>
+                                                </property>
+                                                <property name="placeholderText">
+                                                    <string>---&gt; Ex: 11.8</string>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                        <item row="4" column="1"
+                                            alignment="Qt::AlignmentFlag::AlignVCenter">
+                                            <widget class="QLineEdit" name="disk_r_b_val">
+                                                <property name="sizePolicy">
+                                                    <sizepolicy hsizetype="Expanding"
+                                                        vsizetype="Expanding">
+                                                        <horstretch>0</horstretch>
+                                                        <verstretch>0</verstretch>
+                                                    </sizepolicy>
+                                                </property>
+                                                <property name="styleSheet">
+                                                    <string notr="true">background-color: white;
+                                                        color: black;
+                                                        border: 3px solid #009de0;
+                                                        font-size: 20px;</string>
+                                                </property>
+                                                <property name="placeholderText">
+                                                    <string>---&gt; Ex: 40</string>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                        <item row="2" column="1"
+                                            alignment="Qt::AlignmentFlag::AlignVCenter">
+                                            <widget class="QLineEdit" name="disk_r_g_val">
+                                                <property name="sizePolicy">
+                                                    <sizepolicy hsizetype="Expanding"
+                                                        vsizetype="Expanding">
+                                                        <horstretch>0</horstretch>
+                                                        <verstretch>0</verstretch>
+                                                    </sizepolicy>
+                                                </property>
+                                                <property name="styleSheet">
+                                                    <string notr="true">background-color: white;
+                                                        color: black;
+                                                        border: 3px solid #009de0;
+                                                        font-size: 20px;</string>
+                                                </property>
+                                                <property name="placeholderText">
+                                                    <string>--&gt; Ex: 40</string>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                        <item row="5" column="1">
+                                            <widget class="QPushButton" name="validate">
+                                                <property name="styleSheet">
+                                                    <string notr="true">QPushButton {
+                                                        color: white;
+                                                        background-color: #009de0;
+                                                        border-radius: 10px;
+                                                        padding: 6px 12px;
+                                                        font-weight: bold;
+                                                        }
 
-QPushButton:hover {
-    color: black;
-    background-color: #2e9950;  
-}
+                                                        QPushButton:hover {
+                                                        color: white;
+                                                        background-color: #007bb5;
+                                                        }
 
-QPushButton:pressed {
-    color: black;
-    background-color: #268043;  
-}
+                                                        QPushButton:pressed {
+                                                        color: white;
+                                                        background-color: #005f87;
+                                                        }
 
-QPushButton:disabled {
-    color: #aaaaaa;
-    background-color: #cccccc;
-}</string>
-             </property>
-             <property name="text">
-              <string>START RECORDING</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="btnStop">
-             <property name="styleSheet">
-              <string notr="true">QPushButton {
-    color: black;
-    background-color: #cc0c0c;
-	border-radius: 10px;
-    padding: 6px 12px;
-	font-weight: bold;
-}
+                                                        QPushButton:disabled {
+                                                        color: #aaaaaa;
+                                                        background-color: #cccccc;
+                                                        }</string>
+                                                </property>
+                                                <property name="text">
+                                                    <string>VALIDATE</string>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                        <item row="5" column="0">
+                                            <widget class="QLabel" name="warning">
+                                                <property name="sizePolicy">
+                                                    <sizepolicy hsizetype="Expanding"
+                                                        vsizetype="Fixed">
+                                                        <horstretch>0</horstretch>
+                                                        <verstretch>0</verstretch>
+                                                    </sizepolicy>
+                                                </property>
+                                                <property name="styleSheet">
+                                                    <string notr="true">background-color: white;
+                                                        color: red;
+                                                        font-weight: bold;
+                                                        padding-left: 20px;
+                                                        font-size: 18px;</string>
+                                                </property>
+                                                <property name="text">
+                                                    <string />
+                                                </property>
+                                            </widget>
+                                        </item>
+                                    </layout>
+                                </item>
+                            </layout>
+                        </widget>
+                        <widget class="QWidget" name="Page_4">
+                            <property name="enabled">
+                                <bool>true</bool>
+                            </property>
+                            <layout class="QVBoxLayout" name="verticalLayout_Page4">
+                                <property name="spacing">
+                                    <number>20</number>
+                                </property>
+                                <property name="leftMargin">
+                                    <number>30</number>
+                                </property>
+                                <property name="topMargin">
+                                    <number>40</number>
+                                </property>
+                                <property name="rightMargin">
+                                    <number>30</number>
+                                </property>
+                                <property name="bottomMargin">
+                                    <number>40</number>
+                                </property>
+                                <item
+                                    alignment="Qt::AlignmentFlag::AlignHCenter|Qt::AlignmentFlag::AlignBottom">
+                                    <widget class="QLabel" name="title4">
+                                        <property name="text">
+                                            <string>
+                                                &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p
+                                                align=&quot;center&quot;&gt;&lt;span style=&quot;
+                                                font-size:36pt; font-weight:700;
+                                                color:#009de0;&quot;&gt;Upload Video
+                                                File&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                                        </property>
+                                    </widget>
+                                </item>
+                                <item
+                                    alignment="Qt::AlignmentFlag::AlignHCenter|Qt::AlignmentFlag::AlignTop">
+                                    <widget class="QLabel" name="lblUploadStatus">
+                                        <property name="text">
+                                            <string>
+                                                &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p
+                                                align=&quot;center&quot;&gt;&lt;span style=&quot;
+                                                font-size:18pt; color:#555555;&quot;&gt;No video
+                                                file selected
+                                                yet.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                                        </property>
+                                        <property name="wordWrap">
+                                            <bool>true</bool>
+                                        </property>
+                                    </widget>
+                                </item>
+                                <item>
+                                    <layout class="QHBoxLayout" name="horizontalLayout_Page4Buttons">
+                                        <property name="spacing">
+                                            <number>15</number>
+                                        </property>
+                                        <item>
+                                            <spacer name="leftSpacer">
+                                                <property name="orientation">
+                                                    <enum>Qt::Orientation::Horizontal</enum>
+                                                </property>
+                                                <property name="sizeHint" stdset="0">
+                                                    <size>
+                                                        <width>40</width>
+                                                        <height>20</height>
+                                                    </size>
+                                                </property>
+                                            </spacer>
+                                        </item>
+                                        <item>
+                                            <widget class="QPushButton" name="btnSelectFile">
+                                                <property name="styleSheet">
+                                                    <string notr="true">QPushButton {
+                                                        color: white;
+                                                        background-color: #009de0;
+                                                        border-radius: 10px;
+                                                        padding: 10px 20px;
+                                                        font-weight: bold;
+                                                        font-size: 14px;
+                                                        }
 
-QPushButton:hover {
-    color: black;
-    background-color: #b30b0b;  
-}
+                                                        QPushButton:hover {
+                                                        color: white;
+                                                        background-color: #007bb5;
+                                                        }
 
-QPushButton:pressed {
-    color: black;
-    background-color: #800808;  
-}
+                                                        QPushButton:pressed {
+                                                        color: white;
+                                                        background-color: #005f87;
+                                                        }
 
-QPushButton:disabled {
-    color: #aaaaaa;
-    background-color: #cccccc;
-}</string>
-             </property>
-             <property name="text">
-              <string>STOP RECORDING</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="btnNext4">
-             <property name="enabled">
-              <bool>false</bool>
-             </property>
-             <property name="styleSheet">
-              <string notr="true">QPushButton {
-    color: white;
-    background-color: #009de0;
-	border-radius: 10px;
-    padding: 6px 12px;
-	font-weight: bold;
-}
+                                                        QPushButton:disabled {
+                                                        color: #aaaaaa;
+                                                        background-color: #cccccc;
+                                                        }</string>
+                                                </property>
+                                                <property name="text">
+                                                    <string>SELECT VIDEO FILE</string>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                        <item>
+                                            <widget class="QPushButton" name="btnProceed">
+                                                <property name="enabled">
+                                                    <bool>false</bool>
+                                                </property>
+                                                <property name="styleSheet">
+                                                    <string notr="true">QPushButton {
+                                                        color: white;
+                                                        background-color: #009de0;
+                                                        border-radius: 10px;
+                                                        padding: 10px 20px;
+                                                        font-weight: bold;
+                                                        font-size: 14px;
+                                                        }
 
-QPushButton:hover {
-    color: white;
-    background-color: #007bb5;  
-}
+                                                        QPushButton:hover {
+                                                        color: white;
+                                                        background-color: #007bb5;
+                                                        }
 
-QPushButton:pressed {
-    color: white;
-    background-color: #005f87;  
-}
+                                                        QPushButton:pressed {
+                                                        color: white;
+                                                        background-color: #005f87;
+                                                        }
 
-QPushButton:disabled {
-    color: #aaaaaa;
-    background-color: #cccccc;
-}</string>
-             </property>
-             <property name="text">
-              <string>NEXT</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </item>
-        </layout>
-       </widget>
-      </widget>
-      <widget class="QWidget" name="Page_5">
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-         <horstretch>0</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
-       </property>
-       <widget class="QWidget" name="verticalLayoutWidget_2">
-        <property name="geometry">
-         <rect>
-          <x>10</x>
-          <y>9</y>
-          <width>721</width>
-          <height>521</height>
-         </rect>
-        </property>
-        <layout class="QVBoxLayout" name="verticalLayout_6">
-         <item>
-          <widget class="QLabel" name="detectionLabel">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="text">
-            <string>TextLabel</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <layout class="QHBoxLayout" name="horizontalLayout_2">
-           <item>
-            <widget class="QPushButton" name="btnGen">
-             <property name="styleSheet">
-              <string notr="true">QPushButton {
-    color: white;
-    background-color: #009de0;
-	border-radius: 10px;
-    padding: 6px 12px;
-	font-weight: bold;
-}
+                                                        QPushButton:disabled {
+                                                        color: #aaaaaa;
+                                                        background-color: #cccccc;
+                                                        }</string>
+                                                </property>
+                                                <property name="text">
+                                                    <string>PROCEED TO ANALYSIS</string>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                        <item>
+                                            <spacer name="rightSpacer">
+                                                <property name="orientation">
+                                                    <enum>Qt::Orientation::Horizontal</enum>
+                                                </property>
+                                                <property name="sizeHint" stdset="0">
+                                                    <size>
+                                                        <width>40</width>
+                                                        <height>20</height>
+                                                    </size>
+                                                </property>
+                                            </spacer>
+                                        </item>
+                                    </layout>
+                                </item>
+                            </layout>
+                        </widget>
+                        <widget class="QWidget" name="Page_5">
+                            <property name="sizePolicy">
+                                <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
+                            </property>
+                            <layout class="QVBoxLayout" name="verticalLayout_8">
+                                <item>
+                                    <layout class="QVBoxLayout" name="verticalLayout_6">
+                                        <item>
+                                            <widget class="QLabel" name="detectionLabel">
+                                                <property name="sizePolicy">
+                                                    <sizepolicy hsizetype="Expanding"
+                                                        vsizetype="Expanding">
+                                                        <horstretch>0</horstretch>
+                                                        <verstretch>0</verstretch>
+                                                    </sizepolicy>
+                                                </property>
+                                                <property name="text">
+                                                    <string>TextLabel</string>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                        <item>
+                                            <layout class="QHBoxLayout" name="horizontalLayout_2">
+                                                <item>
+                                                    <widget class="QPushButton" name="btnGen">
+                                                        <property name="styleSheet">
+                                                            <string notr="true">QPushButton {
+                                                                color: white;
+                                                                background-color: #009de0;
+                                                                border-radius: 10px;
+                                                                padding: 6px 12px;
+                                                                font-weight: bold;
+                                                                }
 
-QPushButton:hover {
-    color: white;
-    background-color: #007bb5;  
-}
+                                                                QPushButton:hover {
+                                                                color: white;
+                                                                background-color: #007bb5;
+                                                                }
 
-QPushButton:pressed {
-    color: white;
-    background-color: #005f87;  
-}
+                                                                QPushButton:pressed {
+                                                                color: white;
+                                                                background-color: #005f87;
+                                                                }
 
-QPushButton:disabled {
-    color: #aaaaaa;
-    background-color: #cccccc;
-}</string>
-             </property>
-             <property name="text">
-              <string>GENERATE </string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="btnPreview">
-             <property name="enabled">
-              <bool>false</bool>
-             </property>
-             <property name="styleSheet">
-              <string notr="true">QPushButton {
-    color: white;
-    background-color: #009de0;
-	border-radius: 10px;
-    padding: 6px 12px;
-	font-weight: bold;
-}
+                                                                QPushButton:disabled {
+                                                                color: #aaaaaa;
+                                                                background-color: #cccccc;
+                                                                }</string>
+                                                        </property>
+                                                        <property name="text">
+                                                            <string>GENERATE </string>
+                                                        </property>
+                                                    </widget>
+                                                </item>
+                                                <item>
+                                                    <widget class="QPushButton" name="btnPreview">
+                                                        <property name="enabled">
+                                                            <bool>false</bool>
+                                                        </property>
+                                                        <property name="styleSheet">
+                                                            <string notr="true">QPushButton {
+                                                                color: white;
+                                                                background-color: #009de0;
+                                                                border-radius: 10px;
+                                                                padding: 6px 12px;
+                                                                font-weight: bold;
+                                                                }
 
-QPushButton:hover {
-    color: white;
-    background-color: #007bb5;  
-}
+                                                                QPushButton:hover {
+                                                                color: white;
+                                                                background-color: #007bb5;
+                                                                }
 
-QPushButton:pressed {
-    color: white;
-    background-color: #005f87;  
-}
+                                                                QPushButton:pressed {
+                                                                color: white;
+                                                                background-color: #005f87;
+                                                                }
 
-QPushButton:disabled {
-    color: #aaaaaa;
-    background-color: #cccccc;
-}</string>
-             </property>
-             <property name="text">
-              <string>PREVIEW</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="btnRedo">
-             <property name="enabled">
-              <bool>false</bool>
-             </property>
-             <property name="styleSheet">
-              <string notr="true">QPushButton {
-    color: white;
-    background-color: #009de0;
-	border-radius: 10px;
-    padding: 6px 12px;
-	font-weight: bold;
-}
+                                                                QPushButton:disabled {
+                                                                color: #aaaaaa;
+                                                                background-color: #cccccc;
+                                                                }</string>
+                                                        </property>
+                                                        <property name="text">
+                                                            <string>PREVIEW</string>
+                                                        </property>
+                                                    </widget>
+                                                </item>
+                                                <item>
+                                                    <widget class="QPushButton" name="btnRedo">
+                                                        <property name="enabled">
+                                                            <bool>false</bool>
+                                                        </property>
+                                                        <property name="styleSheet">
+                                                            <string notr="true">QPushButton {
+                                                                color: white;
+                                                                background-color: #009de0;
+                                                                border-radius: 10px;
+                                                                padding: 6px 12px;
+                                                                font-weight: bold;
+                                                                }
 
-QPushButton:hover {
-    color: white;
-    background-color: #007bb5;  
-}
+                                                                QPushButton:hover {
+                                                                color: white;
+                                                                background-color: #007bb5;
+                                                                }
 
-QPushButton:pressed {
-    color: white;
-    background-color: #005f87;  
-}
+                                                                QPushButton:pressed {
+                                                                color: white;
+                                                                background-color: #005f87;
+                                                                }
 
-QPushButton:disabled {
-    color: #aaaaaa;
-    background-color: #cccccc;
-}</string>
-             </property>
-             <property name="text">
-              <string>REPEATE</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="btnNext5">
-             <property name="enabled">
-              <bool>false</bool>
-             </property>
-             <property name="styleSheet">
-              <string notr="true">QPushButton {
-    color: white;
-    background-color: #009de0;
-	border-radius: 10px;
-    padding: 6px 12px;
-	font-weight: bold;
-}
+                                                                QPushButton:disabled {
+                                                                color: #aaaaaa;
+                                                                background-color: #cccccc;
+                                                                }</string>
+                                                        </property>
+                                                        <property name="text">
+                                                            <string>REPEATE</string>
+                                                        </property>
+                                                    </widget>
+                                                </item>
+                                                <item>
+                                                    <widget class="QPushButton" name="btnNext5">
+                                                        <property name="enabled">
+                                                            <bool>false</bool>
+                                                        </property>
+                                                        <property name="styleSheet">
+                                                            <string notr="true">QPushButton {
+                                                                color: white;
+                                                                background-color: #009de0;
+                                                                border-radius: 10px;
+                                                                padding: 6px 12px;
+                                                                font-weight: bold;
+                                                                }
 
-QPushButton:hover {
-    color: white;
-    background-color: #007bb5;  
-}
+                                                                QPushButton:hover {
+                                                                color: white;
+                                                                background-color: #007bb5;
+                                                                }
 
-QPushButton:pressed {
-    color: white;
-    background-color: #005f87;  
-}
+                                                                QPushButton:pressed {
+                                                                color: white;
+                                                                background-color: #005f87;
+                                                                }
 
-QPushButton:disabled {
-    color: #aaaaaa;
-    background-color: #cccccc;
-}</string>
-             </property>
-             <property name="text">
-              <string>ACCEPT</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </item>
-        </layout>
-       </widget>
-      </widget>
-      <widget class="QWidget" name="Page_6">
-       <widget class="QWidget" name="verticalLayoutWidget_3">
-        <property name="geometry">
-         <rect>
-          <x>10</x>
-          <y>0</y>
-          <width>731</width>
-          <height>521</height>
-         </rect>
-        </property>
-        <layout class="QVBoxLayout" name="verticalLayout_7">
-         <item alignment="Qt::AlignmentFlag::AlignBottom">
-          <widget class="QLabel" name="title6">
-           <property name="styleSheet">
-            <string notr="true">padding-top: 20px</string>
-           </property>
-           <property name="text">
-            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:44pt; font-weight:700; color:#009de0;&quot;&gt;Experiment Finished&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-           </property>
-          </widget>
-         </item>
-         <item alignment="Qt::AlignmentFlag::AlignTop">
-          <widget class="QLabel" name="subtitle6">
-           <property name="text">
-            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:20pt; color:#000000;&quot;&gt;You Must Check Project Folder for Data&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QLabel" name="istlogo6">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="styleSheet">
-            <string notr="true">padding-bottom: 30px;</string>
-           </property>
-           <property name="text">
-            <string/>
-           </property>
-           <property name="pixmap">
-            <pixmap>:/img/logoIST.png</pixmap>
-           </property>
-           <property name="alignment">
-            <set>Qt::AlignmentFlag::AlignCenter</set>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QLabel" name="credits">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="text">
-            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:12pt; font-weight:700; color:#000000;&quot;&gt;Developed by Gonçalo Rodrigues&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </widget>
-      </widget>
-     </widget>
-    </item>
-   </layout>
-  </widget>
- </widget>
- <resources/>
- <connections/>
+                                                                QPushButton:disabled {
+                                                                color: #aaaaaa;
+                                                                background-color: #cccccc;
+                                                                }</string>
+                                                        </property>
+                                                        <property name="text">
+                                                            <string>ACCEPT</string>
+                                                        </property>
+                                                    </widget>
+                                                </item>
+                                            </layout>
+                                        </item>
+                                    </layout>
+                                </item>
+                            </layout>
+                        </widget>
+                        <widget class="QWidget" name="Page_6">
+                            <layout class="QVBoxLayout" name="verticalLayout_2">
+                                <item>
+                                    <layout class="QVBoxLayout" name="verticalLayout_7">
+                                        <item alignment="Qt::AlignmentFlag::AlignBottom">
+                                            <widget class="QLabel" name="title6">
+                                                <property name="styleSheet">
+                                                    <string notr="true">padding-top: 20px</string>
+                                                </property>
+                                                <property name="text">
+                                                    <string>
+                                                        &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p
+                                                        align=&quot;center&quot;&gt;&lt;span
+                                                        style=&quot; font-size:44pt;
+                                                        font-weight:700;
+                                                        color:#009de0;&quot;&gt;Experiment
+                                                        Finished&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                        <item alignment="Qt::AlignmentFlag::AlignTop">
+                                            <widget class="QLabel" name="subtitle6">
+                                                <property name="text">
+                                                    <string>
+                                                        &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p
+                                                        align=&quot;center&quot;&gt;&lt;span
+                                                        style=&quot; font-size:20pt;
+                                                        color:#000000;&quot;&gt;You Must Check
+                                                        Project Folder for
+                                                        Data&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                        <item>
+                                            <widget class="QLabel" name="istlogo6">
+                                                <property name="sizePolicy">
+                                                    <sizepolicy hsizetype="Expanding"
+                                                        vsizetype="Preferred">
+                                                        <horstretch>0</horstretch>
+                                                        <verstretch>0</verstretch>
+                                                    </sizepolicy>
+                                                </property>
+                                                <property name="styleSheet">
+                                                    <string notr="true">padding-bottom: 30px;</string>
+                                                </property>
+                                                <property name="text">
+                                                    <string />
+                                                </property>
+                                                <property name="pixmap">
+                                                    <pixmap>:/img/logoIST.png</pixmap>
+                                                </property>
+                                                <property name="alignment">
+                                                    <set>Qt::AlignmentFlag::AlignCenter</set>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                        <item>
+                                            <widget class="QLabel" name="credits">
+                                                <property name="sizePolicy">
+                                                    <sizepolicy hsizetype="Preferred"
+                                                        vsizetype="Minimum">
+                                                        <horstretch>0</horstretch>
+                                                        <verstretch>0</verstretch>
+                                                    </sizepolicy>
+                                                </property>
+                                                <property name="text">
+                                                    <string>
+                                                        &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p
+                                                        align=&quot;center&quot;&gt;&lt;span
+                                                        style=&quot; font-size:12pt;
+                                                        font-weight:700;
+                                                        color:#000000;&quot;&gt;Developed by Gonçalo
+                                                        Rodrigues&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                    </layout>
+                                </item>
+                            </layout>
+                        </widget>
+                    </widget>
+                </item>
+            </layout>
+        </widget>
+    </widget>
+    <resources />
+    <connections />
 </ui>

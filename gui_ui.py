@@ -17,7 +17,7 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QPalette, QPixmap, QRadialGradient, QTransform)
 from PySide6.QtWidgets import (QApplication, QGridLayout, QHBoxLayout, QLabel,
     QLineEdit, QMainWindow, QPushButton, QSizePolicy,
-    QStackedWidget, QVBoxLayout, QWidget)
+    QSpacerItem, QStackedWidget, QVBoxLayout, QWidget)
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -33,10 +33,8 @@ class Ui_MainWindow(object):
         self.centralwidget = QWidget(MainWindow)
         self.centralwidget.setObjectName(u"centralwidget")
         self.centralwidget.setStyleSheet(u"background-color: white; ")
-        self.verticalLayout_2 = QVBoxLayout(self.centralwidget)
-        self.verticalLayout_2.setSpacing(0)
-        self.verticalLayout_2.setObjectName(u"verticalLayout_2")
-        self.verticalLayout_2.setContentsMargins(0, 0, 0, 0)
+        self.verticalLayout_9 = QVBoxLayout(self.centralwidget)
+        self.verticalLayout_9.setObjectName(u"verticalLayout_9")
         self.stack = QStackedWidget(self.centralwidget)
         self.stack.setObjectName(u"stack")
         sizePolicy.setHeightForWidth(self.stack.sizePolicy().hasHeightForWidth())
@@ -69,28 +67,29 @@ class Ui_MainWindow(object):
         self.btnStart = QPushButton(self.Page_1)
         self.btnStart.setObjectName(u"btnStart")
         self.btnStart.setStyleSheet(u"QPushButton {\n"
-"    color: white;\n"
-"    background-color: #009de0;\n"
-"	border-radius: 10px;\n"
-"    padding: 6px 12px;\n"
-"	font-weight: bold;\n"
-"}\n"
+"                                                        color: white;\n"
+"                                                        background-color: #009de0;\n"
+"                                                        border-radius: 10px;\n"
+"                                                        padding: 6px 12px;\n"
+"                                                        font-weight: bold;\n"
+"                                                        }\n"
 "\n"
-"QPushButton:hover {\n"
-"    color: white;\n"
-"    background-color: #007bb5;  \n"
-"}\n"
+"                                                        QPushButton:hover {\n"
+"                                                        color: white;\n"
+"                                                        background-color: #007bb5;\n"
+"                                                        }\n"
 "\n"
-"QPushButton:pressed {\n"
-"    color: white;\n"
-"    background-color: #005f87;  \n"
-"}\n"
+"                                                        QPushButton:pressed {\n"
+"                                                        color: white;\n"
+"                                                        background-color: #0"
+                        "05f87;\n"
+"                                                        }\n"
 "\n"
-"QPushButton:disabled {\n"
-"    color: #aaaaaa;\n"
-"    background-color: #cccccc;\n"
-"}\n"
-"")
+"                                                        QPushButton:disabled {\n"
+"                                                        color: #aaaaaa;\n"
+"                                                        background-color: #cccccc;\n"
+"                                                        }\n"
+"                                                    ")
         self.btnStart.setIconSize(QSize(16, 16))
 
         self.vertical.addWidget(self.btnStart, 0, Qt.AlignmentFlag.AlignHCenter|Qt.AlignmentFlag.AlignVCenter)
@@ -113,34 +112,35 @@ class Ui_MainWindow(object):
         self.instructions = QLabel(self.Page_2)
         self.instructions.setObjectName(u"instructions")
         self.instructions.setStyleSheet(u"color: black;\n"
-"background-color: white;")
+"                                                        background-color: white;")
 
         self.verticalLayout.addWidget(self.instructions)
 
         self.btnNext2 = QPushButton(self.Page_2)
         self.btnNext2.setObjectName(u"btnNext2")
         self.btnNext2.setStyleSheet(u"QPushButton {\n"
-"    color: white;\n"
-"    background-color: #009de0;\n"
-"	border-radius: 10px;\n"
-"    padding: 6px 12px;\n"
-"	font-weight: bold;\n"
-"}\n"
+"                                                        color: white;\n"
+"                                                        background-color: #009de0;\n"
+"                                                        border-radius: 10px;\n"
+"                                                        padding: 6px 12px;\n"
+"                                                        font-weight: bold;\n"
+"                                                        }\n"
 "\n"
-"QPushButton:hover {\n"
-"    color: white;\n"
-"    background-color: #007bb5;  \n"
-"}\n"
+"                                                        QPushButton:hover {\n"
+"                                                        color: white;\n"
+"                                                        background-color: #007bb5;\n"
+"                                                        }\n"
 "\n"
-"QPushButton:pressed {\n"
-"    color: white;\n"
-"    background-color: #005f87;  \n"
-"}\n"
+"                                                        QPushButton:pressed {\n"
+"                                                        color: white;\n"
+"                                                        background-color: #0"
+                        "05f87;\n"
+"                                                        }\n"
 "\n"
-"QPushButton:disabled {\n"
-"    color: #aaaaaa;\n"
-"    background-color: #cccccc;\n"
-"}")
+"                                                        QPushButton:disabled {\n"
+"                                                        color: #aaaaaa;\n"
+"                                                        background-color: #cccccc;\n"
+"                                                        }")
 
         self.verticalLayout.addWidget(self.btnNext2, 0, Qt.AlignmentFlag.AlignHCenter)
 
@@ -152,150 +152,149 @@ class Ui_MainWindow(object):
         self.Page_3.setObjectName(u"Page_3")
         sizePolicy.setHeightForWidth(self.Page_3.sizePolicy().hasHeightForWidth())
         self.Page_3.setSizePolicy(sizePolicy)
-        self.gridLayoutWidget = QWidget(self.Page_3)
-        self.gridLayoutWidget.setObjectName(u"gridLayoutWidget")
-        self.gridLayoutWidget.setGeometry(QRect(9, 9, 721, 521))
-        self.gridLayout = QGridLayout(self.gridLayoutWidget)
+        self.verticalLayout_5 = QVBoxLayout(self.Page_3)
+        self.verticalLayout_5.setObjectName(u"verticalLayout_5")
+        self.gridLayout = QGridLayout()
         self.gridLayout.setObjectName(u"gridLayout")
-        self.gridLayout.setContentsMargins(0, 0, 0, 0)
-        self.disk_r_g = QLabel(self.gridLayoutWidget)
+        self.disk_r_g = QLabel(self.Page_3)
         self.disk_r_g.setObjectName(u"disk_r_g")
         sizePolicy.setHeightForWidth(self.disk_r_g.sizePolicy().hasHeightForWidth())
         self.disk_r_g.setSizePolicy(sizePolicy)
         self.disk_r_g.setStyleSheet(u"background-color: white;\n"
-"color: black; \n"
-"font-weight: bold;\n"
-"padding-left: 20px;")
+"                                                        color: black;\n"
+"                                                        font-weight: bold;\n"
+"                                                        padding-left: 20px;")
 
         self.gridLayout.addWidget(self.disk_r_g, 2, 0, 1, 1)
 
-        self.group_val = QLineEdit(self.gridLayoutWidget)
+        self.group_val = QLineEdit(self.Page_3)
         self.group_val.setObjectName(u"group_val")
         sizePolicy.setHeightForWidth(self.group_val.sizePolicy().hasHeightForWidth())
         self.group_val.setSizePolicy(sizePolicy)
         self.group_val.setStyleSheet(u"background-color: white;\n"
-"color: black; \n"
-"border: 3px solid #009de0;\n"
-"font-size: 20px;")
+"                                                        color: black;\n"
+"                                                        border: 3px solid #009de0;\n"
+"                                                        font-size: 20px;")
 
         self.gridLayout.addWidget(self.group_val, 0, 1, 1, 1, Qt.AlignmentFlag.AlignVCenter)
 
-        self.disk_m_b = QLabel(self.gridLayoutWidget)
+        self.disk_m_b = QLabel(self.Page_3)
         self.disk_m_b.setObjectName(u"disk_m_b")
         sizePolicy.setHeightForWidth(self.disk_m_b.sizePolicy().hasHeightForWidth())
         self.disk_m_b.setSizePolicy(sizePolicy)
         self.disk_m_b.setStyleSheet(u"background-color: white;\n"
-"color: black; \n"
-"font-weight: bold;\n"
-"padding-left: 20px;")
+"                                                        color: black;\n"
+"                                                        font-weight: bold;\n"
+"                                                        padding-left: 20px;")
 
         self.gridLayout.addWidget(self.disk_m_b, 3, 0, 1, 1)
 
-        self.disk_m_b_val = QLineEdit(self.gridLayoutWidget)
+        self.disk_m_b_val = QLineEdit(self.Page_3)
         self.disk_m_b_val.setObjectName(u"disk_m_b_val")
         sizePolicy.setHeightForWidth(self.disk_m_b_val.sizePolicy().hasHeightForWidth())
         self.disk_m_b_val.setSizePolicy(sizePolicy)
         self.disk_m_b_val.setStyleSheet(u"background-color: white;\n"
-"color: black; \n"
-"border: 3px solid #009de0;\n"
-"font-size: 20px;")
+"                                                        color: black;\n"
+"                                                        border: 3px solid #009de0;\n"
+"                                                        font-size: 20px;")
 
         self.gridLayout.addWidget(self.disk_m_b_val, 3, 1, 1, 1, Qt.AlignmentFlag.AlignVCenter)
 
-        self.group = QLabel(self.gridLayoutWidget)
+        self.group = QLabel(self.Page_3)
         self.group.setObjectName(u"group")
         sizePolicy.setHeightForWidth(self.group.sizePolicy().hasHeightForWidth())
         self.group.setSizePolicy(sizePolicy)
         self.group.setStyleSheet(u"background-color: white;\n"
-"color: black; \n"
-"font-weight: bold;\n"
-"padding-left: 20px;")
+"                                                        color: black;\n"
+"                                                        font-weight: bold;\n"
+"                                                        padding-left: 20px;")
 
         self.gridLayout.addWidget(self.group, 0, 0, 1, 1)
 
-        self.disk_m_g = QLabel(self.gridLayoutWidget)
+        self.disk_m_g = QLabel(self.Page_3)
         self.disk_m_g.setObjectName(u"disk_m_g")
         sizePolicy.setHeightForWidth(self.disk_m_g.sizePolicy().hasHeightForWidth())
         self.disk_m_g.setSizePolicy(sizePolicy)
         self.disk_m_g.setStyleSheet(u"background-color: white;\n"
-"color: black; \n"
-"font-weight: bold;\n"
-"padding-left: 20px;")
+"                                                        color: black;\n"
+"                                                        font-weight: bold;\n"
+"                                                        padding-left: 20px;")
 
         self.gridLayout.addWidget(self.disk_m_g, 1, 0, 1, 1)
 
-        self.disk_r_b = QLabel(self.gridLayoutWidget)
+        self.disk_r_b = QLabel(self.Page_3)
         self.disk_r_b.setObjectName(u"disk_r_b")
         sizePolicy.setHeightForWidth(self.disk_r_b.sizePolicy().hasHeightForWidth())
         self.disk_r_b.setSizePolicy(sizePolicy)
         self.disk_r_b.setStyleSheet(u"background-color: white;\n"
-"color: black; \n"
-"font-weight: bold;\n"
-"padding-left: 20px;")
+"                                                        color: black;\n"
+"                                                        font-weight: bold;\n"
+"                                                        padding-left: 20px;")
 
         self.gridLayout.addWidget(self.disk_r_b, 4, 0, 1, 1)
 
-        self.disk_m_g_val = QLineEdit(self.gridLayoutWidget)
+        self.disk_m_g_val = QLineEdit(self.Page_3)
         self.disk_m_g_val.setObjectName(u"disk_m_g_val")
         sizePolicy.setHeightForWidth(self.disk_m_g_val.sizePolicy().hasHeightForWidth())
         self.disk_m_g_val.setSizePolicy(sizePolicy)
         self.disk_m_g_val.setStyleSheet(u"background-color: white;\n"
-"color: black; \n"
-"border: 3px solid #009de0;\n"
-"font-size: 20px;")
+"                                                        color: black;\n"
+"                                                        border: 3px solid #009de0;\n"
+"                                                        font-size: 20px;")
 
         self.gridLayout.addWidget(self.disk_m_g_val, 1, 1, 1, 1, Qt.AlignmentFlag.AlignVCenter)
 
-        self.disk_r_b_val = QLineEdit(self.gridLayoutWidget)
+        self.disk_r_b_val = QLineEdit(self.Page_3)
         self.disk_r_b_val.setObjectName(u"disk_r_b_val")
         sizePolicy.setHeightForWidth(self.disk_r_b_val.sizePolicy().hasHeightForWidth())
         self.disk_r_b_val.setSizePolicy(sizePolicy)
         self.disk_r_b_val.setStyleSheet(u"background-color: white;\n"
-"color: black; \n"
-"border: 3px solid #009de0;\n"
-"font-size: 20px;")
+"                                                        color: black;\n"
+"                                                        border: 3px solid #009de0;\n"
+"                                                        font-size: 20px;")
 
         self.gridLayout.addWidget(self.disk_r_b_val, 4, 1, 1, 1, Qt.AlignmentFlag.AlignVCenter)
 
-        self.disk_r_g_val = QLineEdit(self.gridLayoutWidget)
+        self.disk_r_g_val = QLineEdit(self.Page_3)
         self.disk_r_g_val.setObjectName(u"disk_r_g_val")
         sizePolicy.setHeightForWidth(self.disk_r_g_val.sizePolicy().hasHeightForWidth())
         self.disk_r_g_val.setSizePolicy(sizePolicy)
         self.disk_r_g_val.setStyleSheet(u"background-color: white;\n"
-"color: black; \n"
-"border: 3px solid #009de0;\n"
-"font-size: 20px;")
+"                                                        color: black;\n"
+"                                                        border: 3px solid #009de0;\n"
+"                                                        font-size: 20px;")
 
         self.gridLayout.addWidget(self.disk_r_g_val, 2, 1, 1, 1, Qt.AlignmentFlag.AlignVCenter)
 
-        self.validate = QPushButton(self.gridLayoutWidget)
+        self.validate = QPushButton(self.Page_3)
         self.validate.setObjectName(u"validate")
         self.validate.setStyleSheet(u"QPushButton {\n"
-"    color: white;\n"
-"    background-color: #009de0;\n"
-"	border-radius: 10px;\n"
-"    padding: 6px 12px;\n"
-"	font-weight: bold;\n"
-"}\n"
+"                                                        color: white;\n"
+"                                                        background-color: #009de0;\n"
+"                                                        border-radius: 10px;\n"
+"                                                        padding: 6px 12px;\n"
+"                                                        font-weight: bold;\n"
+"                                                        }\n"
 "\n"
-"QPushButton:hover {\n"
-"    color: white;\n"
-"    background-color: #007bb5;  \n"
-"}\n"
+"                                                        QPushButton:hover {\n"
+"                                                        color: white;\n"
+"                                                        background-color: #007bb5;\n"
+"                                                        }\n"
 "\n"
-"QPushButton:pressed {\n"
-"    color: white;\n"
-"    background-color: #005f87;  \n"
-"}\n"
+"                                                        QPushButton:pressed {\n"
+"                                                        color: white;\n"
+"                                                        background-color: #0"
+                        "05f87;\n"
+"                                                        }\n"
 "\n"
-"QPushButton:disabled {\n"
-"    color: #aaaaaa;\n"
-"    background-color: #cccccc;\n"
-"}")
+"                                                        QPushButton:disabled {\n"
+"                                                        color: #aaaaaa;\n"
+"                                                        background-color: #cccccc;\n"
+"                                                        }")
 
         self.gridLayout.addWidget(self.validate, 5, 1, 1, 1)
 
-        self.warning = QLabel(self.gridLayoutWidget)
+        self.warning = QLabel(self.Page_3)
         self.warning.setObjectName(u"warning")
         sizePolicy2 = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         sizePolicy2.setHorizontalStretch(0)
@@ -303,25 +302,118 @@ class Ui_MainWindow(object):
         sizePolicy2.setHeightForWidth(self.warning.sizePolicy().hasHeightForWidth())
         self.warning.setSizePolicy(sizePolicy2)
         self.warning.setStyleSheet(u"background-color: white;\n"
-"color: red; \n"
-"font-weight: bold;\n"
-"padding-left: 20px;\n"
-"font-size: 18px;")
+"                                                        color: red;\n"
+"                                                        font-weight: bold;\n"
+"                                                        padding-left: 20px;\n"
+"                                                        font-size: 18px;")
 
         self.gridLayout.addWidget(self.warning, 5, 0, 1, 1)
 
+
+        self.verticalLayout_5.addLayout(self.gridLayout)
+
         self.stack.addWidget(self.Page_3)
+        self.Page_4 = QWidget()
+        self.Page_4.setObjectName(u"Page_4")
+        self.Page_4.setEnabled(True)
+        self.verticalLayout_Page4 = QVBoxLayout(self.Page_4)
+        self.verticalLayout_Page4.setSpacing(20)
+        self.verticalLayout_Page4.setObjectName(u"verticalLayout_Page4")
+        self.verticalLayout_Page4.setContentsMargins(30, 40, 30, 40)
+        self.title4 = QLabel(self.Page_4)
+        self.title4.setObjectName(u"title4")
+
+        self.verticalLayout_Page4.addWidget(self.title4, 0, Qt.AlignmentFlag.AlignHCenter|Qt.AlignmentFlag.AlignBottom)
+
+        self.lblUploadStatus = QLabel(self.Page_4)
+        self.lblUploadStatus.setObjectName(u"lblUploadStatus")
+        self.lblUploadStatus.setWordWrap(True)
+
+        self.verticalLayout_Page4.addWidget(self.lblUploadStatus, 0, Qt.AlignmentFlag.AlignHCenter|Qt.AlignmentFlag.AlignTop)
+
+        self.horizontalLayout_Page4Buttons = QHBoxLayout()
+        self.horizontalLayout_Page4Buttons.setSpacing(15)
+        self.horizontalLayout_Page4Buttons.setObjectName(u"horizontalLayout_Page4Buttons")
+        self.leftSpacer = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+        self.horizontalLayout_Page4Buttons.addItem(self.leftSpacer)
+
+        self.btnSelectFile = QPushButton(self.Page_4)
+        self.btnSelectFile.setObjectName(u"btnSelectFile")
+        self.btnSelectFile.setStyleSheet(u"QPushButton {\n"
+"                                                        color: white;\n"
+"                                                        background-color: #009de0;\n"
+"                                                        border-radius: 10px;\n"
+"                                                        padding: 10px 20px;\n"
+"                                                        font-weight: bold;\n"
+"                                                        font-size: 14px;\n"
+"                                                        }\n"
+"\n"
+"                                                        QPushButton:hover {\n"
+"                                                        color: white;\n"
+"                                                        background-color: #007bb5;\n"
+"                                                        }\n"
+"\n"
+"                                                        QPushButton:pressed {\n"
+"                                                        color: white;\n"
+""
+                        "                                                        background-color: #005f87;\n"
+"                                                        }\n"
+"\n"
+"                                                        QPushButton:disabled {\n"
+"                                                        color: #aaaaaa;\n"
+"                                                        background-color: #cccccc;\n"
+"                                                        }")
+
+        self.horizontalLayout_Page4Buttons.addWidget(self.btnSelectFile)
+
+        self.btnProceed = QPushButton(self.Page_4)
+        self.btnProceed.setObjectName(u"btnProceed")
+        self.btnProceed.setEnabled(False)
+        self.btnProceed.setStyleSheet(u"QPushButton {\n"
+"                                                        color: white;\n"
+"                                                        background-color: #009de0;\n"
+"                                                        border-radius: 10px;\n"
+"                                                        padding: 10px 20px;\n"
+"                                                        font-weight: bold;\n"
+"                                                        font-size: 14px;\n"
+"                                                        }\n"
+"\n"
+"                                                        QPushButton:hover {\n"
+"                                                        color: white;\n"
+"                                                        background-color: #007bb5;\n"
+"                                                        }\n"
+"\n"
+"                                                        QPushButton:pressed {\n"
+"                                                        color: white;\n"
+""
+                        "                                                        background-color: #005f87;\n"
+"                                                        }\n"
+"\n"
+"                                                        QPushButton:disabled {\n"
+"                                                        color: #aaaaaa;\n"
+"                                                        background-color: #cccccc;\n"
+"                                                        }")
+
+        self.horizontalLayout_Page4Buttons.addWidget(self.btnProceed)
+
+        self.rightSpacer = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+        self.horizontalLayout_Page4Buttons.addItem(self.rightSpacer)
+
+
+        self.verticalLayout_Page4.addLayout(self.horizontalLayout_Page4Buttons)
+
+        self.stack.addWidget(self.Page_4)
         self.Page_5 = QWidget()
         self.Page_5.setObjectName(u"Page_5")
         sizePolicy.setHeightForWidth(self.Page_5.sizePolicy().hasHeightForWidth())
         self.Page_5.setSizePolicy(sizePolicy)
-        self.verticalLayoutWidget_2 = QWidget(self.Page_5)
-        self.verticalLayoutWidget_2.setObjectName(u"verticalLayoutWidget_2")
-        self.verticalLayoutWidget_2.setGeometry(QRect(10, 9, 721, 521))
-        self.verticalLayout_6 = QVBoxLayout(self.verticalLayoutWidget_2)
+        self.verticalLayout_8 = QVBoxLayout(self.Page_5)
+        self.verticalLayout_8.setObjectName(u"verticalLayout_8")
+        self.verticalLayout_6 = QVBoxLayout()
         self.verticalLayout_6.setObjectName(u"verticalLayout_6")
-        self.verticalLayout_6.setContentsMargins(0, 0, 0, 0)
-        self.detectionLabel = QLabel(self.verticalLayoutWidget_2)
+        self.detectionLabel = QLabel(self.Page_5)
         self.detectionLabel.setObjectName(u"detectionLabel")
         sizePolicy.setHeightForWidth(self.detectionLabel.sizePolicy().hasHeightForWidth())
         self.detectionLabel.setSizePolicy(sizePolicy)
@@ -330,141 +422,146 @@ class Ui_MainWindow(object):
 
         self.horizontalLayout_2 = QHBoxLayout()
         self.horizontalLayout_2.setObjectName(u"horizontalLayout_2")
-        self.btnGen = QPushButton(self.verticalLayoutWidget_2)
+        self.btnGen = QPushButton(self.Page_5)
         self.btnGen.setObjectName(u"btnGen")
         self.btnGen.setStyleSheet(u"QPushButton {\n"
-"    color: white;\n"
-"    background-color: #009de0;\n"
-"	border-radius: 10px;\n"
-"    padding: 6px 12px;\n"
-"	font-weight: bold;\n"
-"}\n"
+"                                                                color: white;\n"
+"                                                                background-color: #009de0;\n"
+"                                                                border-radius: 10px;\n"
+"                                                                padding: 6px 12px;\n"
+"                                                                font-weight: bold;\n"
+"                                                                }\n"
 "\n"
-"QPushButton:hover {\n"
-"    color: white;\n"
-"    background-color: #007bb5;  \n"
-"}\n"
+"                                                                QPushButton:hover {\n"
+"                                                                color: white;\n"
+"                                                                background-color: #007bb5;\n"
+"                                                                }\n"
 "\n"
-"QPushButton:pressed {\n"
-"    color: white;\n"
-"    background-color: #005f87;  \n"
-"}\n"
+"                                                                QPushButton:pressed {\n"
+"                                                              "
+                        "  color: white;\n"
+"                                                                background-color: #005f87;\n"
+"                                                                }\n"
 "\n"
-"QPushButton:disabled {\n"
-"    color: #aaaaaa;\n"
-"    background-color: #cccccc;\n"
-"}")
+"                                                                QPushButton:disabled {\n"
+"                                                                color: #aaaaaa;\n"
+"                                                                background-color: #cccccc;\n"
+"                                                                }")
 
         self.horizontalLayout_2.addWidget(self.btnGen)
 
-        self.btnPreview = QPushButton(self.verticalLayoutWidget_2)
+        self.btnPreview = QPushButton(self.Page_5)
         self.btnPreview.setObjectName(u"btnPreview")
         self.btnPreview.setEnabled(False)
         self.btnPreview.setStyleSheet(u"QPushButton {\n"
-"    color: white;\n"
-"    background-color: #009de0;\n"
-"	border-radius: 10px;\n"
-"    padding: 6px 12px;\n"
-"	font-weight: bold;\n"
-"}\n"
+"                                                                color: white;\n"
+"                                                                background-color: #009de0;\n"
+"                                                                border-radius: 10px;\n"
+"                                                                padding: 6px 12px;\n"
+"                                                                font-weight: bold;\n"
+"                                                                }\n"
 "\n"
-"QPushButton:hover {\n"
-"    color: white;\n"
-"    background-color: #007bb5;  \n"
-"}\n"
+"                                                                QPushButton:hover {\n"
+"                                                                color: white;\n"
+"                                                                background-color: #007bb5;\n"
+"                                                                }\n"
 "\n"
-"QPushButton:pressed {\n"
-"    color: white;\n"
-"    background-color: #005f87;  \n"
-"}\n"
+"                                                                QPushButton:pressed {\n"
+"                                                              "
+                        "  color: white;\n"
+"                                                                background-color: #005f87;\n"
+"                                                                }\n"
 "\n"
-"QPushButton:disabled {\n"
-"    color: #aaaaaa;\n"
-"    background-color: #cccccc;\n"
-"}")
+"                                                                QPushButton:disabled {\n"
+"                                                                color: #aaaaaa;\n"
+"                                                                background-color: #cccccc;\n"
+"                                                                }")
 
         self.horizontalLayout_2.addWidget(self.btnPreview)
 
-        self.btnRedo = QPushButton(self.verticalLayoutWidget_2)
+        self.btnRedo = QPushButton(self.Page_5)
         self.btnRedo.setObjectName(u"btnRedo")
         self.btnRedo.setEnabled(False)
         self.btnRedo.setStyleSheet(u"QPushButton {\n"
-"    color: white;\n"
-"    background-color: #009de0;\n"
-"	border-radius: 10px;\n"
-"    padding: 6px 12px;\n"
-"	font-weight: bold;\n"
-"}\n"
+"                                                                color: white;\n"
+"                                                                background-color: #009de0;\n"
+"                                                                border-radius: 10px;\n"
+"                                                                padding: 6px 12px;\n"
+"                                                                font-weight: bold;\n"
+"                                                                }\n"
 "\n"
-"QPushButton:hover {\n"
-"    color: white;\n"
-"    background-color: #007bb5;  \n"
-"}\n"
+"                                                                QPushButton:hover {\n"
+"                                                                color: white;\n"
+"                                                                background-color: #007bb5;\n"
+"                                                                }\n"
 "\n"
-"QPushButton:pressed {\n"
-"    color: white;\n"
-"    background-color: #005f87;  \n"
-"}\n"
+"                                                                QPushButton:pressed {\n"
+"                                                              "
+                        "  color: white;\n"
+"                                                                background-color: #005f87;\n"
+"                                                                }\n"
 "\n"
-"QPushButton:disabled {\n"
-"    color: #aaaaaa;\n"
-"    background-color: #cccccc;\n"
-"}")
+"                                                                QPushButton:disabled {\n"
+"                                                                color: #aaaaaa;\n"
+"                                                                background-color: #cccccc;\n"
+"                                                                }")
 
         self.horizontalLayout_2.addWidget(self.btnRedo)
 
-        self.btnNext5 = QPushButton(self.verticalLayoutWidget_2)
+        self.btnNext5 = QPushButton(self.Page_5)
         self.btnNext5.setObjectName(u"btnNext5")
         self.btnNext5.setEnabled(False)
         self.btnNext5.setStyleSheet(u"QPushButton {\n"
-"    color: white;\n"
-"    background-color: #009de0;\n"
-"	border-radius: 10px;\n"
-"    padding: 6px 12px;\n"
-"	font-weight: bold;\n"
-"}\n"
+"                                                                color: white;\n"
+"                                                                background-color: #009de0;\n"
+"                                                                border-radius: 10px;\n"
+"                                                                padding: 6px 12px;\n"
+"                                                                font-weight: bold;\n"
+"                                                                }\n"
 "\n"
-"QPushButton:hover {\n"
-"    color: white;\n"
-"    background-color: #007bb5;  \n"
-"}\n"
+"                                                                QPushButton:hover {\n"
+"                                                                color: white;\n"
+"                                                                background-color: #007bb5;\n"
+"                                                                }\n"
 "\n"
-"QPushButton:pressed {\n"
-"    color: white;\n"
-"    background-color: #005f87;  \n"
-"}\n"
+"                                                                QPushButton:pressed {\n"
+"                                                              "
+                        "  color: white;\n"
+"                                                                background-color: #005f87;\n"
+"                                                                }\n"
 "\n"
-"QPushButton:disabled {\n"
-"    color: #aaaaaa;\n"
-"    background-color: #cccccc;\n"
-"}")
+"                                                                QPushButton:disabled {\n"
+"                                                                color: #aaaaaa;\n"
+"                                                                background-color: #cccccc;\n"
+"                                                                }")
 
         self.horizontalLayout_2.addWidget(self.btnNext5)
 
 
         self.verticalLayout_6.addLayout(self.horizontalLayout_2)
 
+
+        self.verticalLayout_8.addLayout(self.verticalLayout_6)
+
         self.stack.addWidget(self.Page_5)
         self.Page_6 = QWidget()
         self.Page_6.setObjectName(u"Page_6")
-        self.verticalLayoutWidget_3 = QWidget(self.Page_6)
-        self.verticalLayoutWidget_3.setObjectName(u"verticalLayoutWidget_3")
-        self.verticalLayoutWidget_3.setGeometry(QRect(10, 0, 731, 521))
-        self.verticalLayout_7 = QVBoxLayout(self.verticalLayoutWidget_3)
+        self.verticalLayout_2 = QVBoxLayout(self.Page_6)
+        self.verticalLayout_2.setObjectName(u"verticalLayout_2")
+        self.verticalLayout_7 = QVBoxLayout()
         self.verticalLayout_7.setObjectName(u"verticalLayout_7")
-        self.verticalLayout_7.setContentsMargins(0, 0, 0, 0)
-        self.title6 = QLabel(self.verticalLayoutWidget_3)
+        self.title6 = QLabel(self.Page_6)
         self.title6.setObjectName(u"title6")
         self.title6.setStyleSheet(u"padding-top: 20px")
 
         self.verticalLayout_7.addWidget(self.title6, 0, Qt.AlignmentFlag.AlignBottom)
 
-        self.subtitle6 = QLabel(self.verticalLayoutWidget_3)
+        self.subtitle6 = QLabel(self.Page_6)
         self.subtitle6.setObjectName(u"subtitle6")
 
         self.verticalLayout_7.addWidget(self.subtitle6, 0, Qt.AlignmentFlag.AlignTop)
 
-        self.istlogo6 = QLabel(self.verticalLayoutWidget_3)
+        self.istlogo6 = QLabel(self.Page_6)
         self.istlogo6.setObjectName(u"istlogo6")
         sizePolicy3 = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         sizePolicy3.setHorizontalStretch(0)
@@ -477,7 +574,7 @@ class Ui_MainWindow(object):
 
         self.verticalLayout_7.addWidget(self.istlogo6)
 
-        self.credits = QLabel(self.verticalLayoutWidget_3)
+        self.credits = QLabel(self.Page_6)
         self.credits.setObjectName(u"credits")
         sizePolicy4 = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
         sizePolicy4.setHorizontalStretch(0)
@@ -487,9 +584,12 @@ class Ui_MainWindow(object):
 
         self.verticalLayout_7.addWidget(self.credits)
 
+
+        self.verticalLayout_2.addLayout(self.verticalLayout_7)
+
         self.stack.addWidget(self.Page_6)
 
-        self.verticalLayout_2.addWidget(self.stack)
+        self.verticalLayout_9.addWidget(self.stack)
 
         MainWindow.setCentralWidget(self.centralwidget)
 
@@ -503,32 +603,132 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         MainWindow.setWindowTitle(QCoreApplication.translate("MainWindow", u"MainWindow", None))
-        self.title1.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\"><span style=\" font-size:44pt; font-weight:700; color:#009de0;\">Collision Study Dynamics</span></p></body></html>", None))
-        self.subtitle1.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\"><span style=\" font-size:20pt; color:#000000;\">Computer Vision App with Python</span></p></body></html>", None))
+        self.title1.setText(QCoreApplication.translate("MainWindow", u"\n"
+"                                                        <html><head/><body><p\n"
+"                                                        align=\"center\"><span\n"
+"                                                        style=\" font-size:44pt;\n"
+"                                                        font-weight:700;\n"
+"                                                        color:#009de0;\">Collision Study\n"
+"                                                        Dynamics</span></p></body></html>", None))
+        self.subtitle1.setText(QCoreApplication.translate("MainWindow", u"\n"
+"                                                        <html><head/><body><p\n"
+"                                                        align=\"center\"><span\n"
+"                                                        style=\" font-size:20pt;\n"
+"                                                        color:#000000;\">Computer Vision App\n"
+"                                                        with\n"
+"                                                        Python</span></p></body></html>", None))
         self.istlogo1.setText(QCoreApplication.translate("MainWindow", u"TextLabel", None))
         self.btnStart.setText(QCoreApplication.translate("MainWindow", u"START", None))
-        self.instructions.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p><span style=\" font-size:16pt;\">Before Experiment: </span></p><p><span style=\" font-size:16pt;\">---&gt; Read the Guide;</span></p><p><span style=\" font-size:16pt;\">---&gt; Get disk masses (g);</span></p><p><span style=\" font-size:16pt;\">---&gt; Measure Disks Radius (mm);</span></p><p><span style=\" font-size:16pt;\"><br/></span></p><p><span style=\" font-size:16pt;\">During the Experiment: </span></p><p><span style=\" font-size:16pt;\">---&gt; Let 2 clean seconds after the start of the recording;</span></p><p><span style=\" font-size:16pt;\">---&gt; Throw the disks and verify if the collision occours;<br/>---&gt; Don't let the disk to reenter the filming area;</span></p><p><span style=\" font-size:16pt;\">---&gt; Verify detection and repeat if necessary.<br/></span></p></body></html>", None))
+        self.instructions.setText(QCoreApplication.translate("MainWindow", u"\n"
+"                                                        <html><head/><body><p><span\n"
+"                                                        style=\" font-size:16pt;\">Before\n"
+"                                                        Experiment:\n"
+"                                                        </span></p><p><span\n"
+"                                                        style=\"\n"
+"                                                        font-size:16pt;\">---&gt; Read\n"
+"                                                        the\n"
+"                                                        Guide;</span></p><p><span\n"
+"                                                        style=\"\n"
+"                                                        font-size:16pt;\">---&gt; Get\n"
+"                                                        disk masses\n"
+"                                                        (g);</span></p><p><span\n"
+"                                                        style"
+                        "=\"\n"
+"                                                        font-size:16pt;\">---&gt; Measure\n"
+"                                                        Disks Radius\n"
+"                                                        (mm);</span></p><p><span\n"
+"                                                        style=\"\n"
+"                                                        font-size:16pt;\"><br/></span></p><p><span\n"
+"                                                        style=\" font-size:16pt;\">During\n"
+"                                                        the Experiment:\n"
+"                                                        </span></p><p><span\n"
+"                                                        style=\"\n"
+"                                                        font-size:16pt;\">---&gt; Let 2\n"
+"                                                        clean seconds after the start of the\n"
+"                                                        recording;</span></p><p><span"
+                        "\n"
+"                                                        style=\"\n"
+"                                                        font-size:16pt;\">---&gt; Throw\n"
+"                                                        the disks and verify if the collision\n"
+"                                                        occours;<br/>---&gt; Don't let the\n"
+"                                                        disk to reenter the filming\n"
+"                                                        area;</span></p><p><span\n"
+"                                                        style=\"\n"
+"                                                        font-size:16pt;\">---&gt; Verify\n"
+"                                                        detection and repeat if\n"
+"                                                        necessary.<br/></span></p></body></html>", None))
         self.btnNext2.setText(QCoreApplication.translate("MainWindow", u"NEXT", None))
-        self.disk_r_g.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p><span style=\" font-size:20pt;\">Green Disk Radius (mm):</span></p></body></html>", None))
+        self.disk_r_g.setText(QCoreApplication.translate("MainWindow", u"\n"
+"                                                        <html><head/><body><p><span\n"
+"                                                        style=\" font-size:20pt;\">Green\n"
+"                                                        Disk Radius\n"
+"                                                        (mm):</span></p></body></html>", None))
         self.group_val.setPlaceholderText(QCoreApplication.translate("MainWindow", u"---> Ex: 01", None))
-        self.disk_m_b.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p><span style=\" font-size:20pt;\">Blue Disk Mass (g):</span></p></body></html>", None))
+        self.disk_m_b.setText(QCoreApplication.translate("MainWindow", u"\n"
+"                                                        <html><head/><body><p><span\n"
+"                                                        style=\" font-size:20pt;\">Blue\n"
+"                                                        Disk Mass\n"
+"                                                        (g):</span></p></body></html>", None))
         self.disk_m_b_val.setPlaceholderText(QCoreApplication.translate("MainWindow", u"---> Ex: 11.8", None))
-        self.group.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p><span style=\" font-size:20pt;\">Group Number:</span></p></body></html>", None))
-        self.disk_m_g.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p><span style=\" font-size:20pt;\">Green Disk Mass (g):</span></p></body></html>", None))
-        self.disk_r_b.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p><span style=\" font-size:20pt;\">Blue Disk Radius (mm):</span></p></body></html>", None))
+        self.group.setText(QCoreApplication.translate("MainWindow", u"\n"
+"                                                        <html><head/><body><p><span\n"
+"                                                        style=\" font-size:20pt;\">Group\n"
+"                                                        Number:</span></p></body></html>", None))
+        self.disk_m_g.setText(QCoreApplication.translate("MainWindow", u"\n"
+"                                                        <html><head/><body><p><span\n"
+"                                                        style=\" font-size:20pt;\">Green\n"
+"                                                        Disk Mass\n"
+"                                                        (g):</span></p></body></html>", None))
+        self.disk_r_b.setText(QCoreApplication.translate("MainWindow", u"\n"
+"                                                        <html><head/><body><p><span\n"
+"                                                        style=\" font-size:20pt;\">Blue\n"
+"                                                        Disk Radius\n"
+"                                                        (mm):</span></p></body></html>", None))
         self.disk_m_g_val.setPlaceholderText(QCoreApplication.translate("MainWindow", u"---> Ex: 11.8", None))
         self.disk_r_b_val.setPlaceholderText(QCoreApplication.translate("MainWindow", u"---> Ex: 40", None))
         self.disk_r_g_val.setPlaceholderText(QCoreApplication.translate("MainWindow", u"--> Ex: 40", None))
         self.validate.setText(QCoreApplication.translate("MainWindow", u"VALIDATE", None))
         self.warning.setText("")
+        self.title4.setText(QCoreApplication.translate("MainWindow", u"\n"
+"                                                <html><head/><body><p\n"
+"                                                align=\"center\"><span style=\"\n"
+"                                                font-size:36pt; font-weight:700;\n"
+"                                                color:#009de0;\">Upload Video\n"
+"                                                File</span></p></body></html>", None))
+        self.lblUploadStatus.setText(QCoreApplication.translate("MainWindow", u"\n"
+"                                                <html><head/><body><p\n"
+"                                                align=\"center\"><span style=\"\n"
+"                                                font-size:18pt; color:#555555;\">No video\n"
+"                                                file selected\n"
+"                                                yet.</span></p></body></html>", None))
+        self.btnSelectFile.setText(QCoreApplication.translate("MainWindow", u"SELECT VIDEO FILE", None))
+        self.btnProceed.setText(QCoreApplication.translate("MainWindow", u"PROCEED TO ANALYSIS", None))
         self.detectionLabel.setText(QCoreApplication.translate("MainWindow", u"TextLabel", None))
         self.btnGen.setText(QCoreApplication.translate("MainWindow", u"GENERATE ", None))
         self.btnPreview.setText(QCoreApplication.translate("MainWindow", u"PREVIEW", None))
         self.btnRedo.setText(QCoreApplication.translate("MainWindow", u"REPEATE", None))
         self.btnNext5.setText(QCoreApplication.translate("MainWindow", u"ACCEPT", None))
-        self.title6.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\"><span style=\" font-size:44pt; font-weight:700; color:#009de0;\">Experiment Finished</span></p></body></html>", None))
-        self.subtitle6.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\"><span style=\" font-size:20pt; color:#000000;\">You Must Check Project Folder for Data</span></p></body></html>", None))
+        self.title6.setText(QCoreApplication.translate("MainWindow", u"\n"
+"                                                        <html><head/><body><p\n"
+"                                                        align=\"center\"><span\n"
+"                                                        style=\" font-size:44pt;\n"
+"                                                        font-weight:700;\n"
+"                                                        color:#009de0;\">Experiment\n"
+"                                                        Finished</span></p></body></html>", None))
+        self.subtitle6.setText(QCoreApplication.translate("MainWindow", u"\n"
+"                                                        <html><head/><body><p\n"
+"                                                        align=\"center\"><span\n"
+"                                                        style=\" font-size:20pt;\n"
+"                                                        color:#000000;\">You Must Check\n"
+"                                                        Project Folder for\n"
+"                                                        Data</span></p></body></html>", None))
         self.istlogo6.setText("")
-        self.credits.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\"><span style=\" font-size:12pt; font-weight:700; color:#000000;\">Developed by Gon\u00e7alo Rodrigues</span></p></body></html>", None))
+        self.credits.setText(QCoreApplication.translate("MainWindow", u"\n"
+"                                                        <html><head/><body><p\n"
+"                                                        align=\"center\"><span\n"
+"                                                        style=\" font-size:12pt;\n"
+"                                                        font-weight:700;\n"
+"                                                        color:#000000;\">Developed by Gon\u00e7alo\n"
+"                                                        Rodrigues</span></p></body></html>", None))
     # retranslateUi
 

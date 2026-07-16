@@ -1,30 +1,17 @@
 # Default Imports from PySide6 and the Qt framework
 import sys
-import time
 from PyQt6 import uic
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize
-from PyQt6.QtGui import QImage, QPixmap
+from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QStackedWidget, QLineEdit
 from pathlib import Path
-
 
 # Imports of OpenCV and Operating System 
 import cv2
 import os
 
-# Block Warnings from MSMF
-os.environ["OPENCV_LOG_LEVEL"] = "SILENT" 
-
-try:
-    cv2.utils.logging.setLogLevel(cv2.utils.logging.LOG_LEVEL_SILENT)
-except Exception:
-    pass
-
-
 # Imports of other Modules for Wiring and Navigation
 import helper as hp
-from pathlib import Path
-
 
 def resource_path(*parts) -> Path:
     """
@@ -35,284 +22,17 @@ def resource_path(*parts) -> Path:
     return base.joinpath(*parts)
 
 
-
-class CameraWorker(QThread):
-    ImageUpdate = pyqtSignal(QImage)
-    ConfigReady = pyqtSignal(int, int, float, str)
-    StatsUpdate = pyqtSignal(float) 
-
-    def __init__(self, camera_index=0, parent=None):
-        # Initialize Class an Object Attrs
-        super().__init__(parent)
-        self._active = False
-        self._camera_index = camera_index
-        self._t0 = None
-        self._frame_count = 0
-
-        # Recording State
-        self._recording = False
-        self._writer = None
-        self._target_fps = None
-        self._size = None 
-        self._path = None
-
-        self._config_emitted = False
-        self._backend_used = 'unknown'
-
-        # Silence OpenCV WARNS
-        try:
-            cv2.utils.logging.setLogLevel(cv2.utils.logging.LOG_LEVEL_ERROR)
-        except Exception:
-            pass
-
-
-    def _open_with_backend(self, backend_name: str):
-        # Try different Multimedia Frameworks for Video Capture
-        code = {
-            'dshow': getattr(cv2, 'CAP_DSHOW', 700),
-            'msmf' : getattr(cv2, 'CAP_MSMF', 0),
-            'any'  : cv2.CAP_ANY
-        }[backend_name]
-        
-        # VideoCapture Variable
-        cap = cv2.VideoCapture(self._camera_index, code)
-        if not cap.isOpened():
-            cap.release()
-            return None
-        return cap
-
-
-    def _try_configure(self, cap, backend_name: str):
-            # Target resolutions and frame rates
-            prefs = [
-                (1920, 1080, 60), 
-                (1280, 720, 60), 
-                (1920, 1080, 30)
-            ]
-            
-            for w, h, fps in prefs:
-                # Force compression format if using DirectShow
-                if backend_name == 'dshow':
-                    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
-                
-                cap.set(cv2.CAP_PROP_FRAME_WIDTH, w)
-                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
-                cap.set(cv2.CAP_PROP_FPS, fps)
-
-                # CRITICAL FOR 60 FPS: Disable Auto-Exposure if 60 FPS is targeted.
-                # On Windows DSHOW, 1 turns off auto-exposure (sets to manual).
-                # We then set exposure to a low value (-6 represents ~1/64s exposure time).
-                if fps == 60 and backend_name == 'dshow':
-                    cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1) 
-                    cap.set(cv2.CAP_PROP_EXPOSURE, -6)
-
-                ok, test = cap.read()
-                if not ok or test is None:
-                    continue
-
-                # Check what the backend driver actually granted us
-                granted_w = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
-                granted_h = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-                granted_fps = cap.get(cv2.CAP_PROP_FPS)
-                
-                print(f"[DIAGNOSTIC] Backend: {backend_name.upper()} | Requested: {w}x{h}@{fps} FPS "
-                    f"| Driver Granted: {granted_w}x{granted_h}@{granted_fps} FPS")
-
-                fh, fw = test.shape[:2]
-                if abs(fw - w) <= 32 and abs(fh - h) <= 32:
-                    self._size = (fw, fh)
-                    self._target_fps = float(fps)
-                    return True
-
-            # Fallback handling
-            if backend_name == 'dshow':
-                cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
-            ok, test = cap.read()
-            if ok and test is not None:
-                fh, fw = test.shape[:2]
-                self._size = (fw, fh)
-                fps_prop = cap.get(cv2.CAP_PROP_FPS)
-                self._target_fps = float(30 if (not fps_prop or fps_prop <= 1 or fps_prop > 30) else int(fps_prop))
-                return True
-            return False
-
-    def _probe_viable(self, cap, max_frames=8):
-        # Check if DSHOW is not Sending Black Frames
-        got = 0
-        nonblack = 0
-        for _ in range(max_frames):
-            ok, f = cap.read()
-            if not ok or f is None:
-                continue
-            got += 1
-            # If All Pixels hold 0, Frame = Black
-            gray = cv2.cvtColor(f, cv2.COLOR_BGR2GRAY)
-            if cv2.countNonZero(gray) > 0:
-                nonblack += 1
-            if got >= 3:  # Enough to evaluate
-                break
-        return got >= 1 and nonblack >= 1
-
-
-    def _emit_config_once(self, cap):
-        # Sends a Signal once if _size is Known
-        if self._config_emitted or self._size is None:
-            return
-        
-        # Get the Width, Height and FPS 
-        w, h = int(self._size[0]), int(self._size[1])
-        fps = float(self._target_fps or cap.get(cv2.CAP_PROP_FPS) or 0.0)
-        self.ConfigReady.emit(w, h, fps, self._backend_used)
-        self._config_emitted = True
-
-
-    def run(self):
-        # Main Thread Loop
-        self._active = True
-
-        # Prioritize 'dshow' first to bypass MSMF freeze threads on multi-cam laptops
-        order = ['dshow', 'msmf', 'any']
-        cap = None
-        try:
-            for codec in order:
-                possible_capture = self._open_with_backend(codec)
-                if possible_capture is None:
-                    continue
-                # Pass the backend name to optimize stream configuration
-                if not self._try_configure(possible_capture, codec):
-                    possible_capture.release()
-                    continue
-                if not self._probe_viable(possible_capture):
-                    possible_capture.release()
-                    continue
-
-                cap = possible_capture
-                self._backend_used = codec
-                break
-
-            # Abort if Camera not Avaiable
-            if cap is None:
-                print("[WARN] Camera not Avaiable: RESTART")
-                return  
-
-            # Identify Size, FPS and Codec
-            self._emit_config_once(cap)
-            self._t0 = time.time()
-            self._frame_count = 0
-
-            # Actual Main Loop
-            while self._active:
-                ok, frame_bgr = cap.read()
-                if not ok:
-                    continue
-
-                if self._size is None:
-                    h, w = frame_bgr.shape[:2]
-                    self._size = (w, h)
-                    self._emit_config_once(cap) # Start Timer and Counter
-
-                # Preview (Live Stream) --> Inverted Horizontaly for user
-                rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
-                rgb = cv2.flip(rgb, 1)
-                h, w, ch = rgb.shape
-                qimg = QImage(rgb.data, w, h, ch * w, QImage.Format.Format_RGB888).copy()
-                self.ImageUpdate.emit(qimg)
-
-                # Write the Video if Set to Record and Writter is Active
-                if self._recording and self._writer is not None:
-                    self._writer.write(frame_bgr)
-                
-                # Efective Frame Rate --> Avoid Erroneous Info from Camera (Possibly Forced Before)    
-                self._frame_count += 1
-                now = time.time()
-                if now - self._t0 >= 2.0:  # 2-second window
-                    fps_eff = self._frame_count / (now - self._t0)
-                    self.fps_eff = fps_eff
-                    self.StatsUpdate.emit(fps_eff)
-                    self._t0 = now
-                    self._frame_count = 0
-
-        finally:
-            # Releases Writter and VideoCapture
-            if self._writer is not None:
-                self._writer.release()
-                self._writer = None
-            if cap is not None:
-                cap.release()
-
-
-    def start_record(self, path, fps=None):
-        # Start Saving Raw Camera Frames
-        if self._size is None:
-            self._size = (1920, 1080)
-        if fps is None:
-            fps = float(self._target_fps or 30)
-
-        # Close Previus Writter (Override)
-        if self._writer is not None:
-            self._writer.release()
-            self._writer = None
-
-        # Creates New Directory 
-        p = Path(path)
-        p.parent.mkdir(parents=True, exist_ok=True)
-
-        # Opens a Video Writter (MP4)
-        w, h = int(self._size[0]), int(self._size[1])
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        writer = cv2.VideoWriter(str(p), fourcc, float(fps), (w, h))
-
-        # If Fails --> Fallback to AVI
-        if not writer.isOpened():
-            avi_path = p.with_suffix(".avi")
-            fourcc = cv2.VideoWriter_fourcc(*"MJPG")
-            writer = cv2.VideoWriter(str(avi_path), fourcc, float(fps), (w, h))
-            if writer.isOpened():
-                print("[DONE] AVI Selected")
-                self._path = avi_path
-            else:
-                print("[WARN] Failed to Write")
-                return
-        else:
-            print("[DONE] MP4 Selected")
-            self._path = p
-
-        # Add Writter as Object Attr and Updates Recording State
-        self._writer = writer
-        self._recording = True
-
-
-    def stop_record(self):
-        # Stops Recording and Releases Writter
-        if self._writer is not None:
-            self._writer.release()
-            self._writer = None
-        self._recording = False
-
-
-    def stop(self):
-        # Stop Thread
-        print("[EXIT] Camera Thread")
-        self._active = False
-        self.wait(500)
-
-
-
 class MainWindow(QMainWindow):
     
     def __init__(self):
-        
         # Initialize and Load the GUI
         super().__init__()
         uic.loadUi(str(resource_path("gui.ui")), self)
         self.resize(self.width(), self.height() + 20)
         self.target_size = QSize(300, 300)
 
-        # --- Identify Widgets used in the Qt Designer ---> Done by page so it's easier to identify all ---
-        
         # Global
         self.stack: QStackedWidget = self.findChild(QStackedWidget, "stack")
-        self.showUpdate = False
 
         # Page 1
         self.title1: QLabel = self.findChild(QLabel, "title1")
@@ -338,12 +58,16 @@ class MainWindow(QMainWindow):
         self.btnValidate: QPushButton = self.findChild(QPushButton, "validate")
         self.warning_Label: QLabel = self.findChild(QLabel, "warning")
 
-        # Page 4
-        self.videoLabel: QLabel = self.findChild(QLabel, "videoLabel")
-        self.btnRecord: QPushButton = self.findChild(QPushButton, "btnRecord")
-        self.btnStop: QPushButton = self.findChild(QPushButton, "btnStop")
-        self.btnNext4: QPushButton = self.findChild(QPushButton, "btnNext4")
-        
+        # Page 4 
+        self.lblUploadStatus: QLabel = self.findChild(QLabel, "lblUploadStatus")
+        self.btnSelectFile: QPushButton = self.findChild(QPushButton, "btnSelectFile")
+        self.btnProceed: QPushButton = self.findChild(QPushButton, "btnProceed")
+        if self.btnProceed and self.stack:
+            self.btnProceed.clicked.connect(lambda: (
+                self.stack.setCurrentIndex(4),
+                hp.analisysPage(self)  
+            ))
+
         # Page 5
         self.detectionLabel: QLabel = self.findChild(QLabel, "detectionLabel")
         self.btnGen: QPushButton = self.findChild(QPushButton, "btnGen")
@@ -351,37 +75,35 @@ class MainWindow(QMainWindow):
         self.btnRedo: QPushButton = self.findChild(QPushButton, "btnRedo") 
         self.btnNext5: QPushButton = self.findChild(QPushButton, "btnNext5")
         
-        # Page6
+        # Page 6
         self.istlogo6: QLabel = self.findChild(QLabel, "istlogo6")
         
+        # Tracking variables
+        self.video_path = None
+        self.parent_path = None
+        self.fps_eff = 30.0
+
         # Image Work (Size IST Logo)
         hp.scaler(self)
    
-    
-        # Connect navigation ---> (Safeguards against bad widget connection)
+        # Connect navigation
         if self.btnStart and self.stack:
             self.btnStart.clicked.connect(lambda: self.stack.setCurrentIndex(1))
         
         if self.btnNext2 and self.stack:
             self.btnNext2.clicked.connect(lambda: self.stack.setCurrentIndex(2))
 
+        # Page 3 Validation redirects to Page 4 (index 3)
         if self.btnValidate:
             self.btnValidate.clicked.connect(lambda: hp.validator(self))
-
-        if self.btnRecord:
-            self.btnRecord.clicked.connect(lambda: hp.on_record(self))
-        if self.btnStop:
-            self.btnStop.clicked.connect(lambda: hp.on_stop(self))
-        if self.btnNext4 and self.stack:
-            self.btnNext4.clicked.connect(lambda: hp.analisysPage(self))
-
-        if self.btnRecord:
-            self.btnRecord.setEnabled(False)
-        if self.btnStop:
-            self.btnStop.setEnabled(False)
-        if self.btnNext4:
-            self.btnNext4.setEnabled(False)
         
+        # Page 4 Upload & File Selection Actions
+        if self.btnSelectFile:
+            self.btnSelectFile.clicked.connect(self.select_video_file)
+        if self.btnProceed and self.stack:
+            self.btnProceed.clicked.connect(lambda: self.stack.setCurrentIndex(4))
+
+        # Page 5 Analysis Actions
         if self.btnGen and self.stack:
             self.btnGen.clicked.connect(lambda: (self.btnGen.setEnabled(False), hp.generate(self)))
         if self.btnPreview and self.stack:
@@ -398,80 +120,68 @@ class MainWindow(QMainWindow):
         if self.btnNext5 and self.stack: 
             self.btnNext5.setEnabled(False)
             
-            
-        
         # Start at page 0
         if self.stack:
             self.stack.setCurrentIndex(0)
 
-        # Camera wiring
-        if self.videoLabel:
-            self.videoLabel.setScaledContents(True)
-
-        self.preview_ready = False
-        self.worker = CameraWorker()
-        self.worker.ImageUpdate.connect(self.on_image_update)
-        self.worker.ConfigReady.connect(self.on_cam_config)
-        
-        # Create and Update a StatusBar
+        # Create and Update a Simple StatusBar
         self._sb = self.statusBar()
-        self.worker.ConfigReady.connect(self.on_cam_config)
-        self.worker.StatsUpdate.connect(self.on_cam_stats)
-        self._last_cfg_msg = ""
+        self._sb.showMessage("Ready. Please submit a tracking video.")
 
-    
-    def on_cam_config(self, w, h, fps, backend):
-        
-        # Update StatusBar Message
-        self._last_cfg_msg = f"Camera: {w}×{h} @ {fps:.1f} fps by {backend.upper()}"
-        self._sb.showMessage(self._last_cfg_msg)
+    def select_video_file(self):
+            """Opens file explorer, copies the video to workspace, and reads properties."""
+            from PyQt6.QtWidgets import QFileDialog
+            import shutil
+            
+            file_path, _ = QFileDialog.getOpenFileName(
+                self,
+                "Select Video",
+                "",
+                "Video Files (*.mp4 *.avi *.mov *.mkv)"
+            )
+            
+            if file_path:
+                print(f"[INFO] Video Selected: {file_path}")
+                
+                # Use the directory path created earlier by validator()
+                dest_path = self.path / "Recording.mp4"
+                
+                # Copy the file safely to your workspace if it isn't already there
+                if Path(file_path).resolve() != dest_path.resolve():
+                    shutil.copy(file_path, dest_path)
+                
+                # Save references to MainWindow properties
+                self.video_path = dest_path
+                self.parent_path = dest_path.parent
+                
+                # Read structural container FPS natively
+                cap = cv2.VideoCapture(str(dest_path))
+                fps = cap.get(cv2.CAP_PROP_FPS)
+                cap.release()
+                
+                if fps <= 0 or not fps:
+                    fps = 30.0  # Fallback
+                self.fps_eff = fps
+                print(f"[INFO] Video Native FPS: {fps}")
+                
+                # Update Page 4 status message to show successful upload
+                video_name = os.path.basename(file_path)
+                self.lblUploadStatus.setText(
+                    f'<html><body><p align="center"><span style="font-size:18pt; color:#009de0; font-weight:bold;">'
+                    f'Loaded: {video_name}<br><span style="font-size:14pt; color:#555555; font-weight:normal;">'
+                    f'({fps:.2f} FPS)</span></span></p></body></html>'
+                )
+                
+                # Enable navigation proceed button
+                if self.btnProceed:
+                    self.btnProceed.setEnabled(True)
+                    
+                self._sb.showMessage(f"Loaded: Recording.mp4 @ {fps:.2f} FPS")
+            else:
+                print("[INFO] Video selection cancelled")
+                self._sb.showMessage("File selection canceled.")
 
 
-    def on_cam_stats(self, fps_eff: float):
-        
-        # Effective FPS Display on StatusBar
-        self._sb.showMessage(f"{self._last_cfg_msg} | Effective: {fps_eff:.1f} fps", 2000)
-        
-        if not self.showUpdate:
-            print(f"[INFO] {self._last_cfg_msg} | Effective: {fps_eff:.1f}")
-            self.showUpdate = True
-    
-    
-    def on_image_update(self, qimage: QImage):
-        
-        # Safeguard Against Bugs (bad connection on __init__)
-        if not self.videoLabel:
-            return
-        
-        # Swapped to FastTransformation to keep the UI thread frame rendering lag-free at 60 FPS
-        pix = QPixmap.fromImage(qimage).scaled(self.videoLabel.size(),
-            Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.FastTransformation)
-        self.videoLabel.setPixmap(pix)
-
-        # Enable Record once Camera is UP
-        if not self.preview_ready:
-            self.preview_ready = True
-            if self.btnRecord:
-                print("[INFO] Camera Started")
-                self.btnRecord.setEnabled(True)
-
-
-    def stop_camera(self):
-        
-        # Closes the CameraWorker Thread
-        if hasattr(self, "worker") and self.worker.isRunning():
-            self.worker.stop()
-
-
-    def closeEvent(self, event):
-        
-        # Closes Camera Related Events
-        self.stop_camera()
-        super().closeEvent(event)
-
-
-# Initialize the App
 def main():
     print("[INFO] App Starting")
     app = QApplication(sys.argv)
