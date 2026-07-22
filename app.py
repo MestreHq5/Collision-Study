@@ -13,6 +13,25 @@ import os
 # Imports of other Modules for Wiring and Navigation
 import helper as hp
 
+
+# ==============================================================================
+# MUST BE AT THE VERY FIRST LINES OF YOUR MAIN EXECUTION SCRIPT
+# BEFORE ANY OTHER IMPORTS (cv2, matplotlib, etc.)
+# ==============================================================================
+if sys.platform == "win32":
+    import ctypes
+    try:
+        # Set process to Per-Monitor DPI Aware before Qt initializes
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)
+    except Exception:
+        pass
+
+# Now perform your standard imports below
+import cv2
+import matplotlib
+import Post_process
+
+
 def resource_path(*parts) -> Path:
     """
     Works in dev AND when frozen (PyInstaller onefile/onedir, Nuitka).

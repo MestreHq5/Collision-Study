@@ -20,10 +20,10 @@ BLUR_KERNEL  = (5, 5) # diemnsion of the kernel used in the Gaussian Blur
 DEFAULT_MASS = 0.0118 # default mass  
 
 # HSV ranges for the offset mark
-GREEN_LOWER = np.array([40, 80, 80])
-GREEN_UPPER = np.array([90, 255, 255])
-BLUE_LOWER  = np.array([100, 100, 100])
-BLUE_UPPER  = np.array([130, 255, 255])
+GREEN_LOWER = np.array([48, 31, 80])
+GREEN_UPPER = np.array([64, 88, 129])
+BLUE_LOWER  = np.array([105, 94, 77])
+BLUE_UPPER  = np.array([117, 142, 128])
 
 # Real disk diameter in mm 
 DISK_DIAMETER_MM = 80.0

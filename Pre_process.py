@@ -117,6 +117,7 @@ def segment_disks(
     morph_kernel: Tuple[int, int] = (5, 5),
     min_radius: float = 45,
     max_radius: float = 65,
+    use_otsu: bool = False,
 ) -> List[Dict]:
     """
     Subtracts `background` from `frame`, thresholds the difference, cleans it up,
@@ -140,8 +141,18 @@ def segment_disks(
     diff = cv2.absdiff(frame, background)
     gray = cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY)
 
-    # 2) Threshold using a manual 'optimal' value    
-    _, bin_mask = cv2.threshold(gray, thresh_val, 255, cv2.THRESH_BINARY)
+    # 2) Threshold. Fixed value by default, but fall back to (or force) an
+    #    adaptive Otsu threshold when contrast is too low for a fixed cut
+    #    to separate disks from background reliably (e.g. reduced lighting).
+    if use_otsu:
+        otsu_val, bin_mask = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    else:
+        _, bin_mask = cv2.threshold(gray, thresh_val, 255, cv2.THRESH_BINARY)
+        # Safety net: if almost nothing passed the fixed threshold (typical
+        # symptom of a dimmer scene), recompute with Otsu instead of
+        # silently returning zero/near-zero detections for the frame.
+        if cv2.countNonZero(bin_mask) < 50:
+            _, bin_mask = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
 
     # 3) Morphological open then close to clean and fill any holes or clear any specles
@@ -223,11 +234,28 @@ def detect_marker_center(
     roi_blur = cv2.GaussianBlur(roi, (5, 5), 0)
     hsv = cv2.cvtColor(roi_blur, cv2.COLOR_BGR2HSV)
     h, s, v = cv2.split(hsv)
-      
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8)) # Perform CLAHE contrast enhancement
+
+    # CLAHE on both Value AND Saturation. Under dimmer lighting, colored
+    # markers lose saturation as well as brightness, and an absolute S
+    # floor (e.g. S>=80) can reject a marker that would otherwise be a
+    # perfectly clear hue match. Equalizing S helps recover that signal
+    # without having to keep loosening the raw hsv_lower/upper bounds.
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
     v = clahe.apply(v)
-    hsv = cv2.merge((h, s, v)) # merge the new CLAHE enhanced V chanel
-    raw_mask = cv2.inRange(hsv, hsv_lower, hsv_upper) 
+    s = clahe.apply(s)
+    hsv = cv2.merge((h, s, v))
+    raw_mask = cv2.inRange(hsv, hsv_lower, hsv_upper)
+
+    # 2b) Fallback: if the strict mask found (almost) nothing, relax the
+    # S/V floors while keeping the hue window fixed. Hue is far more
+    # lighting-invariant than S/V, so this recovers dim-but-correctly-hued
+    # markers instead of silently returning None for the whole clip.
+    if cv2.countNonZero(raw_mask) < min_area:
+        lower_relaxed = hsv_lower.copy()
+        upper_relaxed = hsv_upper.copy()
+        lower_relaxed[1] = max(20, int(hsv_lower[1]) - 50)   # S floor
+        lower_relaxed[2] = max(20, int(hsv_lower[2]) - 50)   # V floor
+        raw_mask = cv2.inRange(hsv, lower_relaxed, upper_relaxed)
 
     # 3) Restrict to inside the disk
     center_x = x_c - x1
@@ -262,3 +290,49 @@ def detect_marker_center(
     cx = int(M["m10"] / M["m00"]) + x1
     cy = int(M["m01"] / M["m00"]) + y1
     return (cx, cy)
+
+
+def calibrate_hsv_range(video_path: str, frame_index: int = 0, box: int = 6) -> None:
+    """
+    Interactive calibration tool. Opens a single frame from `video_path`;
+    click on a marker dot and it prints the HSV of a small box around the
+    click plus a suggested (lower, upper) np.array range you can paste
+    straight into detector.py's GREEN_LOWER/UPPER or BLUE_LOWER/UPPER.
+
+    Run this once per lighting setup (e.g. whenever the room light changes)
+    instead of guessing new thresholds by hand.
+
+    Controls: click marker -> prints range. Press 'q' to quit.
+    """
+    cap = cv2.VideoCapture(video_path)
+    cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
+    ret, frame = cap.read()
+    cap.release()
+    if not ret:
+        raise IOError(f"Could not read frame {frame_index} from {video_path}")
+
+    hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    window = "Click on the marker dot, then press q"
+
+    def on_click(event, x, y, flags, param):
+        if event != cv2.EVENT_LBUTTONDOWN:
+            return
+        y1, y2 = max(0, y - box), min(hsv_frame.shape[0], y + box)
+        x1, x2 = max(0, x - box), min(hsv_frame.shape[1], x + box)
+        patch = hsv_frame[y1:y2, x1:x2].reshape(-1, 3)
+        lo = np.percentile(patch, 5, axis=0).astype(int)
+        hi = np.percentile(patch, 95, axis=0).astype(int)
+        # pad a bit and clamp to valid ranges
+        lo = np.clip(lo - [5, 20, 20], 0, 255)
+        hi = np.clip(hi + [5, 20, 20], 0, 255)
+        print(f"Sampled at ({x},{y}):")
+        print(f"  LOWER = np.array([{lo[0]}, {lo[1]}, {lo[2]}])")
+        print(f"  UPPER = np.array([{hi[0]}, {hi[1]}, {hi[2]}])")
+
+    cv2.namedWindow(window)
+    cv2.setMouseCallback(window, on_click)
+    while True:
+        cv2.imshow(window, frame)
+        if cv2.waitKey(20) & 0xFF == ord("q"):
+            break
+    cv2.destroyAllWindows()

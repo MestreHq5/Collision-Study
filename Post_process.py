@@ -5,9 +5,29 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import os
 
 # CSV and Excel Collums
 REQ_COLS = ["frame","disk_id","cx_mm","cy_mm","mx_mm","my_mm","r_px"]
+
+
+
+# --- 1. Force Qt to render High-DPI properly (MUST BE BEFORE MATPLOTLIB IMPORTS) ---
+os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
+os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
+os.environ["QT_SCALE_FACTOR_ROUNDING_POLICY"] = "PassThrough"
+
+# --- 2. Imports ---
+from pathlib import Path
+import math
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# --- 3. Default Matplotlib Resolution ---
+plt.rcParams['figure.dpi'] = 150         # Screen DPI for popup window
+plt.rcParams['savefig.dpi'] = 300        # Saved image DPI
+
 
 # Helpers
 def _ensure_sorted(df: pd.DataFrame) -> pd.DataFrame:
@@ -170,10 +190,6 @@ def visualize_trajectories(
     show_equal_aspect: bool = True,
     show_title: bool = True,
 ) -> int:
-    """
-    Open the CSV and produce a trajectory image with the collision frame highlighted.
-    Returns the collision frame (int).
-    """
     csvp = Path(csv_path)
     if not csvp.exists():
         raise FileNotFoundError(csvp.resolve())
@@ -183,42 +199,47 @@ def visualize_trajectories(
     if missing:
         raise ValueError(f"CSV missing columns: {missing}")
 
-    df0 = _ensure_sorted(df[df["disk_id"]==0].copy())
-    df1 = _ensure_sorted(df[df["disk_id"]==1].copy())
+    df0 = _ensure_sorted(df[df["disk_id"] == 0].copy())
+    df1 = _ensure_sorted(df[df["disk_id"] == 1].copy())
     df0m = _add_meter_cols(df0)
     df1m = _add_meter_cols(df1)
 
     cf = _find_collision_frame(df0m, df1m)
 
-    p0 = df0m.loc[df0m["frame"]==cf, ["cx","cy"]].head(1)
-    p1 = df1m.loc[df1m["frame"]==cf, ["cx","cy"]].head(1)
+    p0 = df0m.loc[df0m["frame"] == cf, ["cx", "cy"]].head(1)
+    p1 = df1m.loc[df1m["frame"] == cf, ["cx", "cy"]].head(1)
 
-    fig, ax = plt.subplots(figsize=(8, 6))
-    ax.plot(df0m["cx"], df0m["cy"], label="disk 0 trajectory")
-    ax.plot(df1m["cx"], df1m["cy"], label="disk 1 trajectory")
+    # Creating a large canvas (12x8 inches @ 150 DPI = 1800x1200 real screen pixels)
+    fig, ax = plt.subplots(figsize=(12, 8), dpi=150)
+
+    ax.plot(df0m["cx"], df0m["cy"], label="Disk 0 trajectory", linewidth=2)
+    ax.plot(df1m["cx"], df1m["cy"], label="Disk 1 trajectory", linewidth=2)
 
     if not p0.empty:
-        ax.scatter(p0["cx"], p0["cy"], s=80, marker="o", edgecolors="k",
+        ax.scatter(p0["cx"], p0["cy"], s=90, marker="o", edgecolors="k", zorder=5,
                    label=f"collision @ disk 0 (f={cf})")
     if not p1.empty:
-        ax.scatter(p1["cx"], p1["cy"], s=80, marker="s", edgecolors="k",
+        ax.scatter(p1["cx"], p1["cy"], s=90, marker="s", edgecolors="k", zorder=5,
                    label=f"collision @ disk 1 (f={cf})")
 
-    ax.set_xlabel("x [m]")
-    ax.set_ylabel("y [m]")
+    ax.set_xlabel("x [m]", fontsize=11)
+    ax.set_ylabel("y [m]", fontsize=11)
+    
     if show_equal_aspect:
         ax.set_aspect("equal", adjustable="datalim")
+        
     ax.grid(True, alpha=0.3)
-    ax.legend(loc="best")
+    ax.legend(loc="best", fontsize=10)
+    
     if show_title:
-        ax.set_title("Puck trajectories with collision frame highlighted")
+        ax.set_title("Puck trajectories with collision frame highlighted", fontsize=12, pad=10)
 
     outp = Path(output_image_path)
     outp.parent.mkdir(parents=True, exist_ok=True)
+    
     fig.tight_layout()
-    fig.savefig(outp, dpi=200)
-    plt.close(fig)
-
+    fig.savefig(outp, dpi=300)
+    
     return cf
 
 def build_student_excel(
