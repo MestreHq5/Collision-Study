@@ -1,0 +1,13 @@
+# Absolute path to your root training folder
+path: C:/Users/gonca/Desktop/Collisions DEM/Collision-Study/Puck_Training
+
+# Relative paths from 'path'
+train: images/train
+val: images/val
+
+# Keypoint definitions: [number of keypoints, dimensions (x, y, visibility)]
+kpt_shape: [2, 3]
+
+# Class Names
+names:
+  0: puck

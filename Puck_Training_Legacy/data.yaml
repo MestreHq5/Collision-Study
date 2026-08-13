@@ -1,0 +1,7 @@
+path: C:/Users/gonca/Desktop/Collisions DEM/Collision-Study/Img
+train: images/train
+val: images/train  # Point val to train so YOLO can split or validate on it
+
+kpt_shape: [2, 3]
+names:
+  0: puck
