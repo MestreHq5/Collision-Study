@@ -198,7 +198,10 @@ def detect_marker_center(
     hsv_lower: np.ndarray,
     hsv_upper: np.ndarray,
     pad_factor: float = 2,
-    min_area: float = 10
+    min_area: float = 10,
+    min_circularity: float = 0.0,
+    mask_center: Optional[Tuple[float, float]] = None,
+    mask_radius: Optional[float] = None
 ) -> Optional[Tuple[int, int]]:
     """
     Crop around `disk_center` ± pad_factor×radius, threshold in HSV between
@@ -214,10 +217,26 @@ def detect_marker_center(
       debug:        If True, show debug windows for ROI/masks.
       pad_factor:   How much to pad the ROI around the disk.
       min_area:     Minimum contour area (px²) to accept as the mark.
+      min_circularity: Minimum 4*pi*area/perimeter^2 to accept as the mark.
+        The real paint marker is a compact round dot; a thin rim/shadow
+        sliver (from an HSV floor loose enough to catch edge/glare noise)
+        follows the disk's boundary arc instead and reads as a much less
+        circular blob at comparable area. Default 0.0 keeps old behavior.
+      mask_center, mask_radius: geometry used for the "must be inside the
+        disk" restriction (step 3). Defaults to disk_center/disk_radius.
+        Pass these separately when `disk_center` is really a search anchor
+        that isn't guaranteed to sit on the disk (e.g. a keypoint) — without
+        this, an anchor near/past the true edge lets the mask leak into
+        background around the disk, matching whatever's out there instead of
+        being confined to the puck itself.
 
     Returns:
       (x,y) pixel coordinates of the mark's centroid in full frame, or None.
     """
+    if mask_center is None:
+        mask_center = disk_center
+    if mask_radius is None:
+        mask_radius = disk_radius
     
     # 1) ROI extraction 
     x_c, y_c = map(int, disk_center) # convert pixel values to integers
@@ -240,7 +259,16 @@ def detect_marker_center(
     # floor (e.g. S>=80) can reject a marker that would otherwise be a
     # perfectly clear hue match. Equalizing S helps recover that signal
     # without having to keep loosening the raw hsv_lower/upper bounds.
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    # Tile grid must scale with the ROI: a fixed (8,8) grid on a marker-sized
+    # crop (roughly disk_radius*pad_factor*2 px wide) gives tiles only a few
+    # px across, which is too small a sample for local histogram equalization
+    # — it amplifies sensor noise on the flat gray disk body into fake,
+    # fully-saturated "color" blobs instead of just rescuing a dim real
+    # marker. Keep tiles at least ~16px so equalization has enough signal.
+    roi_h, roi_w = v.shape[:2]
+    tiles_x = max(1, min(8, roi_w // 16))
+    tiles_y = max(1, min(8, roi_h // 16))
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(tiles_x, tiles_y))
     v = clahe.apply(v)
     s = clahe.apply(s)
     hsv = cv2.merge((h, s, v))
@@ -257,16 +285,24 @@ def detect_marker_center(
         lower_relaxed[2] = max(20, int(hsv_lower[2]) - 50)   # V floor
         raw_mask = cv2.inRange(hsv, lower_relaxed, upper_relaxed)
 
-    # 3) Restrict to inside the disk
-    center_x = x_c - x1
-    center_y = y_c - y1
+    # 3) Restrict to inside the disk (using mask_center/mask_radius, which may
+    # differ from the crop's own disk_center/disk_radius anchor — see above)
+    mask_cx = int(mask_center[0]) - x1
+    mask_cy = int(mask_center[1]) - y1
     mask_disk = np.zeros_like(raw_mask)
-    cv2.circle(mask_disk, (center_x, center_y), int(disk_radius), 255, -1)
+    cv2.circle(mask_disk, (mask_cx, mask_cy), int(mask_radius), 255, -1)
     raw_mask = cv2.bitwise_and(raw_mask, mask_disk)
     
     # 4) Blur and Morphological Cleanup
     mask = cv2.medianBlur(raw_mask, 5)
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7,7))
+    # Kernel size scales with disk_radius instead of a fixed 7x7: on a disk this
+    # small (e.g. a smaller/more distant marker, ~10px radius), a fixed 7x7 open
+    # can erase the entire real marker blob (measured: a genuine 41px marker
+    # blob went to 0px through a 7x7 open), not just noise specks. Same failure
+    # mode as the CLAHE tile-size fix above — a pixel-count constant tuned for
+    # one clip's object scale breaks on another's.
+    morph_k = max(3, min(7, int(round(disk_radius * 0.3)) | 1))
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (morph_k, morph_k))
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN,  kernel, iterations=1)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=3)
 
@@ -276,11 +312,17 @@ def detect_marker_center(
     if not contours:
         return None 
 
-    # 6) Pick the largest contour and check area
+    # 6) Pick the largest contour and check area + shape
     marker = max(contours, key=cv2.contourArea)
     area = cv2.contourArea(marker)
     if area < min_area:
         return None
+
+    if min_circularity > 0:
+        perimeter = cv2.arcLength(marker, True)
+        circularity = (4 * np.pi * area / (perimeter * perimeter)) if perimeter > 0 else 0.0
+        if circularity < min_circularity:
+            return None
 
     M = cv2.moments(marker) # Zeroth-order and first-order moments
     if M["m00"] == 0:

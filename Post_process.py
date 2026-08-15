@@ -1,6 +1,7 @@
 # Use for results mix, total and regression
 
 import math
+import warnings
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -80,6 +81,28 @@ def _find_collision_frame(df0m: pd.DataFrame, df1m: pd.DataFrame) -> int:
     dy = m["cy_1"] - m["cy_0"]
     return int(m.loc[np.hypot(dx, dy).idxmin(), "frame"])
 
+def _safe_vxvy_mean(df: pd.DataFrame, mask: pd.Series) -> np.ndarray:
+    """
+    Mean of ["vx","vy"] over the masked rows -> NaN for a column with no
+    non-NaN values in the selection (empty selection, or the lone row is a
+    disk's first sample, whose vx/vy/omega are always NaN — they come from
+    a frame-to-frame diff() with nothing before them). That's already the
+    correct/expected result; the only thing suppressed here is numpy's
+    "RuntimeWarning: Mean of empty slice" that pandas triggers getting there,
+    which happens routinely with sparse/short tracking data and isn't a bug.
+    """
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message="Mean of empty slice", category=RuntimeWarning)
+        return df.loc[mask, ["vx", "vy"]].mean().to_numpy()
+
+
+def _safe_median(series: pd.Series) -> float:
+    """Same empty-slice/all-NaN guard as _safe_vxvy_mean, for the .median() calls below."""
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message="Mean of empty slice", category=RuntimeWarning)
+        return float(series.median())
+
+
 # Metrics
 def _compute_metrics(df0m: pd.DataFrame, df1m: pd.DataFrame, masses: tuple, radius: tuple, fps: float):
     """
@@ -98,10 +121,10 @@ def _compute_metrics(df0m: pd.DataFrame, df1m: pd.DataFrame, masses: tuple, radi
     after1  = df1m["frame"] > cf
 
     # ---- Coefficient of restitution e (means, full data; line of centers) ----
-    v0b = (df0m.loc[before0, ["vx","vy"]].mean().fillna(np.nan).values)
-    v0a = (df0m.loc[after0,  ["vx","vy"]].mean().fillna(np.nan).values)
-    v1b = (df1m.loc[before1, ["vx","vy"]].mean().fillna(np.nan).values)
-    v1a = (df1m.loc[after1,  ["vx","vy"]].mean().fillna(np.nan).values)
+    v0b = _safe_vxvy_mean(df0m, before0)
+    v0a = _safe_vxvy_mean(df0m, after0)
+    v1b = _safe_vxvy_mean(df1m, before1)
+    v1a = _safe_vxvy_mean(df1m, after1)
 
     # Line-of-centers at collision (meters)
     p0c = df0m.loc[df0m["frame"] == cf, ["cx","cy"]]
@@ -142,20 +165,20 @@ def _compute_metrics(df0m: pd.DataFrame, df1m: pd.DataFrame, masses: tuple, radi
     Vcm_x = (MASS[0]*m["vx0"] + MASS[1]*m["vx1"]) / Mtot
     Vcm_y = (MASS[0]*m["vy0"] + MASS[1]*m["vy1"]) / Mtot
 
-    v0x_b = (m.loc[mb, "vx0"] - Vcm_x.loc[mb]).median()
-    v0y_b = (m.loc[mb, "vy0"] - Vcm_y.loc[mb]).median()
-    v1x_b = (m.loc[mb, "vx1"] - Vcm_x.loc[mb]).median()
-    v1y_b = (m.loc[mb, "vy1"] - Vcm_y.loc[mb]).median()
+    v0x_b = _safe_median(m.loc[mb, "vx0"] - Vcm_x.loc[mb])
+    v0y_b = _safe_median(m.loc[mb, "vy0"] - Vcm_y.loc[mb])
+    v1x_b = _safe_median(m.loc[mb, "vx1"] - Vcm_x.loc[mb])
+    v1y_b = _safe_median(m.loc[mb, "vy1"] - Vcm_y.loc[mb])
 
-    v0x_a = (m.loc[ma, "vx0"] - Vcm_x.loc[ma]).median()
-    v0y_a = (m.loc[ma, "vy0"] - Vcm_y.loc[ma]).median()
-    v1x_a = (m.loc[ma, "vx1"] - Vcm_x.loc[ma]).median()
-    v1y_a = (m.loc[ma, "vy1"] - Vcm_y.loc[ma]).median()
+    v0x_a = _safe_median(m.loc[ma, "vx0"] - Vcm_x.loc[ma])
+    v0y_a = _safe_median(m.loc[ma, "vy0"] - Vcm_y.loc[ma])
+    v1x_a = _safe_median(m.loc[ma, "vx1"] - Vcm_x.loc[ma])
+    v1y_a = _safe_median(m.loc[ma, "vy1"] - Vcm_y.loc[ma])
 
-    o0b_med = float(df0m.loc[df0m["frame"] < cf, "omega_deg_s"].median())
-    o0a_med = float(df0m.loc[df0m["frame"] > cf, "omega_deg_s"].median())
-    o1b_med = float(df1m.loc[df1m["frame"] < cf, "omega_deg_s"].median())
-    o1a_med = float(df1m.loc[df1m["frame"] > cf, "omega_deg_s"].median())
+    o0b_med = _safe_median(df0m.loc[df0m["frame"] < cf, "omega_deg_s"])
+    o0a_med = _safe_median(df0m.loc[df0m["frame"] > cf, "omega_deg_s"])
+    o1b_med = _safe_median(df1m.loc[df1m["frame"] < cf, "omega_deg_s"])
+    o1a_med = _safe_median(df1m.loc[df1m["frame"] > cf, "omega_deg_s"])
 
     Kb_com = 0.5*MASS[0]*(v0x_b**2 + v0y_b**2) + 0.5*MASS[1]*(v1x_b**2 + v1y_b**2)
     Ka_com = 0.5*MASS[0]*(v0x_a**2 + v0y_a**2) + 0.5*MASS[1]*(v1x_a**2 + v1y_a**2)
