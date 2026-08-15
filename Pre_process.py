@@ -200,8 +200,10 @@ def detect_marker_center(
     pad_factor: float = 2,
     min_area: float = 10,
     min_circularity: float = 0.0,
+    max_circularity: float = 1.0,
     mask_center: Optional[Tuple[float, float]] = None,
-    mask_radius: Optional[float] = None
+    mask_radius: Optional[float] = None,
+    mask_inner_radius: float = 0.0
 ) -> Optional[Tuple[int, int]]:
     """
     Crop around `disk_center` ± pad_factor×radius, threshold in HSV between
@@ -222,6 +224,11 @@ def detect_marker_center(
         sliver (from an HSV floor loose enough to catch edge/glare noise)
         follows the disk's boundary arc instead and reads as a much less
         circular blob at comparable area. Default 0.0 keeps old behavior.
+      max_circularity: Reject anything MORE circular than this. Confirmed
+        real markers measured 0.72-0.83; a small (~28px) noise/compression
+        artifact measured 0.943 — more "perfectly" round than real paint
+        under real camera noise ever was. Default 1.0 keeps old behavior
+        (no ceiling).
       mask_center, mask_radius: geometry used for the "must be inside the
         disk" restriction (step 3). Defaults to disk_center/disk_radius.
         Pass these separately when `disk_center` is really a search anchor
@@ -229,6 +236,12 @@ def detect_marker_center(
         this, an anchor near/past the true edge lets the mask leak into
         background around the disk, matching whatever's out there instead of
         being confined to the puck itself.
+      mask_inner_radius: also exclude anything closer than this to
+        mask_center, turning the "inside disk" circle into an annulus. The
+        offset marker sits near the disk's edge by design — excluding the
+        center rejects near-center noise/highlights outright instead of
+        relying on area/circularity alone. Default 0.0 keeps old behavior
+        (filled circle, no inner exclusion).
 
     Returns:
       (x,y) pixel coordinates of the mark's centroid in full frame, or None.
@@ -286,11 +299,14 @@ def detect_marker_center(
         raw_mask = cv2.inRange(hsv, lower_relaxed, upper_relaxed)
 
     # 3) Restrict to inside the disk (using mask_center/mask_radius, which may
-    # differ from the crop's own disk_center/disk_radius anchor — see above)
+    # differ from the crop's own disk_center/disk_radius anchor — see above),
+    # and outside mask_inner_radius if given (annulus, not filled circle).
     mask_cx = int(mask_center[0]) - x1
     mask_cy = int(mask_center[1]) - y1
     mask_disk = np.zeros_like(raw_mask)
     cv2.circle(mask_disk, (mask_cx, mask_cy), int(mask_radius), 255, -1)
+    if mask_inner_radius > 0:
+        cv2.circle(mask_disk, (mask_cx, mask_cy), int(mask_inner_radius), 0, -1)
     raw_mask = cv2.bitwise_and(raw_mask, mask_disk)
     
     # 4) Blur and Morphological Cleanup
@@ -312,17 +328,31 @@ def detect_marker_center(
     if not contours:
         return None 
 
-    # 6) Pick the largest contour and check area + shape
-    marker = max(contours, key=cv2.contourArea)
-    area = cv2.contourArea(marker)
-    if area < min_area:
-        return None
+    # 6) Pick the largest contour that ALSO passes the shape gate — not simply
+    # the largest contour, checked for shape after the fact. Measured a real
+    # case where morphological CLOSE (needed to fill gaps within a genuine
+    # marker blob) fused the marker together with adjacent background/shadow
+    # into one large, irregular blob (circ ~0.15, correctly rejected) while a
+    # separate small round blob (the actual marker, ~40px, circ ~0.74) sat
+    # right next to it in the same mask — picking "largest" grabbed the fused
+    # blob, failed its circularity check, and threw away the whole detection
+    # without ever looking at the valid smaller one. Filter to valid
+    # candidates first, then take the largest among those.
+    candidates = []
+    for c in contours:
+        area = cv2.contourArea(c)
+        if area < min_area:
+            continue
+        if min_circularity > 0 or max_circularity < 1.0:
+            perimeter = cv2.arcLength(c, True)
+            circularity = (4 * np.pi * area / (perimeter * perimeter)) if perimeter > 0 else 0.0
+            if circularity < min_circularity or circularity > max_circularity:
+                continue
+        candidates.append((area, c))
 
-    if min_circularity > 0:
-        perimeter = cv2.arcLength(marker, True)
-        circularity = (4 * np.pi * area / (perimeter * perimeter)) if perimeter > 0 else 0.0
-        if circularity < min_circularity:
-            return None
+    if not candidates:
+        return None
+    marker = max(candidates, key=lambda t: t[0])[1]
 
     M = cv2.moments(marker) # Zeroth-order and first-order moments
     if M["m00"] == 0:

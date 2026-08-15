@@ -22,22 +22,17 @@ CLEAN_SECONDS = 2.0 # first part of the video where script averages the backgrou
 BLUR_KERNEL  = (5, 5) # diemnsion of the kernel used in the Gaussian Blur
 DEFAULT_MASS = 0.0118 # default mass
 
-# HSV ranges for the offset mark. Recalibrated this session against 240_25.mp4
-# (see CLAUDE.md) — the previous GREEN_UPPER S/V ceiling (88, 129) was tuned for
-# dimmer footage and rejected this clip's true marker pixels outright (measured
-# median ~S214/V92, up to p99 ~S237/V139). Lower floors kept generous so dimmer/
-# edge-blended instances (other lighting, other clips) still pass.
-# BLUE_LOWER's floor is deliberately not as loose as GREEN's: on this footage,
-# loosening it enough to catch the (glossy, highlight-heavy) blue marker's
-# darker regions also let it catch thin rim/shadow slivers on the *green*
-# puck's edge often enough to corrupt IDAssigner's color-first lock (a false
-# color hit is worse than none — see MARKER_MIN_CIRCULARITY below, which
-# catches most of what a looser floor would need to). Split the difference
-# rather than reverting the floor all the way back to the pre-session values.
-GREEN_LOWER = np.array([50, 30, 25])
-GREEN_UPPER = np.array([70, 245, 150])
-BLUE_LOWER  = np.array([100, 55, 45])
-BLUE_UPPER  = np.array([120, 175, 165])
+# HSV ranges for the offset mark. Recalibrated this session from a broad survey
+# (see CLAUDE.md) of 580 marker-blob samples pulled from 859 puck-containing
+# frames spanning all 28 videos in Camera Roll/Novos Videos/ — a much broader
+# base than earlier single-clip calibrations, which kept turning out to be
+# overfit to whichever one clip they were validated against. Bounds are ~p1-p99
+# of each color's measured (hue, sat, val) cluster, with the hue split placed
+# in the natural gap between the two clusters (~80-89, only 6/580 samples).
+GREEN_LOWER = np.array([48, 55, 25])
+GREEN_UPPER = np.array([85, 245, 150])
+BLUE_LOWER  = np.array([88, 55, 28])
+BLUE_UPPER  = np.array([115, 175, 165])
 
 # A real paint marker is a compact round dot; a false-positive blob from an
 # over-permissive HSV floor (edge anti-aliasing, shadow, specular glint) tends
@@ -45,18 +40,33 @@ BLUE_UPPER  = np.array([120, 175, 165])
 # to the disk's own size, not a fixed tiny constant that any noise clears) and
 # circularity so "no marker visible this frame" (legitimate — the marker
 # rotates out of view) stays a null result instead of a wrong color lock.
-MARKER_MIN_AREA_FRAC = 0.07   # min marker area as a fraction of the disk's face area
+# MARKER_MIN_AREA_FRAC came from the same broad survey: median real-marker
+# area was ~4.4% of the disk's face, p25 ~2.5% — the previous 0.07 (7%) floor
+# was above the median, silently rejecting most genuine detections.
+MARKER_MIN_AREA_FRAC = 0.015   # min marker area as a fraction of the disk's face area
 MARKER_MIN_CIRCULARITY = 0.62  # 4*pi*area/perimeter^2; validated true~0.72-0.83 vs false~0.61.
 # Circularity carries most of the false-positive rejection burden (the known
 # false case was 95px/circ~0.61 on a disk where even 0.07*area ~= 55px would
 # NOT have rejected it on area alone) — area is a coarse floor, not the
-# primary filter. Lowered from 0.10 after a genuine, correctly-round (circ
-# 0.83) marker on a smaller/dimmer clip measured at 28.5px against a 32.9px
-# 0.10-derived requirement.
-MARKER_MASK_PAD_MULT = 1.4    # padding on disk_radius for the "inside disk" mask (see resolve_marker_color)
+# primary filter.
+MARKER_MAX_CIRCULARITY = 0.90  # reject anything MORE circular than this too — a small
+# (~28px) noise/compression-artifact blob measured 0.943, more "perfectly" round than any
+# confirmed real marker (max observed 0.833). Surfaced once `detect_marker_center` started
+# considering every valid contour instead of only the largest raw one (see Pre_process.py).
 
-# Real disk diameter in mm
-DISK_DIAMETER_MM = 80.0
+# Real disk diameter in mm (user-confirmed: 35mm radius, not 40mm — this drives
+# scale_mm_per_px, so it was scaling every mm value in the CSV/Excel output ~14% high)
+DISK_DIAMETER_MM = 70.0
+
+# Marker search geometry: exclude only a small central disc (the offset
+# marker, user-measured at 20-30mm from center on a 35mm-radius disk, is
+# never near-center regardless of how wrong a given frame's bbox radius is)
+# and otherwise search a generously padded crop with no outer distance bound
+# — see resolve_marker_color's docstring for why a tight outer bound (either
+# bbox-relative or mm-calibrated) was tried and measured to cost more recall
+# than it was worth.
+MARKER_DIST_MIN_FRAC = 0.3
+MARKER_SEARCH_PAD_FACTOR = 3.5
 
 # Stable color -> ID mapping (your requirement)
 COLOR_ID_MAP = {"green": 0, "blue": 1}
@@ -250,64 +260,56 @@ def resolve_marker_color(frame, det):
     """
     Finds the HSV-confirmed marker centroid + color for a detection.
 
-    Primary: scan the whole disk ROI (from the bbox-derived center/radius, not
-    the keypoint) for the largest matching color blob. Measured on real footage
-    this session, the YOLO "marker" keypoint lands on a non-marker specular
-    highlight on the glossy disk body ~44% of the time (it moves with disk
-    rotation just like the real marker does, so the model confuses the two) —
-    whole-ROI search is immune to that since it doesn't depend on the keypoint's
-    exact position, just on the true marker being the largest colored blob on
-    the disk. The keypoint-anchored tight search is kept as a secondary
-    fallback (e.g. useful mid-collision when two disks' ROIs risk overlapping).
+    Scans a generously padded crop around the disk (MARKER_SEARCH_PAD_FACTOR)
+    for the largest matching color blob, excluding only a small central disc
+    (MARKER_DIST_MIN_FRAC — the marker is never near-center). No outer
+    distance bound and no keypoint-anchored fallback.
+
+    An outer bound was tried two ways — tied to this frame's own bbox radius,
+    and tied to scale_mm_per_px (the user-measured 20-30mm marker distance
+    converted through a run-level calibration) — and both measured to cost
+    more recall than they were worth: a per-frame bbox radius runs wildly
+    inconsistent relative to the true visible disk (one case underestimated
+    it by >3x, clipping real markers at the boundary — this is what was
+    producing "detected position sits at the ROI border, not the true marker
+    center"), and even the calibrated mm-based bound dropped whole-dataset
+    recall from 42% to 28% on a validation sweep against 1004 disk detections
+    across all 28 videos in Camera Roll/Novos Videos/ (some genuine markers'
+    pixels legitimately extend well past the nominal disk radius on this
+    footage). Precision against background instead comes from color range +
+    MARKER_MIN_AREA_FRAC + MARKER_MIN_CIRCULARITY (a real paint marker is a
+    compact round blob at a characteristic size; validated against known
+    true/false cases — see CLAUDE.md) plus IDAssigner's position-lock, which
+    already stops an occasional bad color read from corrupting an established
+    track — full elimination of false positives isn't achievable through
+    marker-search geometry/threshold tuning alone, so that's the containment
+    layer, not this function.
     """
     cx, cy = det["center"]
     r = det["radius"]
+
+    mask_inner = r * MARKER_DIST_MIN_FRAC
+    mask_outer = r * MARKER_SEARCH_PAD_FACTOR
+    pad_factor = MARKER_SEARCH_PAD_FACTOR
+
     min_area = MARKER_MIN_AREA_FRAC * math.pi * r * r
-    # The marker sits near the disk's edge by design (an *offset* mark) and
-    # the bbox-derived radius runs a little tight — measured on real footage,
-    # genuine marker pixels can sit past the raw disk radius (up to ~1.5x on
-    # a small/dim marker). MARKER_MASK_PAD_MULT swept against both a known
-    # true marker and a known false (background) case: 1.3-1.5x recovers the
-    # true one, 1.8x+ starts letting the false one back in.
-    mask_r = r * MARKER_MASK_PAD_MULT
 
     mark = prp.detect_marker_center(frame, (cx, cy), r, GREEN_LOWER, GREEN_UPPER,
+                                     pad_factor=pad_factor,
                                      min_area=min_area, min_circularity=MARKER_MIN_CIRCULARITY,
-                                     mask_center=(cx, cy), mask_radius=mask_r)
+                                     max_circularity=MARKER_MAX_CIRCULARITY,
+                                     mask_center=(cx, cy), mask_radius=mask_outer,
+                                     mask_inner_radius=mask_inner)
     if mark is not None:
         return mark, "green"
     mark = prp.detect_marker_center(frame, (cx, cy), r, BLUE_LOWER, BLUE_UPPER,
+                                     pad_factor=pad_factor,
                                      min_area=min_area, min_circularity=MARKER_MIN_CIRCULARITY,
-                                     mask_center=(cx, cy), mask_radius=mask_r)
+                                     max_circularity=MARKER_MAX_CIRCULARITY,
+                                     mask_center=(cx, cy), mask_radius=mask_outer,
+                                     mask_inner_radius=mask_inner)
     if mark is not None:
         return mark, "blue"
-
-    marker_center = det.get("marker_center")
-    if marker_center is not None:
-        mx, my = marker_center
-        kpt_radius = max(r * 0.35, 12)
-        # Scale the area floor to *this* search region (kpt_radius), not the
-        # full disk radius `r` used above. Reusing the disk-scaled min_area
-        # here made the bar far too low relative to this much smaller crop —
-        # measured letting a 414px^2 false blob through against a 55px^2 floor
-        # meant for a ~15px-radius disk's full face.
-        kpt_min_area = MARKER_MIN_AREA_FRAC * math.pi * kpt_radius * kpt_radius
-        # mask_center/mask_radius keep the "must be inside the disk" check
-        # anchored to the disk's real geometry (center/r), not the keypoint —
-        # the keypoint is only used to bias where we crop. Without this, a
-        # keypoint that's landed near/past the true edge (known to happen
-        # ~44% of the time) lets the mask leak into background around the
-        # disk entirely, matching whatever's out there instead of the puck.
-        mark = prp.detect_marker_center(frame, (mx, my), kpt_radius, GREEN_LOWER, GREEN_UPPER,
-                                         pad_factor=1.5, min_area=kpt_min_area, min_circularity=MARKER_MIN_CIRCULARITY,
-                                         mask_center=(cx, cy), mask_radius=mask_r)
-        if mark is not None:
-            return mark, "green"
-        mark = prp.detect_marker_center(frame, (mx, my), kpt_radius, BLUE_LOWER, BLUE_UPPER,
-                                         pad_factor=1.5, min_area=kpt_min_area, min_circularity=MARKER_MIN_CIRCULARITY,
-                                         mask_center=(cx, cy), mask_radius=mask_r)
-        if mark is not None:
-            return mark, "blue"
 
     return None, None
 
@@ -472,6 +474,13 @@ def main(video_path, bg_path, dtc_path, csv_path, fps_eff):
 
     # Variables, list of arrays for detections
     scale_mm_per_px = None
+    # Collect several YOLO-sourced radii and take the median instead of locking
+    # scale from a single first detection — measured on real footage that a
+    # single frame's bbox radius can underestimate the true disk by >3x, which
+    # would otherwise corrupt scale_mm_per_px (and therefore every mm value in
+    # the output) for the entire run from one bad frame.
+    RADIUS_SAMPLE_TARGET = 8
+    radius_samples = []
     all_detections = []  # each entry: [frame, disk_id, cx_mm, cy_mm, mx_mm, my_mm, r_px]
     frame_idx = 0
     assigner = IDAssigner(COLOR_ID_MAP)
@@ -514,13 +523,16 @@ def main(video_path, bg_path, dtc_path, csv_path, fps_eff):
                 expected_radius=expected_radius_px
             ))
 
-        # 5) Compute scale on first detection (use first disk)
-        if scale_mm_per_px is None and disks:
-            first_rpx = float(disks[0]["radius"])
-            if first_rpx > 0:
-                scale_mm_per_px = DISK_DIAMETER_MM / (2.0 * first_rpx)
-                info("Info", f"Computed scale: {scale_mm_per_px:.3f} mm/px")
-
+        # 5) Compute scale from the median of several YOLO-sourced radii
+        if scale_mm_per_px is None:
+            for d in disks:
+                if d.get("source") == "yolo" and d["radius"] > 0:
+                    radius_samples.append(float(d["radius"]))
+            if len(radius_samples) >= RADIUS_SAMPLE_TARGET:
+                median_rpx = float(np.median(radius_samples))
+                scale_mm_per_px = DISK_DIAMETER_MM / (2.0 * median_rpx)
+                info("Info", f"Computed scale: {scale_mm_per_px:.3f} mm/px "
+                              f"(median of {len(radius_samples)} radius samples)")
 
         # 6) Resolve marker color per disk (HSV, anchored on the YOLO keypoint when available)
         frame_dets = []

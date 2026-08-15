@@ -10,9 +10,22 @@ from video footage, tracking position/orientation/kinematics per frame and expor
 scaled physical metrics (mm, s) to CSV for Discrete Element Method (DEM) validation.
 
 - Disk 0 = Green marker, Disk 1 = Blue marker
-- Disk diameter: 80.0 mm, default mass: 0.0118 kg
-- Disk **bodies** are gray/slate — only a small offset marker dot on the surface is colored. This is usefull to track rotation.
-  This matters: any detection logic that assumes the whole disk is colored will fail.
+- Disk diameter: 70.0 mm (35mm radius, user-confirmed; was wrongly coded as 80.0mm for a
+  while — this drove `scale_mm_per_px`, so it silently scaled every mm value ~14% high until
+  fixed), default mass: 0.0118 kg
+- Offset marker sits ~20-30mm from disk center (user-measured), circular, colored blue or green
+- Disk **bodies** are gray/slate — only the small offset marker dot is colored. Any detection
+  logic that assumes the whole disk is colored will fail.
+- **Physics**: air table is frictionless (user-confirmed) — angular velocity is expected
+  constant between collisions, no torque except during contact. Validated on real footage:
+  unwrapped marker angle decreases ~1°/frame consistently over 100+ frame stretches pre/post
+  collision.
+- **Filming pattern**: real collision videos are a single collision each — two disks
+  approach, contact once, separate ("draws an X"). Not multi-bounce. Simplifies rotation
+  segmentation to exactly two segments (before/after) per video, always.
+- The `Camera Roll/Novos Videos/` clips used for most of this project's testing/training were
+  recorded to build the deep-learning dataset, not as real collision-study runs — expect
+  varied/non-representative trajectories there, unlike the real single-collision footage above.
 
 ## Architecture
 
@@ -23,273 +36,277 @@ Collision-Study/
 ├── helper.py          # Bridges GUI calls to backend pipeline
 ├── detector.py        # Core pipeline: video I/O, detection, ID tracking, CSV export
 ├── Pre_process.py     # CV utilities (HSV filtering, marker isolation, background estimation)
-└── runs/pose/train-5/weights/best.pt   # Fine-tuned YOLO Pose model (best run to date, in use)
+├── Post_process.py    # CSV -> kinematics/rotation/Excel + collision metrics
+├── train.py           # Retrains the YOLO Pose model from Puck_Training/ (see Model section)
+└── runs/pose/train-5/weights/best.pt   # Fine-tuned YOLO Pose model (deployed — see below)
 ```
 
-Single active branch now: **`deepLearning`** (the older `contour` / `yolo-pose` branch split
-described in earlier notes no longer exists in this repo — both approaches now live together
-in `detector.py` on `deepLearning`, as a hybrid, not as separate branches).
+Single active branch: **`deepLearning`**. Detection pipeline in `detector.py`:
 
-`detector.py` detection pipeline (as of this session):
-- **Primary: YOLO Pose** (`runs/pose/train-5/weights/best.pt`, single class `puck`, 2
-  keypoints `[center, marker]`) — `detect_disks_yolo()`. Disk center prefers the "center"
-  keypoint (falls back to bbox center if low-confidence); radius comes from the bbox.
-  `conf=0.10` (see conf discussion below), `imgsz=1280` (matches training `imgsz`, see
-  `runs/pose/train-5/args.yaml`). `remove_duplicate_detections()` dedupes boxes within 30px,
-  keeping the higher-confidence one.
-- **Marker color**: `resolve_marker_color()` scans the whole disk ROI first
-  (`prp.detect_marker_center` on bbox-derived center/radius), falling back to a tight
-  keypoint-anchored search only if that fails (this order was flipped in an earlier session).
-  Matches are gated by `MARKER_MIN_AREA_FRAC`/`MARKER_MIN_CIRCULARITY` (a real paint marker is
-  a compact round blob; rejects thin rim/shadow slivers at comparable area) and by
-  `MARKER_MASK_PAD_MULT` (the "must be inside the disk" mask always uses the disk's real
-  center/radius — padded 1.4x, since the offset marker sits near the true edge — never the
-  search anchor itself, so an unreliable keypoint anchor can't leak the search into
-  background). `detect_marker_center`'s CLAHE tile grid and morphological kernel both scale to
-  the actual crop/disk size rather than fixed pixel constants — both were found to silently
-  break (manufacture false color / erase real markers) on footage with a different object
-  scale than whatever they were last tuned against. See Crucial Section log for the concrete
-  measurements behind these.
-- **Fallback: background-subtraction contour** (`fallback_contour_disks()`) — only triggers
-  when YOLO found fewer than 2 disks in a frame, and only searches within
-  `FALLBACK_SEARCH_RADIUS_PX` (250px) of a missing disk's last known position
-  (`assigner.prev_pos`), not the whole frame. Candidates are also gated by radius (0.5x–1.8x
-  of a reference radius — this frame's other YOLO disk if there is one, else the calibrated
-  disk radius derived from `scale_mm_per_px`) so an oversized glare/reflection/motion-blur
-  blob can't slip through just because it's circular.
-- **ID logic**: `IDAssigner` — **position-lock now runs before color** (a detection within
+- **Primary: YOLO Pose** (single class `puck`, 2 keypoints `[center, marker]`) —
+  `detect_disks_yolo()`. Disk center prefers the "center" keypoint (falls back to bbox center
+  if low-confidence); radius comes from the bbox — **treat the bbox radius as noisy, not
+  ground truth**: measured cases on real footage where it underestimated the true visible disk
+  by >3x. Don't build tight geometry (search radii, masks) on a single frame's bbox radius;
+  prefer a run-level robust estimate (median over several frames) if precision matters.
+  `conf=0.10`, `imgsz=1280`. `remove_duplicate_detections()` dedupes boxes within 30px.
+- **Marker color**: `resolve_marker_color()` scans a generously padded crop around the disk
+  (`MARKER_SEARCH_PAD_FACTOR = 3.5`), excluding only a small central disc
+  (`MARKER_DIST_MIN_FRAC = 0.3`). No keypoint-anchored fallback, no outer distance bound —
+  both were tried and both clip real markers whenever that frame's bbox underestimates the
+  disk (see above). Precision against background comes from HSV color range +
+  `MARKER_MIN_AREA_FRAC`/`MARKER_MIN_CIRCULARITY`/`MARKER_MAX_CIRCULARITY` + `IDAssigner`'s
+  position-lock. Calibrated from a broad survey (580 marker samples across all 28
+  `Novos Videos` clips, not 1-2 clips). `detect_marker_center`'s CLAHE tile grid and
+  morphological kernel both scale to the actual crop/disk size (fixed pixel constants silently
+  broke on footage with a different object scale than whatever was last tuned).
+  **`detect_marker_center` picks the largest contour that *passes* the shape gates, not the
+  largest contour full stop** — picking largest-then-checking-shape was a real bug (a genuine
+  marker got fused with adjacent background by the mask-cleanup step into one large, irregular
+  blob that failed circularity, while a separate small, valid, correctly-round marker blob sat
+  right next to it in the same mask and was never even considered). Fixing this took whole-
+  dataset marker recall from 42.8% to **60.5%** (`has_pucks` survey, 1004 disk detections) —
+  the "40-45% ceiling" language from earlier in this project's history is now stale; that
+  ceiling was this bug, not a fundamental HSV/shape-heuristic limit. Considering *every*
+  contour did surface a new, narrower failure mode — a small (~28px) noise/compression
+  artifact can be *more* circular than real paint (0.943 vs 0.72-0.83 confirmed real) — hence
+  `MARKER_MAX_CIRCULARITY = 0.90` as a companion ceiling.
+- **Fallback: background-subtraction contour** (`fallback_contour_disks()`) — only when YOLO
+  found <2 disks, only within `FALLBACK_SEARCH_RADIUS_PX` (250px) of a missing disk's last
+  known position, gated by radius (0.5x-1.8x of a reference radius) so glare/reflection blobs
+  can't slip through just because they're circular.
+- **ID logic**: `IDAssigner` — position-lock runs before color (a detection within
   `POSITION_LOCK_GATE_PX` (60px) of an already-tracked ID's last position claims that ID
-  immediately); color-first assignment only decides identity for detections that don't match
-  an existing track (new arrivals, or gaps beyond the lock gate); unbounded nearest-neighbor
-  and deterministic left-right fallback remain as before for what's left. This priority flip
-  was the key fix this session — see bug log. Note: this is a plain class, not a
-  `PersistentDiskTracker` — that name from earlier notes never actually existed in this
-  codebase.
+  immediately); color only decides identity for genuinely new/gapped tracks. This is what
+  makes the pipeline robust to color being wrong or absent — a bad single-frame color read
+  can't corrupt an established track's identity anymore. Plain class, not a
+  `PersistentDiskTracker` (that name never existed in this codebase, despite older notes).
+- `scale_mm_per_px` is computed from the **median of the first 8 YOLO-sourced radii**
+  (`RADIUS_SAMPLE_TARGET`), not a single first detection — guards against exactly the bbox
+  anomaly above corrupting every mm value for an entire run.
 
-## Hardware / lab history (important — explains why YOLO exists)
+## Model (YOLO Pose)
 
-1. **Old lab, webcam, 60fps, natural light** — classical CV (`contour` branch) worked well.
-   Some motion blur was present but didn't break detection.
-2. **New lab, same webcam** — artificial lighting + glare directly on the table surface
-   broke classical detection (background subtraction / HSV thresholds no longer reliable).
-3. **New lab, phone camera** (sharper image, effectively no motion blur) — classical CV
-   *still* underperformed here, even without blur. This is the key signal: the new lab's
-   glare/lighting is the actual problem, not camera shutter or blur. This is what motivated
-   the switch to YOLO.
-4. Phone camera is the likely long-term choice (better image quality) but not finalized.
-   FPS choice (60 vs 240) also undecided — pipeline should stay FPS-agnostic
-   (`fps_eff` param) so both can be benchmarked once tracking is stable.
+- **Deployed**: `runs/pose/train-5/weights/best.pt`. 487 labeled images / 588 labeled puck
+  instances (`Puck_Training/`), imgsz=1280, single class `puck`, `kpt_shape=[2,3]`
+  (`[center, marker]`). Training curve plateaus around epoch 8-14 (pose mAP50 oscillates
+  0.70-0.81 for the remaining ~20 epochs, no sustained improvement) — **this is a converged
+  model, not a data-starved one**; more images of the same kind are unlikely to move it much.
+- **Position/box detection is solid and validated** across many real clips (near-perfect once
+  a puck is actually in frame). **The marker keypoint specifically is unreliable** (measured:
+  lands on a non-marker specular highlight ~44% of the time) and is not used by the pipeline —
+  marker localization is 100% classical CV (`resolve_marker_color`), independent of this
+  keypoint.
+- **Lesson on trusting isolated metrics**: `ultralytics`' pose mAP is aggregated over both
+  keypoints, and has now been shown twice to *not* predict real pipeline performance — trust
+  the end-to-end pipeline test (`detect_disks_yolo` + `resolve_marker_color` against the
+  `has_pucks` survey), not the training-run mAP, when evaluating a checkpoint.
+  1. **`runs/pose/Puck_Runs/240fps_trial_02-2`** scored higher in isolated pose-mAP (0.883 vs
+     train-5's 0.812, same dataset) but **did not translate to a better end-to-end result**:
+     41.6% marker coverage vs train-5's 44.2% — a wash, slight edge to train-5. Not switched.
+     (That run also degraded to ~0.50 mAP by epoch 100 with no early stopping configured — only
+     its `best.pt` is usable, not `last.pt`.)
+  2. **`runs/pose/marker_weighted`**: hypothesis was that `ultralytics`' pose loss weights all
+     keypoints equally by default (`sigmas = ones(nkpt)/nkpt` = `[0.5, 0.5]` for our 2-keypoint
+     case), so training was never pushed to prioritize the harder marker keypoint over the
+     trivially-easy center one. Retrained from scratch with `sigmas=[0.7, 0.3]` (center,
+     marker) via a callback patch (`model.criterion.keypoint_loss.sigmas`, not exposed through
+     `args.yaml`/`train.py` directly). Result: marker coverage barely moved (46.6% vs 44.2%,
+     within noise for this sample size) and, measuring keypoint-to-true-marker distance
+     directly (not just aggregate mAP), the keypoint's own accuracy got *worse*, not better
+     (40.3% of colored detections had the keypoint within 0.5 disk-radius of the HSV-confirmed
+     true marker, vs 53.8% for train-5). **Not switched.** One run isn't proof the theory is
+     wrong (real variance exists between individual training runs — see the mAP oscillation
+     noted above), but it didn't validate the theory either; would need multiple seeds/sigma
+     values to know for sure, which wasn't judged worth the GPU time given the physics-recovery
+     plan below doesn't depend on this working.
 
-**Working theory, now partially confirmed:** the new lab's glare is a genuine
-lighting/reflection problem, not primarily an exposure/shutter issue. With `train-5` wired
-into `detector.py` and smoke-tested end-to-end against two real new-lab clips (`NL01.mp4`,
-60fps, and `240_25.mp4`, 240fps — see below), the picture is more nuanced than "recall is
-low": **once a puck is actually in frame, YOLO position/box detection is excellent** — dense
-frame-by-frame checks on `240_25.mp4` showed continuous detection with zero internal gaps
-during all three puck passes (only misses were frames before/after the puck entered/left this
-tightly-cropped phone shot, which is a filming-setup fact, not a model failure), including 32
-straight frames of both disks tracked simultaneously through the actual collision. The
-low-recall numbers seen on `NL01.mp4` are real but conflate "puck not visible this frame" with
-"model missed a visible puck" — a naive frames-with-detection ratio undercounts accuracy when
-much of a clip has no puck on screen at all. Bottom line: box/position detection is close to
-solved; **marker color detection is the fragile part** (see bugs below), not YOLO itself.
+## deepLearning vs. classical OpenCV contour
 
-## Known bugs / open issues (as of Aug 2026)
+Settled, not an open question — **keep YOLO for disk position/tracking**. Classical contour
+detection was tested against the new lab's lighting and failed specifically because of glare,
+independent of blur/shutter (see Lab/lighting history below); YOLO position tracking has since
+been validated near-perfect on the same conditions. There's no evidence classical would do
+better there, and real evidence it does worse.
 
-### Fixed this session (240_25.mp4 smoke test)
-1. **`cv2.VideoWriter` silently produced a 0-byte `detection.mp4` for real camera FPS values**
-   (e.g. `240.10231632798067`) — the float has enough precision that mpeg4's timebase
-   denominator overflows its 65535 max and the writer fails to open, with no exception raised
-   (`out.write()` no-ops for the whole run). Fixed by rounding fps to 2 decimals for the
-   writer only (`round(fps, 2)`) — `dt`/`fps` used for physics stay full precision. Only
-   surfaces with 240fps-class footage; 60fps/30fps values were clean enough to not trigger it.
-2. **`GREEN_UPPER`'s S/V ceiling (was 88/129) rejected this footage's true marker pixels
-   outright** (measured median ~S214/V92, p99 ~S237/V139) — it was tuned for dimmer footage.
-   Widened; see the HSV constants' comments in `detector.py` for the measured values.
-3. **The YOLO "marker" keypoint is not reliable for color** — measured on real footage this
-   session, it lands on a non-marker specular highlight on the glossy disk body ~44% of the
-   time (the highlight moves with disk rotation too, same as the real marker, so the model
-   confuses them). Fixed by making `resolve_marker_color()` scan the whole disk ROI *first*
-   (keypoint-independent — finds the largest matching blob anywhere on the disk) and only
-   fall back to the keypoint-anchored tight search second.
-4. **CLAHE's fixed `tileGridSize=(8,8)` on a marker-sized crop (~roundabout the disk's own
-   size) gave tiles only a few px across** — too small a sample for local histogram
-   equalization, so it was manufacturing fully-saturated fake "color" out of sensor noise on
-   the flat gray disk body instead of just rescuing a dim real marker. Fixed in
-   `Pre_process.detect_marker_center` by scaling `tileGridSize` to the ROI's actual pixel
-   size (min ~16px/tile).
-5. **The biggest one: a single spurious color match could steal an already-tracked disk's
-   identity.** `IDAssigner`'s old color-first-then-position order meant one bad HSV hit on the
-   wrong disk (from bug 3/4 above, or just marker-visibility noise) would immediately
-   reassign that disk's `disk_id` for that frame, then flip back next frame — a single
-   physical puck's trajectory split frame-by-frame across `disk_id` 0 *and* 1, repeatedly,
-   for an entire pass. **Fixed by flipping the priority: position-lock (tight 60px gate to an
-   ID's last known position) now runs before color.** Validated on the full 240_25.mp4 run:
-   zero identity flip-flops anywhere in the video, zero consecutive-frame position jumps
-   >60px, both known single-puck passes stayed 100% on one `disk_id` throughout. Color
-   coverage in the CSV *dropped* as a side effect (fewer frames get a `marker_color` value,
-   since position now wins whenever there's an established track to match) — that's fine and
-   expected: color's only remaining job is to identify genuinely *new* tracks, and its
-   occasional wrong answers can no longer corrupt an established one.
+Note this was never really a YOLO-vs-classical question for the *marker* problem specifically:
+marker color/position has been 100% classical CV for a while now (YOLO's marker keypoint is
+unused — see Model section). The marker struggle is the classical method hitting the same
+glare problem that broke classical position-tracking in the old lab comparison, just now on
+the marker instead of the whole disk.
 
-Net effect of 2-5: marker color detection is still imperfect (a real HSV/CV limitation — small
-marker, glossy/highlight-heavy blue paint, tiny search ROIs) and this wasn't and can't fully be
-"solved" by threshold tuning alone. What matters for correctness is bug 5's fix: the pipeline
-is now **robust to color being wrong or absent**, which is what actually gets validated to
-near-perfect position/identity tracking on real footage.
+## Lab / lighting history
 
-### Still open
-6. **`IDAssigner`'s step-3 nearest-neighbor (for detections beyond the position-lock gate)
-   still has no maximum distance check** — relevant for a disk reappearing after a multi-frame
-   gap. Directive 3 (velocity-gated lock) would replace both this and the static
-   `POSITION_LOCK_GATE_PX`/`FALLBACK_GATE_PX` gates with a motion-extrapolated one.
-7. `estimate_background_median()` (used both for scale calibration and as the contour
-   fallback's background reference) assumes the first `CLEAN_SECONDS` of video has no pucks
-   on the table. If a puck is already in frame at t=0, background estimation — and therefore
-   `scale_mm_per_px` and every contour fallback for the rest of the run — is degraded.
-8. HSV calibration (`GREEN_LOWER/UPPER`, `BLUE_LOWER/UPPER`, `MARKER_MIN_AREA_FRAC`,
-   `MARKER_MIN_CIRCULARITY`) was tuned against exactly one clip (`240_25.mp4`). Treat as a
-   reasonable starting point, not a universal calibration — re-validate (or rerun
-   `prp.calibrate_hsv_range`) against new lighting/exposure setups.
+1. Old lab, webcam, 60fps, natural light — classical contour detection worked well, even with
+   real motion blur present.
+2. New lab, same webcam, artificial overhead lighting — glare broke classical detection.
+3. New lab, phone camera (sharper, ~no motion blur) — classical **still** underperformed. Key
+   signal: the new lab's glare is the actual problem, not camera shutter/blur — this is what
+   motivated the switch to YOLO for position tracking.
+4. **New lab rig**: 6 intense LED bars total, with some subset (2-3) directly above the table
+   causing the glare above. Camera choice was never actually the deciding factor in #2/#3 above
+   (webcam *and* phone camera both failed under the same lighting, both worked once lighting
+   was fixed) — don't expect switching cameras alone to fix a lighting problem.
+5. **NL (`Camera Roll/NL/`) = the bars directly over the table switched off.** Checked whether
+   this fixes the marker problem specifically (same root cause as #2/#3, now hitting classical
+   marker detection instead of position): **at matched ~60fps, marker coverage is 71-73%**
+   (NL01/02) **vs ~44-56% for lit footage at similar fps** — a real, substantial improvement,
+   confirms glare is genuinely the dominant driver of marker-detection failures. The 240fps NL
+   clips (NL03-05) measured only 22-26% at the time, which first looked like an underexposure
+   problem (dimmer than the 60fps NL clips) — **that explanation didn't hold up**: brightness
+   turned out comparable to lit-240fps footage when checked properly, and a visible NL marker
+   sampled directly landed squarely inside the calibrated HSV range. The real cause was more
+   likely the largest-vs-best-contour bug (see Architecture) plus a small sample (only 30-70
+   disk detections tested per NL clip) — not exposure. **NL-240fps hasn't been re-measured
+   since fixing that bug; do that first before drawing any conclusion about high-fps NL
+   footage.**
+6. **fps and motion blur**: higher fps forces a shorter shutter, which genuinely reduces linear
+   motion blur during the fast parts of the trajectory (approach/separation velocity) — this
+   was a correct reason to prefer 240fps, not a mistake. Separately, *rotation* specifically is
+   slow enough (~1°/frame at 240fps, i.e. ~240°/s) that 240fps oversamples it enormously (60fps
+   would still give ~90 samples/revolution) — so 240fps isn't *needed* for rotation tracking,
+   but that's not an argument against it either, since the blur-reduction benefit is real and
+   separate. The actual tradeoff is exposure: shorter shutter needs more light, and the
+   available bright supplemental light flickers above 60fps (unusable at 240fps). Don't trade
+   away fps to fix this — solve the light source instead (a flicker-free/high-frequency-PWM
+   light, or more of the existing diffuse LED bars) if staying at 240fps once back in the lab.
+7. **Geometric alternative worth testing first**: repositioning the table (or shooting the
+   collision at the opposite end of the table) so the glare reflection falls outside the
+   recorded frame, instead of turning off table-overhead lights at all. This avoids the
+   exposure tradeoff in #6 entirely — full brightness kept, glare just isn't in frame. Not
+   validated yet (no footage to check), but structurally the better option if the geometry
+   works out, since it sidesteps the light-vs-exposure problem rather than trading one for the
+   other.
+8. **Resolution (4K)**: recommended as a real, low-tradeoff upgrade *if the camera supports a
+   still-decent fps at 4K* (120fps+) — more pixels on the small marker directly helps the
+   precision problems hit repeatedly this project (imprecise sub-pixel localization, boundary
+   jaggedness affecting shape checks). Check the camera's actual supported resolution/fps
+   combinations before committing — 4K at 240fps is uncommon on consumer hardware, so this may
+   come down to trading some fps for resolution rather than getting both; given point 6, don't
+   make that trade if it costs the blur-reduction benefit without checking first how many
+   frames of actual contact a real collision shows at each candidate fps (short contact +
+   dropped fps risks losing the collision event's own dynamics almost entirely, which matters
+   more for this study than steady-state rotation sampling).
+
+## Known bugs / open issues
+
+1. **Still open, genuinely unsafe: known false-positive marker match (`240_25.mp4` frame 368)
+   still returns a wrong answer ("green"), not just a missed detection.** Checked whether
+   tonight's two fixes (largest-vs-best-contour selection, `MARKER_MAX_CIRCULARITY`) touched
+   it — they don't: this case's circularity (~0.79) sits inside the confirmed-real range
+   (0.72-0.83) on both sides, so no circularity bound alone can separate it from a genuine
+   marker. `IDAssigner`'s position-lock still protects an established track's *identity* from
+   this (documented, unrelated to tonight), but the `marker_color`/position *values* written
+   for that frame are simply wrong — not a safe null result. Not chased further tonight (would
+   need per-case threshold hacking with no principled stopping point); the physics-assisted
+   recovery plan below is the intended real fix (motion-consistency check catches this
+   structurally — a physically implausible marker jump gets rejected regardless of how
+   "valid-shaped" the blob looks), and is next up.
+   - Encouraging data point from tonight: a *different* near-identical failure mode (small,
+     suspiciously-perfect blob) that the max-circularity fix newly exposed *did* resolve safely
+     — to `None`, not a wrong answer (see `new01.mp4` frame 220 in this session's testing). So
+     the fix's direction is right; frame 368 specifically just isn't caught by it.
+2. `IDAssigner`'s nearest-neighbor step (for detections beyond the position-lock gate) has no
+   maximum distance check — relevant for a disk reappearing after a multi-frame gap. A
+   velocity-gated lock (extrapolate from last 2-3 positions) would fix this and let the contour
+   fallback search from a predicted position instead of a stale one.
+3. `estimate_background_median()` assumes the first `CLEAN_SECONDS` of video has no pucks on
+   the table — if one's already in frame at t=0, `scale_mm_per_px` and the contour fallback
+   degrade for the whole run.
+
+## Rotation / marker detection — live plan
+
+**Where this stands**: disk position/ID tracking is solved. Marker color/rotation coverage was
+the remaining weak point — **60.5%** as of tonight (`has_pucks` survey, 1004 disk detections),
+up from 42.8% after fixing the largest-vs-best-contour bug (see Architecture, Marker color).
+Not by markers being physically invisible (checked earlier: 0% of failing detections in that
+survey have no visible colored blob at all — every miss is the algorithm rejecting something
+real) — so there's likely still room above 60.5% from the same category of fix, though nothing
+else this concrete was found tonight.
+
+**Goal**: fill the whole rotation column (every frame gets a usable angle), via recall
+improvements *and* physics-based recovery/interpolation, not recall alone.
+
+**This is the plan for the next session** (nothing below has been implemented yet — tonight
+was diagnosis + the two contour-selection fixes above):
+
+0. **First thing next session**: RANSAC/sigma-clipping step 2 below will itself flag frames
+   like `240_25.mp4` frame 368 as trend-inconsistent outliers once it's built, which is a more
+   principled fix than another shape-heuristic patch — so bug 1 above doesn't need its own
+   dedicated fix, just build step 2 and confirm it catches this case as a sanity check.
+1. Segment each disk's timeline at the collision frame (`_find_collision_frame` already exists
+   in `Post_process.py`) — always exactly 2 segments per real video (see "Filming pattern"
+   above). Never fit/interpolate across a segment boundary — ω is not expected constant there
+   (contact torque), and that region is measurably noisier already (checked on `240_25.mp4`
+   near its collision frame).
+2. Robustly fit angular velocity per segment (RANSAC / iterative sigma-clipping linear
+   regression of unwrapped θ vs. frame) using only currently-passing detections — both gives a
+   per-segment ω estimate and flags which existing detections are trend-consistent vs. false.
+3. Physics-assisted recovery: for frames with no/rejected detection, predict marker position
+   from the segment fit, then run a narrow, high-sensitivity confirmation search there (safe
+   now because location is already constrained by physics, not a blind per-frame search). This
+   is the mechanism expected to move recall from ~60% toward 80%.
+4. Fill whatever's still missing by interpolation/extrapolation from the fit, writing an
+   explicit `theta_source` column (`measured`/`recovered`/`interpolated`) so downstream DEM
+   analysis can weight or exclude non-measured values.
+5. Re-measure recall and interpolation error against a held-out set of currently well-covered
+   segments before trusting it on sparse ones.
+6. If 1-5 doesn't reach the target, or the collision window specifically still needs better
+   real detection (interpolation structurally can't cover it): the one sigma-reweighted
+   retrain attempted so far didn't pan out (see Model section) — a dedicated learned marker
+   classifier bootstrapped from `has_pucks` + this pipeline's own QA'd detections is the more
+   promising remaining ML option, or a properly resourced retrain (more seeds, real
+   hyperparameter search, ideally new labels from better-lit/repainted footage) rather than
+   the single quick experiment tried here.
+7. Parallel, non-blocking, whenever back in the lab: matte (not glossy) marker paint, and pair
+   any glare reduction with *more diffuse* light if shooting at high fps (see NL finding
+   above). Confirmed safe to do — repainting doesn't invalidate the deployed model's position
+   detection (independent of marker color) or the existing labeled dataset (its disk-detection
+   portion stays exactly as useful); it mainly means recalibrating the classical HSV layer
+   (cheap, same broad-survey method already built) and, if pursuing item 6, collecting new
+   labels for a future keypoint retrain.
 
 ## Directives (carried over from original briefing)
 
-1. ~~YOLO detection filtering: keep `conf` around 0.10–0.15, dedupe candidate boxes via
-   distance threshold.~~ **Done** (`YOLO_CONF=0.10`, `remove_duplicate_detections`, 30px —
-   0.10 chosen after an A/B sweep on real footage showed it recovers frames 0.15 misses with
-   zero measured false positives in puck-free stretches of the same video).
-2. ~~Motion/background fallback only in expected disk regions when YOLO detects <2 disks,
-   rather than discarding the frame.~~ **Done** (`fallback_contour_disks`, gated by both
-   position — near `prev_pos` — and radius).
-3. **Partially done:** Trajectory-based persistent ID lock — `IDAssigner` now does
-   position-lock-before-color (see bug 5 fix above), which is a fixed-distance gate, not the
-   originally-specified velocity-extrapolated one. Still open: replace
-   `POSITION_LOCK_GATE_PX`/`FALLBACK_GATE_PX` with linear extrapolation from the last 2-3
-   known positions, which would also fix bug 6 above and let the fallback search from a
-   *predicted* position instead of a stale last-confirmed one after multiple missed frames.
+1. ~~YOLO detection filtering: keep `conf` ~0.10-0.15, dedupe candidate boxes.~~ **Done.**
+2. ~~Motion/background fallback only in expected disk regions when YOLO detects <2 disks.~~
+   **Done** (`fallback_contour_disks`).
+3. Trajectory-based persistent ID lock: **partially done** — position-lock-before-color is a
+   fixed-distance gate, not the originally-specified velocity-extrapolated one (see bug 2
+   above). Superseded in priority by the rotation-recovery plan, which needs its own
+   RANSAC/velocity fitting anyway — worth doing both together if picked up.
 
-## Suggestions for next session
+## Reference: local test footage
 
-- Implement the velocity-gated lock (directive 3) — this is now the main remaining piece of
-  the original briefing, and would tighten both `IDAssigner` and the contour fallback's search
-  center in one change.
-- If pursuing further training-data augmentation for YOLO: prioritize *marker visibility/color*
-  variety (angles, lighting, motion blur) over raw puck-detection frames — bug log above shows
-  box/position detection is already strong; color is the weaker link.
-- Local new-lab test footage (not checked into the repo — `Videos/` was cleared out) lives at
-  `C:\Users\gonca\Pictures\Camera Roll\NL\` (60fps) and `...\Camera Roll\Novos Videos\` (240fps,
-  e.g. `240_25.mp4` used this session) — use these for future smoke tests of `detector.py`
-  instead of hunting for videos elsewhere. Note: `...\Camera Roll\Novos Videos\240_1.mp4` (and
-  likely some neighboring files) is an unrelated air-hockey-table clip, not this project's rig.
-- Once tracking is stable, benchmark 60fps vs 240fps footage on tracking continuity and CSV
-  completeness to make the FPS decision.
+- `Camera Roll\NL\` — no-glare lighting test clips (NL01/02 = 60fps, clearly better than lit;
+  NL03-05 = 240fps, inconclusive — re-measure after the contour-selection fix, see Lab/lighting
+  history above).
+- `Camera Roll\Novos Videos\` — 28 videos (`240_1`...`240_25`, `new01`-`new03`) used to build
+  the training dataset and for broad calibration surveys this project relies on. Not
+  necessarily representative of real single-collision runs (see "What this is" above).
+  `extracted_frames\has_pucks\` (884 frames, not checked into the repo) is a pre-filtered
+  subset with a puck visible — use this instead of scanning full videos for quick surveys.
+- `Videos/` in the repo itself was cleared out — don't expect test footage there.
 
 
-## Crucial Section (User Assigned Missions)
+## Long Term Issues (Not critical)
 
-The tasks on this section take priority over any others. If this section is not empty or marked as done please start with the problems state here. Once a problem or set of problems here are done, please step aside for the user to make a manual run on the program and confirm problem resolution. Mark them with "*Done*" at the beginning of the problem once resolved.
+- Correct the DPI warning (correct or supress, not sure). 
 
-- *Done* PS C:\Users\gonca\Desktop\Collisions DEM\Collision-Study> & C:\Users\gonca\AppData\Local\Programs\Python\Python311\python.exe "c:/Users/gonca/Desktop/Collisions DEM/Collision-Study/initializer.py"
-[INFO] App Starting
-setHighDpiScaleFactorRoundingPolicy must be called before creating the QGuiApplication instance
-qt.qpa.window: SetProcessDpiAwarenessContext() failed: Acesso negado.
-Qt's default DPI awareness context is DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2. If you know what you are doing, you can overwrite this default using qt.conf (https://doc.qt.io/qt-6/highdpi.html#configuring-windows).
-[INFO] Video Selected: C:/Users/gonca/Pictures/Camera Roll/Novos Videos/new01.mp4
-[INFO] Video Native FPS: 57.00031786566674
-[Done] Background Averaged
-[Info] YOLO Pose model loaded (best.pt) on device=0
-[Info] File Container Native FPS: 57.00
-[Info] Per frame time: 0.0175s
-[Info] Computed scale: 3.850 mm/px
-[Done] Saved 46 detections to disk_tracks.csv
-C:\Users\gonca\AppData\Local\Programs\Python\Python311\Lib\site-packages\numpy\lib\nanfunctions.py:1215: RuntimeWarning: Mean of empty slice
-  return np.nanmean(a, axis, out=out, keepdims=keepdims)
-C:\Users\gonca\AppData\Local\Programs\Python\Python311\Lib\site-packages\numpy\lib\nanfunctions.py:1215: RuntimeWarning: Mean of empty slice
-  return np.nanmean(a, axis, out=out, keepdims=keepdims)
-C:\Users\gonca\AppData\Local\Programs\Python\Python311\Lib\site-packages\numpy\lib\nanfunctions.py:1215: RuntimeWarning: Mean of empty slice
-  return np.nanmean(a, axis, out=out, keepdims=keepdims)
-C:\Users\gonca\AppData\Local\Programs\Python\Python311\Lib\site-packages\numpy\lib\nanfunctions.py:1215: RuntimeWarning: Mean of empty slice
-  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+- Add a loading screen or something that shows the progress once hiting the generate button and before the preview is available.
 
-  Root cause: `Post_process._compute_metrics()` computes per-side (before/after
-  collision-frame) `.mean()`/`.median()` over each disk's `vx`/`vy`/`omega_deg_s`.
-  With sparse detections (this run: 46 total), a side can select a selection
-  that's empty, or non-empty but entirely NaN (a disk's very first sample has
-  NaN velocity/omega — it's a frame-to-frame `.diff()` with nothing before
-  it) — either way pandas' `.mean()`/`.median()` still correctly returns NaN,
-  but hits numpy's `nanmean` on an empty-after-dropna array to get there,
-  which is where the warning actually fires. Not a wrong-result bug — the
-  metric was already NaN either way and downstream code already handles NaN
-  (e.g. `restitution_e` checks `np.isfinite(v_n_before)`) — just a noisy,
-  confusing warning. Fixed in `Post_process.py`: added `_safe_vxvy_mean()`/
-  `_safe_median()` helpers that scope-suppress specifically this
-  `RuntimeWarning: Mean of empty slice` message around the calls (12 call
-  sites total: 4 `vx`/`vy` means, 8 `median()`s), and used them everywhere
-  `_compute_metrics()` previously called `.mean()`/`.median()` directly.
-  Verified clean with `python -W error::RuntimeWarning` against the exact
-  sparse CSV that reproduced it (both `build_student_excel()` and
-  `visualize_trajectories()`).
-
-- *Done* Center tracking is suficiently good but marker detection still fails around 75% of the time.
-
-  Found two real bugs specific to smaller/dimmer markers (this video,
-  `new01.mp4`, has visibly smaller/dimmer markers than `240_25.mp4`, which
-  most of the color-detection tuning up to this point had been validated
-  against):
-  1. **`Pre_process.detect_marker_center`'s morphological "open" step used a
-     fixed 7x7 kernel** — on this video's smaller marker, that erased a
-     genuine 41px marker blob down to 0px (not just noise). Fixed by scaling
-     the kernel to the search radius (`max(3, min(7, round(radius*0.3)|1))`).
-     Also lowered `MARKER_MIN_AREA_FRAC` 0.10 -> 0.07 after the same real
-     marker (once it survived the kernel fix) measured at 28.5px against a
-     32.9px requirement — circularity (unchanged) is what actually carries
-     the false-positive rejection burden, area is just a coarse floor.
-  2. **The keypoint-anchored fallback search's "must be inside the disk"
-     mask was built from the keypoint, not the disk.** It draws a circle
-     around whatever point it's searching from and rejects everything
-     outside it — for the primary whole-disk search that circle is centered
-     on the real disk, correctly excluding background, but the fallback
-     passed the *keypoint* as if it were the disk center. Since the keypoint
-     is known to land off-marker ~44% of the time (bug 3 in the log above),
-     an off-disk keypoint let the mask leak into background around the disk
-     — measured concretely: a 414px, reasonably round (circ 0.75) false-color
-     blob from background near the disk passed every existing gate this way.
-     Fixed by adding `mask_center`/`mask_radius` params to
-     `detect_marker_center()` so the "inside disk" circle can be pinned to
-     the disk's real geometry independent of whatever point is used to
-     position the search crop; `resolve_marker_color()` now passes the true
-     disk center/radius for this on both the primary and keypoint-anchored
-     calls. Radius needed some padding either way — measured that genuine
-     marker pixels (an *offset* mark, by design near the disk's edge) can sit
-     past the raw bbox radius on a small/dim marker — swept a multiplier
-     against both a known true marker and this known false blob:
-     1.3x-1.5x recovers the true one, 1.8x+ starts letting the false one back
-     in. Landed on `MARKER_MASK_PAD_MULT = 1.4`.
-
-  Net effect on `new01.mp4`: color coverage moved from 20/46 (43%) to 19/46
-  (41%) — roughly flat in raw count, but now **correctly** green=disk0/
-  blue=disk1 throughout (previously the two color's IDs were swapped for the
-  whole run — see below) with zero flip-flopping, versus the false-positive
-  fix from last session (`240_25.mp4`, frame 368) still holding. Also
-  incidentally fixed a related bug found while investigating: because color
-  was rarely detected on the very first frame both disks co-appeared, the
-  deterministic left-right fallback (lowest-priority tiebreak in
-  `IDAssigner`) was assigning IDs by which side of frame each disk started
-  on — completely disconnected from `COLOR_ID_MAP` — and then position-lock
-  (last session's fix) cemented that assignment for the whole video. More
-  reliable early color detection (this session's fixes) means color-first
-  assignment now correctly wins that first frame instead.
-
-  This remains fundamentally an HSV/CV calibration problem for markers this
-  small, and full elimination of both false negatives and false positives
-  isn't achievable through threshold tuning alone (see CLAUDE.md bug 8,
-  still true) — but the specific bugs found here (kernel erasing real
-  detections; mask leaking into background) were objective, fixable defects,
-  not just threshold disagreements, and are now fixed and validated against
-  both known test videos.
 
 ## Working preferences
 
-- User is Aerospace Engineering student, comfortable with Python/CV concepts, values
-  direct technical explanations over hand-holding.
+- User is Aerospace Engineering student, comfortable with Python/CV concepts, values direct
+  technical explanations over hand-holding.
 - Prefers to receive full code/analysis upfront and make editorial decisions independently.
+- Expressed strong trust/urgency around the rotation-column goal ("white pass to change
+  anything, I just need this to work") — reasonable to move fast on changes clearly in service
+  of that plan without re-confirming each one, but this isn't blanket authorization for
+  unrelated or destructive actions; normal judgment on risk/reversibility still applies.
+- User is heading back to the lab on the end of the month — plans to record new footage there (likely 4K, resolution/fps TBD per
+  the Lab/lighting history discussion above) and wants help picking up again once that footage
+  exists. Until then, this project has no new real data to work from — the `Novos Videos`/`NL`
+  footage is what's available, and it's dataset-building/test footage, not real collision runs
+  (see "What this is").
