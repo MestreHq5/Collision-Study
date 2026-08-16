@@ -16,8 +16,9 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QImage, QKeySequence, QLinearGradient, QPainter,
     QPalette, QPixmap, QRadialGradient, QTransform)
 from PySide6.QtWidgets import (QApplication, QGridLayout, QHBoxLayout, QLabel,
-    QLineEdit, QMainWindow, QPushButton, QSizePolicy,
-    QSpacerItem, QStackedWidget, QVBoxLayout, QWidget)
+    QLineEdit, QMainWindow, QProgressBar, QPushButton,
+    QSizePolicy, QSpacerItem, QStackedWidget, QVBoxLayout,
+    QWidget)
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -420,6 +421,13 @@ class Ui_MainWindow(object):
 
         self.verticalLayout_6.addWidget(self.detectionLabel)
 
+        self.progressGen = QProgressBar(self.Page_5)
+        self.progressGen.setObjectName(u"progressGen")
+        self.progressGen.setVisible(False)
+        self.progressGen.setValue(0)
+
+        self.verticalLayout_6.addWidget(self.progressGen)
+
         self.horizontalLayout_2 = QHBoxLayout()
         self.horizontalLayout_2.setObjectName(u"horizontalLayout_2")
         self.btnGen = QPushButton(self.Page_5)
@@ -704,6 +712,7 @@ class Ui_MainWindow(object):
         self.btnSelectFile.setText(QCoreApplication.translate("MainWindow", u"SELECT VIDEO FILE", None))
         self.btnProceed.setText(QCoreApplication.translate("MainWindow", u"PROCEED TO ANALYSIS", None))
         self.detectionLabel.setText(QCoreApplication.translate("MainWindow", u"TextLabel", None))
+        self.progressGen.setFormat(QCoreApplication.translate("MainWindow", u"Processing... %p%", None))
         self.btnGen.setText(QCoreApplication.translate("MainWindow", u"GENERATE ", None))
         self.btnPreview.setText(QCoreApplication.translate("MainWindow", u"PREVIEW", None))
         self.btnRedo.setText(QCoreApplication.translate("MainWindow", u"REPEATE", None))

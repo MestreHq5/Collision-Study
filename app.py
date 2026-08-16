@@ -3,7 +3,7 @@ import sys
 from PyQt6 import uic
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QPixmap
-from PyQt6.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QStackedWidget, QLineEdit
+from PyQt6.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QStackedWidget, QLineEdit, QProgressBar
 from pathlib import Path
 
 # Imports of OpenCV and Operating System 
@@ -84,6 +84,7 @@ class MainWindow(QMainWindow):
 
         # Page 5
         self.detectionLabel: QLabel = self.findChild(QLabel, "detectionLabel")
+        self.progressGen: QProgressBar = self.findChild(QProgressBar, "progressGen")
         self.btnGen: QPushButton = self.findChild(QPushButton, "btnGen")
         self.btnPreview: QPushButton = self.findChild(QPushButton, "btnPreview")
         self.btnRedo: QPushButton = self.findChild(QPushButton, "btnRedo") 
@@ -141,6 +142,19 @@ class MainWindow(QMainWindow):
         # Create and Update a Simple StatusBar
         self._sb = self.statusBar()
         self._sb.showMessage("Ready. Please submit a tracking video.")
+
+    # Thin bound-method wrappers around helper.py's logic, so hp.generate()
+    # can connect DetectionWorker's cross-thread signals to genuine QObject
+    # methods (required for Qt to correctly queue them onto this, the GUI,
+    # thread) instead of a bare lambda -- see hp.generate()'s comment.
+    def _on_gen_progress(self, frame_idx, total_frames):
+        hp._update_progress(self, frame_idx, total_frames)
+
+    def _on_gen_finished(self):
+        hp._generation_finished(self)
+
+    def _on_gen_failed(self, message):
+        hp._generation_failed(self, message)
 
     def select_video_file(self):
             """Opens file explorer, copies the video to workspace, and reads properties."""

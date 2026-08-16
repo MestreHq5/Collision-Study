@@ -6,7 +6,7 @@ import cv2
 import detector as dtc
 import Post_process as ptp
 from PyQt6.QtGui import QPixmap
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtWidgets import QFileDialog
 
 
@@ -87,15 +87,94 @@ def validator(self):
         eraser(self)
 
 
+class DetectionWorker(QThread):
+    """
+    Runs detector.main() off the GUI thread so the window stays responsive
+    and can show real progress instead of freezing for the whole run (that
+    call processes the video frame-by-frame with YOLO inference, easily
+    tens of seconds to minutes). progress reports (frame_idx, total_frames);
+    only emitted when the integer percentage actually changes, so a
+    thousands-of-frames run doesn't queue thousands of cross-thread signal
+    emissions for no visible benefit. QThread's built-in `finished` signal
+    covers completion (success or failure); `error` carries a message for
+    the failure case specifically.
+    """
+    progress = pyqtSignal(int, int)
+    error = pyqtSignal(str)
+
+    def __init__(self, video_path, bg_path, detection_video_path, csv_path, fps_eff):
+        super().__init__()
+        self.video_path = video_path
+        self.bg_path = bg_path
+        self.detection_video_path = detection_video_path
+        self.csv_path = csv_path
+        self.fps_eff = fps_eff
+        self._last_pct = -1
+        self.succeeded = False  # checked by _generation_finished, since QThread's
+        # `finished` signal fires whether run() succeeded or hit the except below
+
+    def _on_progress(self, frame_idx, total_frames):
+        pct = int(frame_idx * 100 / total_frames) if total_frames > 0 else 0
+        if pct != self._last_pct:
+            self._last_pct = pct
+            self.progress.emit(frame_idx, total_frames)
+
+    def run(self):
+        try:
+            dtc.main(self.video_path, self.bg_path, self.detection_video_path, self.csv_path,
+                      self.fps_eff, progress_callback=self._on_progress)
+            self.succeeded = True
+        except Exception as e:
+            self.error.emit(str(e))
+
+
 def generate(self):
     video_path = self.video_path
     parent_path = self.parent_path
     bg_path = parent_path / "table_background.png"
     detection_video_path = parent_path / "detection.mp4"
     csv_path = parent_path / "disk_tracks.csv"
-    
-    dtc.main(video_path, bg_path, detection_video_path, csv_path, self.fps_eff)
-    self.btnPreview.setEnabled(True)
+
+    self.progressGen.setVisible(True)
+    self.progressGen.setRange(0, 100)
+    self.progressGen.setValue(0)
+    self.progressGen.setFormat("Processing... %p%")
+
+    # Kept on self so the QThread object isn't garbage-collected mid-run.
+    self._detectionWorker = DetectionWorker(video_path, bg_path, detection_video_path, csv_path, self.fps_eff)
+    # Connected to real bound methods on `self` (MainWindow, a QObject that
+    # lives on the GUI thread) rather than a bare lambda/function -- PyQt
+    # can only auto-detect a signal/slot connection's thread affinity, and
+    # therefore correctly queue it back onto the GUI thread, when the slot
+    # is a QObject's own bound method. A plain lambda has no owning QObject
+    # for Qt to key off, so it would run directly on the worker thread
+    # instead -- unsafe for anything that touches a widget.
+    self._detectionWorker.progress.connect(self._on_gen_progress)
+    self._detectionWorker.error.connect(self._on_gen_failed)
+    self._detectionWorker.finished.connect(self._on_gen_finished)
+    self._detectionWorker.start()
+
+
+def _update_progress(self, frame_idx, total_frames):
+    pct = int(frame_idx * 100 / total_frames) if total_frames > 0 else 0
+    self.progressGen.setValue(min(pct, 100))
+
+
+def _generation_finished(self):
+    # QThread's finished signal fires whether run() succeeded or hit the
+    # except -- only advance the UI to "done" on the success path;
+    # _generation_failed already handled the UI for the other one.
+    if self._detectionWorker.succeeded:
+        self.progressGen.setValue(100)
+        self.progressGen.setFormat("Done")
+        self.btnPreview.setEnabled(True)
+
+
+def _generation_failed(self, message):
+    self.progressGen.setFormat("Failed")
+    self.btnGen.setEnabled(True)
+    self._sb.showMessage(f"Detection failed: {message}")
+    print(f"[ERROR] Detection failed: {message}")
 
 
 def preview(self):
@@ -136,6 +215,9 @@ def analisysPage(self):
     self.btnPreview.setEnabled(False)
     self.btnRedo.setEnabled(False)
     self.btnNext5.setEnabled(False)
+
+    self.progressGen.setVisible(False)
+    self.progressGen.setValue(0)
 
     self.detectionLabel.clear()
     # Old page index 4 is now index 3 because we deleted the recording page

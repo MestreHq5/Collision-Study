@@ -346,9 +346,38 @@ def detect_marker_center(
         lower_relaxed[2] = max(20, int(hsv_lower[2]) - 50)   # V floor
         raw_mask = cv2.inRange(hsv, lower_relaxed, upper_relaxed)
 
-    # 3) Restrict to inside the disk (using mask_center/mask_radius, which may
-    # differ from the crop's own disk_center/disk_radius anchor — see above),
-    # and outside mask_inner_radius if given (annulus, not filled circle).
+    return _select_best_blob(raw_mask, x1, y1, mask_center, mask_radius,
+                              mask_inner_radius, disk_radius,
+                              min_area, min_circularity, max_circularity)
+
+
+def _select_best_blob(raw_mask, x1, y1, mask_center, mask_radius, mask_inner_radius,
+                       disk_radius, min_area, min_circularity, max_circularity):
+    """
+    Shared back half of marker detection: restrict a candidate pixel mask to
+    inside the disk (annulus if mask_inner_radius given), clean it up, and
+    pick the largest contour that ALSO passes the shape gate -- not simply
+    the largest contour, checked for shape after the fact (measured a real
+    case where morphological CLOSE fused the marker together with adjacent
+    background/shadow into one large, irregular blob that correctly failed
+    circularity, while a separate small round blob -- the actual marker --
+    sat right next to it in the same mask and was never even considered).
+
+    Split out of detect_marker_center so detect_dark_marker_center (the
+    flipped-scheme dark-blob search) can reuse the exact same
+    geometry-restriction/cleanup/selection logic and only differ in how
+    `raw_mask` itself was built (hue match vs. darkness).
+
+    raw_mask: candidate pixel mask (uint8, 0/255), already in ROI/crop
+      coordinates (crop's top-left corner is (x1, y1) in full-frame coords).
+    mask_center, mask_radius, mask_inner_radius, disk_radius,
+    min_area, min_circularity, max_circularity: see detect_marker_center.
+
+    Returns (x, y) centroid in full-frame coordinates, or None.
+    """
+    # Restrict to inside the disk (using mask_center/mask_radius, which may
+    # differ from the crop's own disk_center/disk_radius anchor), and
+    # outside mask_inner_radius if given (annulus, not filled circle).
     mask_cx = int(mask_center[0]) - x1
     mask_cy = int(mask_center[1]) - y1
     mask_disk = np.zeros_like(raw_mask)
@@ -356,8 +385,8 @@ def detect_marker_center(
     if mask_inner_radius > 0:
         cv2.circle(mask_disk, (mask_cx, mask_cy), int(mask_inner_radius), 0, -1)
     raw_mask = cv2.bitwise_and(raw_mask, mask_disk)
-    
-    # 4) Blur and Morphological Cleanup
+
+    # Blur and Morphological Cleanup
     mask = cv2.medianBlur(raw_mask, 5)
     # Kernel size scales with disk_radius instead of a fixed 7x7: on a disk this
     # small (e.g. a smaller/more distant marker, ~10px radius), a fixed 7x7 open
@@ -370,22 +399,10 @@ def detect_marker_center(
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN,  kernel, iterations=1)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=3)
 
-
-    # 5) Find Contours --> as seen already on segment_disks()
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not contours:
-        return None 
+        return None
 
-    # 6) Pick the largest contour that ALSO passes the shape gate — not simply
-    # the largest contour, checked for shape after the fact. Measured a real
-    # case where morphological CLOSE (needed to fill gaps within a genuine
-    # marker blob) fused the marker together with adjacent background/shadow
-    # into one large, irregular blob (circ ~0.15, correctly rejected) while a
-    # separate small round blob (the actual marker, ~40px, circ ~0.74) sat
-    # right next to it in the same mask — picking "largest" grabbed the fused
-    # blob, failed its circularity check, and threw away the whole detection
-    # without ever looking at the valid smaller one. Filter to valid
-    # candidates first, then take the largest among those.
     candidates = []
     for c in contours:
         area = cv2.contourArea(c)
@@ -400,16 +417,148 @@ def detect_marker_center(
 
     if not candidates:
         return None
-    marker = max(candidates, key=lambda t: t[0])[1]
+    blob = max(candidates, key=lambda t: t[0])[1]
 
-    M = cv2.moments(marker) # Zeroth-order and first-order moments
+    M = cv2.moments(blob)  # Zeroth-order and first-order moments
     if M["m00"] == 0:
         return None
 
-    # 7 Map centroid positions from ROI ---> full frame
+    # Map centroid position from ROI -> full frame
     cx = int(M["m10"] / M["m00"]) + x1
     cy = int(M["m01"] / M["m00"]) + y1
     return (cx, cy)
+
+
+def detect_dark_marker_center(
+    frame,
+    disk_center,
+    disk_radius,
+    pad_factor: float = 2.0,
+    min_area: float = 10,
+    min_circularity: float = 0.0,
+    max_circularity: float = 1.0,
+    mask_center: Optional[Tuple[float, float]] = None,
+    mask_radius: Optional[float] = None,
+    mask_inner_radius: float = 0.0,
+    dark_value_frac: float = 0.55,
+) -> Optional[Tuple[int, int]]:
+    """
+    Flipped-scheme marker detection (not used by the current pipeline --
+    see MARKER_SCHEME in detector.py; no footage with this paint scheme
+    exists yet). Once the disk itself is painted a reliable, saturated
+    color, the marker becomes the disk's *only* dark/desaturated feature (a
+    black-painted dimple) instead of a small saturated blob on a gray disk,
+    so this finds the darkest compact blob within the disk instead of
+    hunting a specific hue. See CLAUDE.md "Design idea... paint the whole
+    disk" for why this direction is structurally more robust to glare: a
+    bright specular highlight now works AGAINST a dark-marker match instead
+    of mimicking a bright saturated one, which is exactly the failure mode
+    that kept corrupting the current small-marker scheme (see Known bugs).
+
+    Shares crop extraction + geometry-restriction + contour selection with
+    detect_marker_center via _select_best_blob; only the candidate-pixel
+    rule differs (relatively dark vs. a fixed hue range).
+
+    dark_value_frac: pixels with V below this fraction of the crop's own
+      median V (measured only inside the disk mask, so background outside
+      the disk can't bias the threshold) count as "dark" -- relative, not
+      an absolute cutoff, so it adapts to whatever lighting a given frame
+      actually has, matching detect_marker_center's own CLAHE-based
+      lighting-invariance rationale. Placeholder value; retune once real
+      black-marker samples exist (see MARKER_SCHEME).
+
+    Returns (x, y) centroid in full-frame coordinates, or None.
+    """
+    if mask_center is None:
+        mask_center = disk_center
+    if mask_radius is None:
+        mask_radius = disk_radius
+
+    x_c, y_c = map(int, disk_center)
+    pad = int(disk_radius * pad_factor)
+    h, w = frame.shape[:2]
+    x1, y1 = max(x_c - pad, 0), max(y_c - pad, 0)
+    x2, y2 = min(x_c + pad, w), min(y_c + pad, h)
+    roi = frame[y1:y2, x1:x2]
+    if roi.size == 0:
+        return None
+
+    roi_blur = cv2.GaussianBlur(roi, (5, 5), 0)
+    v = cv2.cvtColor(roi_blur, cv2.COLOR_BGR2HSV)[:, :, 2]
+
+    mask_cx = int(mask_center[0]) - x1
+    mask_cy = int(mask_center[1]) - y1
+    disk_only = np.zeros(v.shape, dtype=np.uint8)
+    cv2.circle(disk_only, (mask_cx, mask_cy), int(mask_radius), 255, -1)
+    if mask_inner_radius > 0:
+        cv2.circle(disk_only, (mask_cx, mask_cy), int(mask_inner_radius), 0, -1)
+
+    disk_pixels_v = v[disk_only > 0]
+    if disk_pixels_v.size == 0:
+        return None
+    v_thresh = float(np.median(disk_pixels_v)) * dark_value_frac
+    raw_mask = ((v < v_thresh).astype(np.uint8)) * 255
+
+    return _select_best_blob(raw_mask, x1, y1, mask_center, mask_radius,
+                              mask_inner_radius, disk_radius,
+                              min_area, min_circularity, max_circularity)
+
+
+def classify_disk_bulk_color(frame, disk_center, disk_radius, color_ranges,
+                              pad_factor: float = 1.0, min_share: float = 0.15):
+    """
+    Flipped-scheme disk identity (not used by the current pipeline -- see
+    MARKER_SCHEME in detector.py). Classifies which of color_ranges the
+    disk's own BODY matches by majority vote over the disk's circular
+    interior, instead of matching a small offset marker blob. Structurally
+    more robust than the current scheme: this votes over hundreds/thousands
+    of pixels instead of a handful, so isolated noise or a stray highlight
+    can't flip the read the way it repeatedly did for the small marker dot
+    (the 240_15.mp4 stationary-disk test's color-flip finding, this
+    session, was exactly a small-sample-size problem -- see Known bugs).
+
+    Args:
+      color_ranges: dict of name -> (hsv_lower, hsv_upper), e.g.
+        {"green": (GREEN_LOWER, GREEN_UPPER), "blue": (BLUE_LOWER, BLUE_UPPER)}
+      pad_factor: crop padding around disk_center, in disk_radius units --
+        1.0 is enough here (unlike the marker searches) since this only
+        ever looks *inside* disk_radius, never needs headroom past it.
+      min_share: minimum fraction of the disk's interior a color must match
+        to be accepted at all -- rejects "most votes of near-zero" when the
+        disk isn't really a calibrated color that frame (or isn't really
+        there).
+
+    Returns the best-matching name, or None if nothing cleared min_share.
+    """
+    x_c, y_c = map(int, disk_center)
+    pad = int(disk_radius * pad_factor)
+    h, w = frame.shape[:2]
+    x1, y1 = max(x_c - pad, 0), max(y_c - pad, 0)
+    x2, y2 = min(x_c + pad, w), min(y_c + pad, h)
+    roi = frame[y1:y2, x1:x2]
+    if roi.size == 0:
+        return None
+
+    hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+    mask_cx, mask_cy = x_c - x1, y_c - y1
+    disk_mask = np.zeros(hsv.shape[:2], dtype=np.uint8)
+    cv2.circle(disk_mask, (mask_cx, mask_cy), int(disk_radius), 255, -1)
+    disk_area = int(cv2.countNonZero(disk_mask))
+    if disk_area == 0:
+        return None
+
+    best_name, best_count = None, 0
+    for name, (lower, upper) in color_ranges.items():
+        color_mask = cv2.inRange(hsv, lower, upper)
+        color_mask = cv2.bitwise_and(color_mask, disk_mask)
+        count = cv2.countNonZero(color_mask)
+        if count > best_count:
+            best_count = count
+            best_name = name
+
+    if best_count < min_share * disk_area:
+        return None
+    return best_name
 
 
 def calibrate_hsv_range(video_path: str, frame_index: int = 0, box: int = 6) -> None:

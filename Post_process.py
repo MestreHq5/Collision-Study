@@ -74,19 +74,29 @@ def _unwrap_angle(dfm: pd.DataFrame) -> np.ndarray:
 def _compute_vels(df_m: pd.DataFrame, fps: float) -> pd.DataFrame:
     """
     Finite-difference linear v, and angular speed from unwrapped marker angle.
-    Matches your results_total approach.
+
+    Divides by the actual elapsed frames (out["frame"].diff()), not a
+    hardcoded 1 -- a disk missing from a frame gets no row at all (see
+    detector.py's CSV export), not a NaN placeholder, so consecutive rows
+    can legitimately be more than 1 frame apart. `.diff() * fps` alone
+    assumes exactly 1 frame between every pair of consecutive rows and
+    silently overstates velocity by the gap size whenever a real gap
+    exists, feeding directly into restitution/momentum error and, via Vcm,
+    the COM-frame energy calc's translational term too (see CLAUDE.md Known
+    bugs, physics-metrics review).
     """
     out = df_m.copy()
+    dframe = out["frame"].diff()
     # Linear finite differences (m/s), aligned to later frame
-    out["vx"] = out["cx"].diff() * fps
-    out["vy"] = out["cy"].diff() * fps
+    out["vx"] = out["cx"].diff() / dframe * fps
+    out["vy"] = out["cy"].diff() / dframe * fps
 
     # Angular from marker vector (NaN-safe unwrap, see _unwrap_angle)
     theta_unwrapped = _unwrap_angle(out)                # radians
     dtheta = np.full(len(out), np.nan, dtype=float)    # length N
     if len(out) > 1:
         dtheta[1:] = np.diff(theta_unwrapped)          # put N-1 diffs starting at index 1
-    out["omega_deg_s"] = np.degrees(dtheta) * fps      # deg/s, aligned to later frame
+    out["omega_deg_s"] = np.degrees(dtheta) / dframe.to_numpy() * fps  # deg/s, aligned to later frame
     out["theta_unwrapped_deg"] = np.degrees(theta_unwrapped)  # for students
     return out
 
@@ -97,14 +107,26 @@ def _sigma_clip_linear_fit(x: np.ndarray, y: np.ndarray, n_sigma: float = 2.5,
     Iterative sigma-clipping linear regression of y vs x (refits after each
     clip so an early outlier can't drag the trend and shield a later one).
 
-    Returns (slope, intercept, inlier_mask): inlier_mask is aligned to the
-    input arrays and True only for points that both exist (finite) and
-    survived clipping. slope/intercept are NaN if fewer than min_points
-    finite points are available to fit at all.
+    Returns (slope, intercept, inlier_mask, residual_std): inlier_mask is
+    aligned to the input arrays and True only for points that both exist
+    (finite) and survived clipping. residual_std is the final inlier set's
+    residual standard deviation against the returned fit -- a low value
+    means the surviving "inliers" are genuinely tightly clustered around a
+    trend; a high one means sigma-clipping converged on a self-consistent
+    but loosely-scattered fit, which is a real, measured failure mode: on a
+    real, noisy segment (240_25.mp4 disk 1) this returned "0 outliers" with
+    a residual_std of ~79 deg -- clipping only rejects points that stand
+    out *relative to the fit's own noise floor*, so if that floor is
+    already huge because much of the "inlier" data is itself poor, nothing
+    looks like an outlier anymore. Callers that need to trust this fit for
+    extrapolation (not just a rough slope estimate) should gate on this,
+    not just "0 outliers" -- see detector.py's recovery-confidence gate.
+    slope/intercept/residual_std are NaN if fewer than min_points finite
+    points are available to fit at all.
     """
     mask = np.isfinite(x) & np.isfinite(y)
     if mask.sum() < min_points:
-        return np.nan, np.nan, mask
+        return np.nan, np.nan, mask, np.nan
 
     for _ in range(max_iters):
         idx = np.flatnonzero(mask)
@@ -124,7 +146,8 @@ def _sigma_clip_linear_fit(x: np.ndarray, y: np.ndarray, n_sigma: float = 2.5,
 
     idx = np.flatnonzero(mask)
     slope, intercept = np.polyfit(x[idx], y[idx], 1)
-    return float(slope), float(intercept), mask
+    residual_std = float(np.std(y[idx] - (slope * x[idx] + intercept)))
+    return float(slope), float(intercept), mask, residual_std
 
 
 def _wrap_pi(a: np.ndarray) -> np.ndarray:
@@ -178,26 +201,30 @@ def _robust_unwrap_and_fit(frame: np.ndarray, theta_wrapped: np.ndarray,
     (_robust_omega_seed) so the seed can't inherit the same failure mode.
 
     Returns (theta_unwrapped_rad, slope_rad_per_frame, intercept_rad,
-    inlier_mask), all aligned to the input arrays (NaN/False at rows with
-    no marker detection, i.e. non-finite theta_wrapped).
+    inlier_mask, residual_std_rad), all aligned to the input arrays
+    (NaN/False at rows with no marker detection, i.e. non-finite
+    theta_wrapped). residual_std_rad is the final fit's inlier residual
+    std -- see _sigma_clip_linear_fit for why this matters more than the
+    inlier/outlier counts alone.
     """
     valid = np.isfinite(theta_wrapped)
     out_theta = np.full(theta_wrapped.shape, np.nan, dtype=float)
     inlier_mask = np.zeros(theta_wrapped.shape, dtype=bool)
     if valid.sum() < min_points:
-        return out_theta, np.nan, np.nan, inlier_mask
+        return out_theta, np.nan, np.nan, inlier_mask, np.nan
 
     f = frame[valid]
     t = theta_wrapped[valid]
 
     slope = _robust_omega_seed(f, t)
     if not np.isfinite(slope):
-        return out_theta, np.nan, np.nan, inlier_mask
+        return out_theta, np.nan, np.nan, inlier_mask, np.nan
     intercept = t[0] - slope * f[0]  # anchor to the first valid sample
 
+    residual_std = np.nan
     for _ in range(refine_rounds):
         unwrapped = t + 2 * np.pi * np.round((slope * f + intercept - t) / (2 * np.pi))
-        new_slope, new_intercept, mask = _sigma_clip_linear_fit(
+        new_slope, new_intercept, mask, residual_std = _sigma_clip_linear_fit(
             f, unwrapped, n_sigma=n_sigma, max_iters=max_iters, min_points=min_points
         )
         if not np.isfinite(new_slope):
@@ -206,7 +233,7 @@ def _robust_unwrap_and_fit(frame: np.ndarray, theta_wrapped: np.ndarray,
 
     out_theta[valid] = unwrapped
     inlier_mask[valid] = mask
-    return out_theta, slope, intercept, inlier_mask
+    return out_theta, slope, intercept, inlier_mask, residual_std
 
 
 def fit_rotation_segments(dfm: pd.DataFrame, collision_frame: int,
@@ -233,6 +260,41 @@ def fit_rotation_segments(dfm: pd.DataFrame, collision_frame: int,
         omega_fit_deg_per_frame : that row's segment's fitted slope
                                    (same value repeated across the segment),
                                    NaN if the segment couldn't be fit
+        theta_fit_intercept_deg : that row's segment's fitted y-intercept
+                                   (theta_deg at frame=0, same convention as
+                                   omega_fit_deg_per_frame -- predicted
+                                   theta at any frame f is
+                                   omega_fit_deg_per_frame*f +
+                                   theta_fit_intercept_deg), same
+                                   broadcast/NaN behavior as the slope.
+                                   Used by detector.fill_rotation_gaps
+                                   (Rotation plan steps 3-5) to predict
+                                   where a missing/rejected marker should
+                                   be; not needed for the fit/outlier-flag
+                                   use case alone.
+        omega_fit_residual_std_deg : the fitted trend's own inlier residual
+                                   std (deg) -- **do not treat "0 outliers"
+                                   alone as "this fit is trustworthy."**
+                                   Sigma-clipping only rejects points that
+                                   stand out relative to the fit's *own*
+                                   noise floor; if much of a segment's data
+                                   is genuinely poor, that floor inflates
+                                   and nothing looks like an outlier
+                                   anymore. Measured directly on real
+                                   footage (`240_25.mp4` disk 1, a segment
+                                   that reported 68 inliers/0 outliers and
+                                   omega in line with the ~1 deg/frame
+                                   expectation): residual std was ~79 deg,
+                                   and refitting after randomly holding out
+                                   35% of those "inliers" swung the fitted
+                                   omega anywhere from -1.0 to +1.86
+                                   deg/frame across different holdout draws
+                                   -- a fit that looks clean by inlier count
+                                   alone but is not actually precise enough
+                                   to extrapolate from. Gate on this before
+                                   trusting a fit for anything beyond a
+                                   rough sign/order-of-magnitude read; see
+                                   detector.py's recovery-confidence gate.
     """
     out = dfm.copy()
     dx = (out["mx"] - out["cx"]).to_numpy()
@@ -247,6 +309,8 @@ def fit_rotation_segments(dfm: pd.DataFrame, collision_frame: int,
     theta_unwrapped_deg = np.full(len(out), np.nan, dtype=float)
     trend_consistent = np.full(len(out), np.nan, dtype=object)
     omega_fit = np.full(len(out), np.nan, dtype=float)
+    intercept_fit = np.full(len(out), np.nan, dtype=float)
+    residual_std_fit = np.full(len(out), np.nan, dtype=float)
 
     for label in ("before", "after"):
         seg_idx = np.flatnonzero(seg == label)
@@ -254,17 +318,21 @@ def fit_rotation_segments(dfm: pd.DataFrame, collision_frame: int,
             continue
         f = frame[seg_idx]
         tw = theta_wrapped[seg_idx]
-        unwrapped_rad, slope_rad, _, inlier = _robust_unwrap_and_fit(
+        unwrapped_rad, slope_rad, intercept_rad, inlier, residual_std_rad = _robust_unwrap_and_fit(
             f, tw, n_sigma=n_sigma, max_iters=max_iters, min_points=min_points
         )
         theta_unwrapped_deg[seg_idx] = np.degrees(unwrapped_rad)
         has_marker = np.isfinite(tw)
         trend_consistent[seg_idx] = np.where(has_marker, inlier, np.nan)
         omega_fit[seg_idx] = np.degrees(slope_rad) if np.isfinite(slope_rad) else np.nan
+        intercept_fit[seg_idx] = np.degrees(intercept_rad) if np.isfinite(intercept_rad) else np.nan
+        residual_std_fit[seg_idx] = np.degrees(residual_std_rad) if np.isfinite(residual_std_rad) else np.nan
 
     out["theta_unwrapped_deg"] = theta_unwrapped_deg
     out["theta_trend_consistent"] = trend_consistent
     out["omega_fit_deg_per_frame"] = omega_fit
+    out["theta_fit_intercept_deg"] = intercept_fit
+    out["omega_fit_residual_std_deg"] = residual_std_fit
     return out
 
 
@@ -415,10 +483,27 @@ def _compute_metrics(df0m: pd.DataFrame, df1m: pd.DataFrame, masses: tuple, radi
     v1x_a = _safe_median(m.loc[ma, "vx1"] - Vcm_x.loc[ma])
     v1y_a = _safe_median(m.loc[ma, "vy1"] - Vcm_y.loc[ma])
 
-    o0b_med = _safe_median(df0m.loc[df0m["frame"] < cf, "omega_deg_s"])
-    o0a_med = _safe_median(df0m.loc[df0m["frame"] > cf, "omega_deg_s"])
-    o1b_med = _safe_median(df1m.loc[df1m["frame"] < cf, "omega_deg_s"])
-    o1a_med = _safe_median(df1m.loc[df1m["frame"] > cf, "omega_deg_s"])
+    # Prefer the RANSAC/sigma-clip segment fit (fit_rotation_segments) over
+    # the raw per-frame omega_deg_s median: the median is robust to gaps but
+    # not to a wrong-but-plausible single-frame value (the known 240_25.mp4
+    # frame 368 false positive is exactly this — a confidently-wrong value,
+    # not a gap), which the trend fit rejects structurally instead. Falls
+    # back to the raw median when the fit can't run at all (fewer than
+    # fit_rotation_segments' min_points marker detections in that segment) so
+    # sparse segments don't lose energy-metric coverage they used to have.
+    out0 = fit_rotation_segments(df0m, cf)
+    out1 = fit_rotation_segments(df1m, cf)
+
+    def _segment_omega_deg_s(fitted_out, raw_df, raw_mask, label):
+        fitted = fitted_out.loc[fitted_out["rotation_segment"] == label, "omega_fit_deg_per_frame"].dropna()
+        if not fitted.empty:
+            return float(fitted.iloc[0]) * fps  # deg/frame -> deg/s
+        return _safe_median(raw_df.loc[raw_mask, "omega_deg_s"])
+
+    o0b = _segment_omega_deg_s(out0, df0m, before0, "before")
+    o0a = _segment_omega_deg_s(out0, df0m, after0, "after")
+    o1b = _segment_omega_deg_s(out1, df1m, before1, "before")
+    o1a = _segment_omega_deg_s(out1, df1m, after1, "after")
 
     Kb_com = 0.5*MASS[0]*(v0x_b**2 + v0y_b**2) + 0.5*MASS[1]*(v1x_b**2 + v1y_b**2)
     Ka_com = 0.5*MASS[0]*(v0x_a**2 + v0y_a**2) + 0.5*MASS[1]*(v1x_a**2 + v1y_a**2)
@@ -427,10 +512,10 @@ def _compute_metrics(df0m: pd.DataFrame, df1m: pd.DataFrame, masses: tuple, radi
         w = math.radians(omega_deg) if np.isfinite(omega_deg) else np.nan
         return 0.5*I*(w**2) if np.isfinite(w) else np.nan
 
-    Kr0b = _K_rot(INERTIA[0], o0b_med)
-    Kr1b = _K_rot(INERTIA[1], o1b_med)
-    Kr0a = _K_rot(INERTIA[0], o0a_med)
-    Kr1a = _K_rot(INERTIA[1], o1a_med)
+    Kr0b = _K_rot(INERTIA[0], o0b)
+    Kr1b = _K_rot(INERTIA[1], o1b)
+    Kr0a = _K_rot(INERTIA[0], o0a)
+    Kr1a = _K_rot(INERTIA[1], o1a)
 
     Kb_total_com = Kb_com + Kr0b + Kr1b
     Ka_total_com = Ka_com + Kr0a + Kr1a
