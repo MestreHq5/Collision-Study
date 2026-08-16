@@ -14,17 +14,12 @@ import os
 import helper as hp
 
 
-# ==============================================================================
-# MUST BE AT THE VERY FIRST LINES OF YOUR MAIN EXECUTION SCRIPT
-# BEFORE ANY OTHER IMPORTS (cv2, matplotlib, etc.)
-# ==============================================================================
-if sys.platform == "win32":
-    import ctypes
-    try:
-        # Set process to Per-Monitor DPI Aware before Qt initializes
-        ctypes.windll.shcore.SetProcessDpiAwareness(2)
-    except Exception:
-        pass
+# Qt6 sets per-monitor-v2 DPI awareness automatically as soon as its platform
+# plugin loads (PyQt6 import above already triggered this) — no manual
+# SetProcessDpiAwareness call needed. A prior version of this file called it
+# here anyway, which Windows only allows once per process; since PyQt6 had
+# already set it by this point, the redundant call is what was producing the
+# "SetProcessDpiAwarenessContext() failed" warning.
 
 # Now perform your standard imports below
 import cv2

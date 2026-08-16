@@ -5,7 +5,7 @@ Function based aproach
 '''
 
 import os
-from typing import Tuple, Union, List, Dict, Optional
+from typing import Tuple, Union, List, Dict, Optional, Callable
 
 import cv2
 import numpy as np
@@ -17,9 +17,10 @@ def estimate_background_median(
     frame_sample_limit: int = 50,
     blur_kernel: Tuple[int, int] = (5, 5),
     output_path: str = "table_background.png",
-    return_image: bool = False
+    return_image: bool = False,
+    puck_masker: Optional[Callable] = None,
 ) -> Union[str, Tuple[str, np.ndarray]]:
-    
+
     """
     Estimate a stable background image by taking the per-pixel median
     of up to `frame_sample_limit` frames sampled evenly over the first
@@ -34,6 +35,21 @@ def estimate_background_median(
                             Set to None to disable blurring.
         output_path:        Where to save the background image.
         return_image:       If True, also return the background array.
+        puck_masker:         Optional callable(frame) -> list of (cx, cy, r)
+                            puck circles detected in that sampled frame. When
+                            given, those regions are excluded per-frame from
+                            the median instead of assumed clean -- a plain
+                            per-pixel median only tolerates a puck covering a
+                            given pixel in <50% of the sampled frames, so a
+                            puck already resting on the table (or moving too
+                            little) during the whole `clean_seconds` window
+                            gets silently baked into the "background" as if
+                            it were table surface, corrupting the contour
+                            fallback's background subtraction for the entire
+                            run (see CLAUDE.md Known bugs). Wherever every
+                            sampled frame has that pixel masked (no clean
+                            sample anywhere), falls back to the plain,
+                            unmasked median there rather than leaving a hole.
 
     Returns:
         If return_image is False:
@@ -68,20 +84,27 @@ def estimate_background_median(
     # 2) Sample frames evenly
     frame_indices = np.linspace(0, max_clean_frames - 1, num_samples, dtype=int)
     frames = []
+    puck_masks = []  # per-frame bool mask, True where a puck was detected (only if puck_masker given)
     for idx in frame_indices:
         cap.set(cv2.CAP_PROP_POS_FRAMES, int(idx))
         ret, frame = cap.read()
         if ret:
-            
+
+            if puck_masker is not None:
+                mask = np.zeros(frame.shape[:2], dtype=bool)
+                for cx, cy, r in puck_masker(frame):
+                    cv2.circle(mask, (int(cx), int(cy)), int(r), True, -1)  # type: ignore[arg-type]
+                puck_masks.append(mask)
+
             # Apply Gaussian Blur to every frame
             if blur_kernel is not None:
                 kx, ky = blur_kernel
                 frame_blured = cv2.GaussianBlur(frame, (kx, ky), 0)
                 frames.append(frame_blured)
-            
+
             else:
                 frames.append(frame)
-            
+
     cap.release()
 
     if not frames:
@@ -89,11 +112,36 @@ def estimate_background_median(
 
     if len(frames) < num_samples:
         # Warning: Not fatal, but suggests another try of the experiment
-        print(f"Warning: only {len(frames)} / {num_samples} frames were read.") 
+        print(f"Warning: only {len(frames)} / {num_samples} frames were read.")
 
-    
-    # 3) Compute median background ---
-    bg_median = np.median(np.stack(frames, axis=0), axis=0).astype(np.uint8)
+
+    # 3) Compute median background. Start from the plain per-pixel median
+    # (fast baseline, also the fallback for step 3b below), then, if
+    # puck_masker found anything, recompute just the pixels a puck ever
+    # covered using only the frames where that specific pixel was clean --
+    # a plain median only tolerates a puck covering a given pixel in <50% of
+    # samples, so a puck already resting on the table for the whole
+    # clean_seconds window would otherwise get baked into the "background"
+    # as if it were table surface (see docstring). Restricted to the
+    # (typically small, puck-footprint-sized) occluded region rather than a
+    # full-frame masked/nanmedian pass: doing this densely over the whole
+    # frame via np.nanmedian was tried and blew past several GB of memory on
+    # a 1080p stack (numpy's nanmedian falls back to a masked-array sort
+    # internally, which is not memory-lean) for no benefit, since almost all
+    # pixels are never touched by a puck at all.
+    stack = np.stack(frames, axis=0)  # uint8, (N, H, W, 3)
+    bg_median = np.median(stack, axis=0).astype(np.uint8)
+
+    if puck_masks and any(m.any() for m in puck_masks):
+        mask_stack = np.stack(puck_masks, axis=0)  # (N, H, W) bool
+        occluded_any = mask_stack.any(axis=0)
+        ys, xs = np.nonzero(occluded_any)
+        for y, x in zip(ys, xs):
+            clean_frames = ~mask_stack[:, y, x]
+            if clean_frames.any():
+                bg_median[y, x] = np.median(stack[clean_frames, y, x], axis=0).astype(np.uint8)
+            # else: puck covered every sample at this pixel -- no clean data
+            # anywhere, keep the plain-median fallback already in bg_median.
 
     # 4) Save to disk (making dirs if needed) ---
     out_dir = os.path.dirname(output_path)

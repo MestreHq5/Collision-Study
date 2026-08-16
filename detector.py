@@ -57,14 +57,27 @@ MARKER_MAX_CIRCULARITY = 0.90  # reject anything MORE circular than this too —
 # Real disk diameter in mm (user-confirmed: 35mm radius, not 40mm — this drives
 # scale_mm_per_px, so it was scaling every mm value in the CSV/Excel output ~14% high)
 DISK_DIAMETER_MM = 70.0
+DISK_RADIUS_MM = DISK_DIAMETER_MM / 2.0
 
 # Marker search geometry: exclude only a small central disc (the offset
 # marker, user-measured at 20-30mm from center on a 35mm-radius disk, is
-# never near-center regardless of how wrong a given frame's bbox radius is)
-# and otherwise search a generously padded crop with no outer distance bound
-# — see resolve_marker_color's docstring for why a tight outer bound (either
-# bbox-relative or mm-calibrated) was tried and measured to cost more recall
-# than it was worth.
+# never near-center regardless of how wrong a given frame's bbox radius is).
+# MARKER_SEARCH_PAD_FACTOR still sizes the *crop* generously (see
+# resolve_marker_color) so a per-frame bbox-radius underestimate can't clip
+# real signal out of the search region before the outer mask even runs, but
+# the outer *mask* bound is now a hard physical one: the marker can never
+# legitimately land outside the disk's own 35mm radius, so anything the
+# color search finds past that is background/table, never the puck, by
+# construction, not by threshold tuning. An earlier version of this file
+# tried an outer bound (both bbox-relative and mm-calibrated) and reverted
+# it for costing recall on a whole-dataset survey (42% -> 28%) — revisited
+# after a controlled real-footage test (`240_15.mp4`, a motionless disk
+# used as ground truth so any detected marker movement is pure noise, not
+# real rotation) found detected positions landing up to 3.5x the disk
+# radius away, i.e. confidently off the physical disk — the no-bound design
+# was letting background noise dominate on this footage's dark disk
+# material + overhead glare, not just occasionally missing a legitimately
+# off-radius real marker. See CLAUDE.md for the full writeup.
 MARKER_DIST_MIN_FRAC = 0.3
 MARKER_SEARCH_PAD_FACTOR = 3.5
 
@@ -256,45 +269,52 @@ def fallback_contour_disks(frame, background, existing_disks, prev_pos, missing_
     return added
 
 
-def resolve_marker_color(frame, det):
+def resolve_marker_color(frame, det, scale_mm_per_px=None):
     """
     Finds the HSV-confirmed marker centroid + color for a detection.
 
     Scans a generously padded crop around the disk (MARKER_SEARCH_PAD_FACTOR)
-    for the largest matching color blob, excluding only a small central disc
-    (MARKER_DIST_MIN_FRAC — the marker is never near-center). No outer
-    distance bound and no keypoint-anchored fallback.
+    for the largest matching color blob, excluding a small central disc
+    (MARKER_DIST_MIN_FRAC — the marker is never near-center) and, when
+    scale_mm_per_px is available, excluding anything past the disk's own
+    physical 35mm radius (DISK_RADIUS_MM) too — see MARKER_SEARCH_PAD_FACTOR's
+    comment for why this was reintroduced after being reverted once already.
+    Deliberately keyed off the run-level scale calibration (a median over
+    RADIUS_SAMPLE_TARGET frames), not this frame's own YOLO bbox radius `r`:
+    `r` alone is exactly the noisy per-frame quantity that broke the first
+    attempt at an outer bound (see Model section — it can underestimate the
+    true disk by >3x), so bounding directly off it would still clip real
+    markers on the frames where it's bad. `r` is only used as a crop-size
+    floor now (never as the actual outer bound), so a bad `r` can make the
+    crop bigger than necessary but can no longer make the mask wrong.
+    No outer bound is applied for the handful of frames before
+    scale_mm_per_px is calibrated (falls back to the old bbox-relative pad).
 
-    An outer bound was tried two ways — tied to this frame's own bbox radius,
-    and tied to scale_mm_per_px (the user-measured 20-30mm marker distance
-    converted through a run-level calibration) — and both measured to cost
-    more recall than they were worth: a per-frame bbox radius runs wildly
-    inconsistent relative to the true visible disk (one case underestimated
-    it by >3x, clipping real markers at the boundary — this is what was
-    producing "detected position sits at the ROI border, not the true marker
-    center"), and even the calibrated mm-based bound dropped whole-dataset
-    recall from 42% to 28% on a validation sweep against 1004 disk detections
-    across all 28 videos in Camera Roll/Novos Videos/ (some genuine markers'
-    pixels legitimately extend well past the nominal disk radius on this
-    footage). Precision against background instead comes from color range +
+    Precision against background otherwise comes from color range +
     MARKER_MIN_AREA_FRAC + MARKER_MIN_CIRCULARITY (a real paint marker is a
     compact round blob at a characteristic size; validated against known
     true/false cases — see CLAUDE.md) plus IDAssigner's position-lock, which
     already stops an occasional bad color read from corrupting an established
-    track — full elimination of false positives isn't achievable through
-    marker-search geometry/threshold tuning alone, so that's the containment
-    layer, not this function.
+    track.
     """
     cx, cy = det["center"]
     r = det["radius"]
+    pad_factor = MARKER_SEARCH_PAD_FACTOR
 
     mask_inner = r * MARKER_DIST_MIN_FRAC
-    mask_outer = r * MARKER_SEARCH_PAD_FACTOR
-    pad_factor = MARKER_SEARCH_PAD_FACTOR
+    if scale_mm_per_px:
+        mask_outer = DISK_RADIUS_MM / scale_mm_per_px
+    else:
+        mask_outer = r * pad_factor
+
+    # Crop must stay big enough to contain mask_outer even on a frame whose
+    # bbox radius r underestimates the true disk -- pad off whichever of the
+    # two implies the larger crop.
+    crop_radius = max(r, mask_outer / pad_factor)
 
     min_area = MARKER_MIN_AREA_FRAC * math.pi * r * r
 
-    mark = prp.detect_marker_center(frame, (cx, cy), r, GREEN_LOWER, GREEN_UPPER,
+    mark = prp.detect_marker_center(frame, (cx, cy), crop_radius, GREEN_LOWER, GREEN_UPPER,
                                      pad_factor=pad_factor,
                                      min_area=min_area, min_circularity=MARKER_MIN_CIRCULARITY,
                                      max_circularity=MARKER_MAX_CIRCULARITY,
@@ -302,7 +322,7 @@ def resolve_marker_color(frame, det):
                                      mask_inner_radius=mask_inner)
     if mark is not None:
         return mark, "green"
-    mark = prp.detect_marker_center(frame, (cx, cy), r, BLUE_LOWER, BLUE_UPPER,
+    mark = prp.detect_marker_center(frame, (cx, cy), crop_radius, BLUE_LOWER, BLUE_UPPER,
                                      pad_factor=pad_factor,
                                      min_area=min_area, min_circularity=MARKER_MIN_CIRCULARITY,
                                      max_circularity=MARKER_MAX_CIRCULARITY,
@@ -331,21 +351,62 @@ class IDAssigner:
          position to lock to), e.g. the first frame a disk enters frame, or
          after a long gap that moved it outside the lock gate.
       3) For detections with still-unknown color, assign by nearest neighbor
-         to previous positions of the remaining IDs (unbounded — covers a
-         disk reappearing after a multi-frame gap, farther than the lock gate
-         but still the best match available).
+         to a *predicted* position for the remaining IDs — last known
+         position extrapolated by that ID's last-seen velocity times how
+         many frames it's been missing (gap) — gated at MAX_SPEED_PX_PER_FRAME
+         * gap. Covers a disk reappearing after a multi-frame gap without
+         handing the ID to an arbitrarily-far detection just because it's the
+         closest one available: an unbounded version of this step used to do
+         exactly that (see CLAUDE.md Known bugs), silently relocating a track
+         onto an unrelated disk/background blob with no rejection at all, and
+         that wrong position then became the new "last known position" for
+         every future frame's lock/prediction until the real disk happened to
+         wander back within range.
       4) If no history exists, assign deterministically left->right.
     """
 
     POSITION_LOCK_GATE_PX = 60  # generous over the measured p95 (~46px) frame-to-frame motion
+    MAX_SPEED_PX_PER_FRAME = POSITION_LOCK_GATE_PX  # same bound, scaled by gap in step 3
 
     def __init__(self, color_id_map):
         self.color_id_map = {k.lower(): v for k, v in color_id_map.items()}
-        self.prev_pos = {}  # id -> (x, y)
+        self.prev_pos = {}      # id -> (x, y), most recent known position
+        self.prev_prev_pos = {}  # id -> (x, y), second-most-recent (for velocity)
+        # id -> frames pid was missing as of the end of the last completed
+        # assign() call (0 if it was assigned that call). Frames elapsed for
+        # the frame currently being resolved is always this + 1 -- see
+        # _current_gap -- so both step 3 (mid-assign()) and predicted_pos
+        # (which may be called externally, between assign() calls, e.g. by
+        # the contour fallback for the *upcoming* frame) read the same
+        # correct value without either one needing its own pre/post
+        # increment bookkeeping.
+        self.gap = {}
 
     @staticmethod
     def _dist(a, b):
         return math.hypot(a[0] - b[0], a[1] - b[1])
+
+    def _current_gap(self, pid):
+        return self.gap.get(pid, 0) + 1
+
+    def predicted_pos(self, pid):
+        """
+        Extrapolate pid's expected current position from its last known
+        velocity (last two positions) times its current gap, or just its
+        last position if no velocity estimate exists yet (only one sighting
+        so far) or it's not being tracked at all. Exposed so callers (e.g.
+        the contour fallback search) can search from where the disk is
+        expected to be *now*, not where it was last actually seen.
+        """
+        if pid not in self.prev_pos:
+            return None
+        pos = self.prev_pos[pid]
+        if pid not in self.prev_prev_pos:
+            return pos
+        gap = self._current_gap(pid)
+        vx = pos[0] - self.prev_prev_pos[pid][0]
+        vy = pos[1] - self.prev_prev_pos[pid][1]
+        return (pos[0] + vx * gap, pos[1] + vy * gap)
 
     def assign(self, detections):
         """
@@ -388,41 +449,57 @@ class IDAssigner:
                     assigned[pid] = d
                     used_idx.add(i)
 
-        # 3) For remaining detections, use unbounded proximity to remaining IDs
+        # 3) For remaining detections, velocity-gated nearest neighbor to
+        # remaining IDs' predicted (not stale) positions
         remaining_ids = [pid for pid in ALL_IDS if pid not in assigned]
         remaining_dets = [(i, d) for i, d in enumerate(detections) if i not in used_idx]
 
-        # If we have history, nearest-neighbor match
         for pid in list(remaining_ids):
-            if pid in self.prev_pos:
-                # pick closest remaining detection to this prev_pos
-                best_i = None
-                best_d = float("inf")
-                for i, d in remaining_dets:
-                    dist = self._dist(self.prev_pos[pid], d["center"])
-                    if dist < best_d:
-                        best_d = dist
-                        best_i = i
-                if best_i is not None:
-                    # assign and remove from pools
-                    for j, (ri, rd) in enumerate(remaining_dets):
-                        if ri == best_i:
-                            assigned[pid] = rd
-                            remaining_dets.pop(j)
-                            remaining_ids.remove(pid)
-                            break
+            if pid not in self.prev_pos:
+                continue
+            predicted = self.predicted_pos(pid)
+            max_dist = self.MAX_SPEED_PX_PER_FRAME * self._current_gap(pid)
+            best_i = None
+            best_d = float("inf")
+            for i, d in remaining_dets:
+                dist = self._dist(predicted, d["center"])
+                if dist < best_d:
+                    best_d = dist
+                    best_i = i
+            if best_i is not None and best_d <= max_dist:
+                for j, (ri, rd) in enumerate(remaining_dets):
+                    if ri == best_i:
+                        assigned[pid] = rd
+                        remaining_dets.pop(j)
+                        remaining_ids.remove(pid)
+                        break
 
-        # 4) Deterministic fallback when no history (or still unmatched):
-        # left-to-right order for detections, ascending ID order for remaining IDs
-        if remaining_ids and remaining_dets:
+        # 4) Deterministic fallback, left-to-right order: only for IDs with
+        # NO prior history at all (a genuinely new track, e.g. the first
+        # frame a disk enters frame). IDs that DO have history but whose only
+        # remaining candidate(s) failed step 3's distance gate must stay
+        # unassigned here, not get force-matched anyway -- that would silence
+        # the whole point of the gate (an implausibly-far detection would
+        # still win by being the only one left).
+        no_history_ids = [pid for pid in remaining_ids if pid not in self.prev_pos]
+        if no_history_ids and remaining_dets:
             remaining_dets_sorted = sorted(remaining_dets, key=lambda t: t[1]["center"][0])  # by x
-            remaining_ids_sorted = sorted(remaining_ids)
+            remaining_ids_sorted = sorted(no_history_ids)
             for (ri, rd), pid in zip(remaining_dets_sorted, remaining_ids_sorted):
                 assigned[pid] = rd
 
-        # 5) Update history
-        for pid, d in assigned.items():
-            self.prev_pos[pid] = d["center"]
+        # 5) Update history: reset gap to 0 for IDs seen this frame; for IDs
+        # that stayed missing, store _current_gap(pid) (the value step 3 just
+        # used to attempt resolving THIS frame) so the next call's
+        # _current_gap continues counting from here, not from a stale value.
+        for pid in ALL_IDS:
+            if pid in assigned:
+                if pid in self.prev_pos:
+                    self.prev_prev_pos[pid] = self.prev_pos[pid]
+                self.prev_pos[pid] = assigned[pid]["center"]
+                self.gap[pid] = 0
+            elif pid in self.prev_pos:
+                self.gap[pid] = self._current_gap(pid)
 
         # Return in a stable order [0,1] if present
         return [(pid, assigned[pid]) for pid in sorted(assigned.keys())]
@@ -434,15 +511,31 @@ def info(info_type, message):
 
 def main(video_path, bg_path, dtc_path, csv_path, fps_eff):
 
-    # 1) Average background from a clean interval at the beggining of the filming
-    # (still needed: sets the disk-size scale reference and backs the contour fallback)
+    # 1) Load the YOLO Pose model first -- needed below to keep a puck that's
+    # already on the table out of the background estimate (moved ahead of
+    # background estimation for exactly that reason).
+    yolo_model, yolo_device = _get_yolo_model()
+    info("Info", f"YOLO Pose model loaded ({_resolve_model_path().name}) on device={yolo_device}")
+
+    # 1b) Average background from a clean interval at the beggining of the filming
+    # (still needed: sets the disk-size scale reference and backs the contour fallback).
+    # puck_masker excludes any YOLO-detected disk region per sampled frame
+    # from the median instead of assuming the whole window is puck-free --
+    # a puck already resting on the table (or moving too little) for the
+    # entire clean_seconds window would otherwise get baked into the
+    # "background" as if it were table surface (see CLAUDE.md Known bugs;
+    # estimate_background_median's own docstring has the full mechanism).
+    def _puck_masker(frame):
+        return [(d["center"][0], d["center"][1], d["radius"]) for d in detect_disks_yolo(yolo_model, yolo_device, frame)]
+
     bg_path = prp.estimate_background_median(
         video_path         = video_path,
         clean_seconds      = CLEAN_SECONDS,
         frame_sample_limit = FRAME_LIMIT_AVG,
         blur_kernel        = BLUR_KERNEL,
         output_path        = bg_path,
-        return_image       = False
+        return_image       = False,
+        puck_masker        = _puck_masker,
     )
     background = cv2.imread(str(bg_path))
 
@@ -450,10 +543,6 @@ def main(video_path, bg_path, dtc_path, csv_path, fps_eff):
         raise RuntimeError(f"Failed to load background at {bg_path}") # Error checking --> fatal program will end
 
     info("Done", "Background Averaged")
-
-    # 1b) Load the YOLO Pose model once for the whole run
-    yolo_model, yolo_device = _get_yolo_model()
-    info("Info", f"YOLO Pose model loaded ({_resolve_model_path().name}) on device={yolo_device}")
 
     # 2) Open video
     cap = cv2.VideoCapture(video_path)
@@ -518,8 +607,16 @@ def main(video_path, bg_path, dtc_path, csv_path, fps_eff):
             expected_radius_px = (
                 (DISK_DIAMETER_MM / 2.0) / scale_mm_per_px if scale_mm_per_px else None
             )
+            # Search from each missing ID's *predicted* position (velocity
+            # extrapolated by however many frames it's been missing), not its
+            # stale last-seen one -- matters most for exactly the case this
+            # fallback exists for (a disk missing for several frames).
+            predicted_pos = {
+                pid: p for pid in missing_ids
+                if (p := assigner.predicted_pos(pid)) is not None
+            }
             disks.extend(fallback_contour_disks(
-                frame, background, disks, assigner.prev_pos, missing_ids,
+                frame, background, disks, predicted_pos, missing_ids,
                 expected_radius=expected_radius_px
             ))
 
@@ -540,7 +637,7 @@ def main(video_path, bg_path, dtc_path, csv_path, fps_eff):
             cx_px, cy_px = d["center"]
             r_px = float(d["radius"])
 
-            mark, marker_color = resolve_marker_color(frame, d)
+            mark, marker_color = resolve_marker_color(frame, d, scale_mm_per_px)
 
             # 7) Drawing (disk & marker) on the original video
             # Green edge = YOLO detection, orange edge = contour fallback (debug aid)

@@ -45,9 +45,30 @@ def _add_meter_cols(df_raw: pd.DataFrame) -> pd.DataFrame:
 
 
 def _unwrap_angle(dfm: pd.DataFrame) -> np.ndarray:
+    """
+    Continuous unwrapped marker angle (radians), NaN wherever the marker
+    wasn't detected that frame (mx/my come through as NaN from the CSV).
+
+    np.unwrap does not skip NaN -- a single NaN in the input poisons every
+    later value via unwrap's internal cumsum, e.g.
+    unwrap([0,-1,-2,NaN,-4,-5,-6]) == [0,-1,-2,NaN,NaN,NaN,NaN] (verified).
+    With marker recall as low as ~44-60% on real footage, nearly every
+    segment hit its first gap early, so theta/omega were silently running on
+    far less real data than they appeared to. Unwrap only the valid
+    (non-NaN) subsequence in original frame order, then put NaN back at the
+    gaps -- a gap of a few frames doesn't break unwrap's turn detection
+    since rotation is slow (~1 deg/frame) relative to the pi wrap threshold.
+    """
     dx = dfm["mx"] - dfm["cx"]
     dy = dfm["my"] - dfm["cy"]
-    return np.unwrap(np.arctan2(dy, dx))
+    theta = np.arctan2(dy, dx).to_numpy()
+    valid = np.isfinite(theta)
+    out = np.full(theta.shape, np.nan, dtype=float)
+    if valid.sum() >= 2:
+        out[valid] = np.unwrap(theta[valid])
+    elif valid.sum() == 1:
+        out[valid] = theta[valid]
+    return out
 
 
 def _compute_vels(df_m: pd.DataFrame, fps: float) -> pd.DataFrame:
@@ -60,15 +81,234 @@ def _compute_vels(df_m: pd.DataFrame, fps: float) -> pd.DataFrame:
     out["vx"] = out["cx"].diff() * fps
     out["vy"] = out["cy"].diff() * fps
 
-    # Angular from marker vector
-    theta = np.arctan2(out["my"] - out["cy"], out["mx"] - out["cx"]).to_numpy()
-    theta_unwrapped = np.unwrap(theta)                 # radians
+    # Angular from marker vector (NaN-safe unwrap, see _unwrap_angle)
+    theta_unwrapped = _unwrap_angle(out)                # radians
     dtheta = np.full(len(out), np.nan, dtype=float)    # length N
     if len(out) > 1:
         dtheta[1:] = np.diff(theta_unwrapped)          # put N-1 diffs starting at index 1
     out["omega_deg_s"] = np.degrees(dtheta) * fps      # deg/s, aligned to later frame
     out["theta_unwrapped_deg"] = np.degrees(theta_unwrapped)  # for students
     return out
+
+
+def _sigma_clip_linear_fit(x: np.ndarray, y: np.ndarray, n_sigma: float = 2.5,
+                            max_iters: int = 10, min_points: int = 4):
+    """
+    Iterative sigma-clipping linear regression of y vs x (refits after each
+    clip so an early outlier can't drag the trend and shield a later one).
+
+    Returns (slope, intercept, inlier_mask): inlier_mask is aligned to the
+    input arrays and True only for points that both exist (finite) and
+    survived clipping. slope/intercept are NaN if fewer than min_points
+    finite points are available to fit at all.
+    """
+    mask = np.isfinite(x) & np.isfinite(y)
+    if mask.sum() < min_points:
+        return np.nan, np.nan, mask
+
+    for _ in range(max_iters):
+        idx = np.flatnonzero(mask)
+        slope, intercept = np.polyfit(x[idx], y[idx], 1)
+        resid = y[idx] - (slope * x[idx] + intercept)
+        sigma = float(np.std(resid))
+        if sigma < 1e-9:
+            break
+        keep = np.abs(resid) <= n_sigma * sigma
+        if keep.all():
+            break
+        if keep.sum() < min_points:
+            break  # don't clip below the floor -- keep the prior mask/fit
+        new_mask = np.zeros_like(mask)
+        new_mask[idx] = keep
+        mask = new_mask
+
+    idx = np.flatnonzero(mask)
+    slope, intercept = np.polyfit(x[idx], y[idx], 1)
+    return float(slope), float(intercept), mask
+
+
+def _wrap_pi(a: np.ndarray) -> np.ndarray:
+    """Wrap radians into (-pi, pi]."""
+    return (a + np.pi) % (2 * np.pi) - np.pi
+
+
+def _robust_omega_seed(frame: np.ndarray, theta_wrapped: np.ndarray,
+                        max_gap: float = 20, max_pairs_per_point: int = 5) -> float:
+    """
+    Initial angular-velocity estimate (rad/frame), robust by construction:
+    the median of wrapped pairwise angular differences between valid
+    samples separated by at most max_gap frames (true rotation is slow,
+    ~1 deg/frame, so a gap this small can't itself be ambiguous mod 2*pi).
+    Deliberately never runs a global sequential unwrap for this seed -- see
+    _robust_unwrap_and_fit for why that matters.
+    """
+    idx = np.flatnonzero(np.isfinite(theta_wrapped))
+    slopes = []
+    for i in range(len(idx)):
+        for j in range(i + 1, min(i + 1 + max_pairs_per_point, len(idx))):
+            gi, gj = idx[i], idx[j]
+            gap = frame[gj] - frame[gi]
+            if gap <= 0 or gap > max_gap:
+                continue
+            dtheta = _wrap_pi(theta_wrapped[gj] - theta_wrapped[gi])
+            slopes.append(dtheta / gap)
+    return float(np.median(slopes)) if slopes else np.nan
+
+
+def _robust_unwrap_and_fit(frame: np.ndarray, theta_wrapped: np.ndarray,
+                            n_sigma: float = 2.5, max_iters: int = 10,
+                            min_points: int = 4, refine_rounds: int = 3):
+    """
+    Branch-robust unwrap + sigma-clipped linear fit of theta vs. frame,
+    combined because they turned out not to be separable: a naive
+    "sequential np.unwrap first, sigma-clip second" pipeline was tested
+    against a synthetic segment with one injected bad-but-plausible marker
+    value (mimicking the real `240_25.mp4` frame 368 case) and silently
+    returned a fitted omega ~2.5x the true value with the wrong sign --
+    because a value landing near the +-180 deg branch cut relative to the
+    true trend can flip which 360 deg branch *sequential* unwrap locks onto
+    for every sample after it (it always branches relative to the previous
+    raw sample, which after a flip is itself already wrong), so every later
+    point's residual looks uniformly "fine" against the now-shifted trend
+    instead of standing out as an outlier.
+
+    Fix: choose each sample's branch relative to a robust linear
+    *prediction*, refined over a few rounds, not relative to the previous
+    raw sample -- seeded from an unwrap-free slope estimate
+    (_robust_omega_seed) so the seed can't inherit the same failure mode.
+
+    Returns (theta_unwrapped_rad, slope_rad_per_frame, intercept_rad,
+    inlier_mask), all aligned to the input arrays (NaN/False at rows with
+    no marker detection, i.e. non-finite theta_wrapped).
+    """
+    valid = np.isfinite(theta_wrapped)
+    out_theta = np.full(theta_wrapped.shape, np.nan, dtype=float)
+    inlier_mask = np.zeros(theta_wrapped.shape, dtype=bool)
+    if valid.sum() < min_points:
+        return out_theta, np.nan, np.nan, inlier_mask
+
+    f = frame[valid]
+    t = theta_wrapped[valid]
+
+    slope = _robust_omega_seed(f, t)
+    if not np.isfinite(slope):
+        return out_theta, np.nan, np.nan, inlier_mask
+    intercept = t[0] - slope * f[0]  # anchor to the first valid sample
+
+    for _ in range(refine_rounds):
+        unwrapped = t + 2 * np.pi * np.round((slope * f + intercept - t) / (2 * np.pi))
+        new_slope, new_intercept, mask = _sigma_clip_linear_fit(
+            f, unwrapped, n_sigma=n_sigma, max_iters=max_iters, min_points=min_points
+        )
+        if not np.isfinite(new_slope):
+            break
+        slope, intercept = new_slope, new_intercept
+
+    out_theta[valid] = unwrapped
+    inlier_mask[valid] = mask
+    return out_theta, slope, intercept, inlier_mask
+
+
+def fit_rotation_segments(dfm: pd.DataFrame, collision_frame: int,
+                           n_sigma: float = 2.5, max_iters: int = 10,
+                           min_points: int = 4) -> pd.DataFrame:
+    """
+    Per-disk angular-velocity fit, segmented at the collision frame and never
+    fit across it (contact torque means omega isn't expected constant there
+    -- see CLAUDE.md Rotation plan step 1). Within each segment, robustly
+    unwraps and fits theta vs. frame (step 2) via _robust_unwrap_and_fit,
+    which both estimates omega and flags which existing marker detections
+    are trend-consistent vs. likely-false.
+
+    Returns dfm with these columns added (row-aligned):
+        theta_unwrapped_deg     : branch-robust unwrap (see
+                                   _robust_unwrap_and_fit), NaN where no
+                                   marker was detected that frame
+        rotation_segment        : "before" / "after" / "collision" (frame ==
+                                   collision_frame is excluded from fitting)
+        theta_trend_consistent  : True/False for rows with a marker
+                                   detection (inlier/outlier of that
+                                   segment's fit); NaN for rows with no
+                                   marker detection at all (nothing to judge)
+        omega_fit_deg_per_frame : that row's segment's fitted slope
+                                   (same value repeated across the segment),
+                                   NaN if the segment couldn't be fit
+    """
+    out = dfm.copy()
+    dx = (out["mx"] - out["cx"]).to_numpy()
+    dy = (out["my"] - out["cy"]).to_numpy()
+    theta_wrapped = np.arctan2(dy, dx)  # NaN where marker missing
+
+    frame = out["frame"].to_numpy(dtype=float)
+    seg = np.where(frame < collision_frame, "before",
+          np.where(frame > collision_frame, "after", "collision"))
+    out["rotation_segment"] = seg
+
+    theta_unwrapped_deg = np.full(len(out), np.nan, dtype=float)
+    trend_consistent = np.full(len(out), np.nan, dtype=object)
+    omega_fit = np.full(len(out), np.nan, dtype=float)
+
+    for label in ("before", "after"):
+        seg_idx = np.flatnonzero(seg == label)
+        if seg_idx.size == 0:
+            continue
+        f = frame[seg_idx]
+        tw = theta_wrapped[seg_idx]
+        unwrapped_rad, slope_rad, _, inlier = _robust_unwrap_and_fit(
+            f, tw, n_sigma=n_sigma, max_iters=max_iters, min_points=min_points
+        )
+        theta_unwrapped_deg[seg_idx] = np.degrees(unwrapped_rad)
+        has_marker = np.isfinite(tw)
+        trend_consistent[seg_idx] = np.where(has_marker, inlier, np.nan)
+        omega_fit[seg_idx] = np.degrees(slope_rad) if np.isfinite(slope_rad) else np.nan
+
+    out["theta_unwrapped_deg"] = theta_unwrapped_deg
+    out["theta_trend_consistent"] = trend_consistent
+    out["omega_fit_deg_per_frame"] = omega_fit
+    return out
+
+
+def _rotation_segment_summary(out: pd.DataFrame) -> dict:
+    """Per-segment omega + inlier/outlier/missing counts from fit_rotation_segments' output."""
+    summary = {}
+    for label in ("before", "after"):
+        seg = out.loc[out["rotation_segment"] == label]
+        tc = seg["theta_trend_consistent"]
+        omega_vals = seg["omega_fit_deg_per_frame"].dropna()
+        summary[label] = {
+            "omega_deg_per_frame": float(omega_vals.iloc[0]) if not omega_vals.empty else np.nan,
+            "n_inliers": int((tc == True).sum()),
+            "n_outliers": int((tc == False).sum()),
+            "n_missing": int(tc.isna().sum()),
+        }
+    return summary
+
+
+def fit_rotation(df0_raw: pd.DataFrame, df1_raw: pd.DataFrame,
+                  n_sigma: float = 2.5, max_iters: int = 10, min_points: int = 4):
+    """
+    Full entry point: raw per-disk detection rows (as read from the exported
+    CSV and split by disk_id) -> per-disk row-level rotation-fit columns
+    (see fit_rotation_segments) plus a compact summary, sharing one
+    collision frame between both disks.
+
+    Returns (out0, out1, summary) where summary = {
+        "collision_frame": int,
+        0: {"before": {...}, "after": {...}},
+        1: {"before": {...}, "after": {...}},
+    } -- see _rotation_segment_summary for the per-segment dict shape.
+    """
+    df0m = _add_meter_cols(_ensure_sorted(df0_raw))
+    df1m = _add_meter_cols(_ensure_sorted(df1_raw))
+    cf = _find_collision_frame(df0m, df1m)
+    out0 = fit_rotation_segments(df0m, cf, n_sigma, max_iters, min_points)
+    out1 = fit_rotation_segments(df1m, cf, n_sigma, max_iters, min_points)
+    summary = {
+        "collision_frame": cf,
+        0: _rotation_segment_summary(out0),
+        1: _rotation_segment_summary(out1),
+    }
+    return out0, out1, summary
 
 
 def _find_collision_frame(df0m: pd.DataFrame, df1m: pd.DataFrame) -> int:
