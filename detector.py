@@ -379,6 +379,20 @@ FLIPPED_MARKER_MIN_CIRCULARITY = MARKER_MIN_CIRCULARITY  # measured real p1 ~0.7
 FLIPPED_MARKER_MAX_CIRCULARITY = 0.94  # measured real p99 ~0.91-0.92 -- the inherited 0.90
 # ceiling would have rejected ~1% of real dimples for being "too circular"; raised for margin
 
+# Identify-by-exclusion net (2026-09-17, user-observed): under direct overhead
+# glare the green paint specifically reads as desaturated grey rather than
+# green, dropping below FLIPPED_GREEN_LOWER's saturation floor -- but since
+# exactly two disks/colors exist in this study (COLOR_ID_MAP), whichever one
+# ISN'T the confidently-found color is unambiguous. This range is
+# deliberately much looser on saturation than either real color's calibrated
+# window (catches a washed-out disk), but only ever used to relax the COLOR
+# gate -- the shape gates (radius/circularity) stay at full strictness, and
+# it's only ever tried when the strict search found exactly one of the two
+# disks (see detect_disks_color) -- never both, never neither, so it can't
+# manufacture a second disk out of noise when only one is genuinely on table.
+FLIPPED_EXCLUSION_LOWER = np.array([45, 20, 30])
+FLIPPED_EXCLUSION_UPPER = np.array([135, 255, 255])
+
 
 def resolve_marker_flipped_scheme(frame, det, scale_mm_per_px=None):
     """
@@ -394,11 +408,22 @@ def resolve_marker_flipped_scheme(frame, det, scale_mm_per_px=None):
     cx, cy = det["center"]
     r = det["radius"]
 
-    color = prp.classify_disk_bulk_color(
-        frame, (cx, cy), r,
-        {"green": (FLIPPED_GREEN_LOWER, FLIPPED_GREEN_UPPER),
-         "blue": (FLIPPED_BLUE_LOWER, FLIPPED_BLUE_UPPER)},
-    )
+    # If the position detector already determined this disk's identity via
+    # its own HSV search (color-thresholding branch's detect_disks_color
+    # knows which mask it matched, including an identify-by-exclusion call),
+    # reuse it instead of re-running an independent bulk-color vote -- two
+    # separate color checks disagreeing with each other is exactly the kind
+    # of instability that could destabilize IDAssigner's color-first
+    # fallback for new tracks (user-requested continuity check, 2026-09-17).
+    # Detections without a known color yet (e.g. the contour_fallback path,
+    # or plain YOLO dicts) fall through to the original bulk-vote lookup.
+    color = det.get("color")
+    if color is None:
+        color = prp.classify_disk_bulk_color(
+            frame, (cx, cy), r,
+            {"green": (FLIPPED_GREEN_LOWER, FLIPPED_GREEN_UPPER),
+             "blue": (FLIPPED_BLUE_LOWER, FLIPPED_BLUE_UPPER)},
+        )
     if color is None:
         return None, None
 
@@ -454,11 +479,20 @@ def detect_disks_color(frame, color_ranges=None):
     remove_duplicate_detections' "keep the best" logic instead of needing it),
     and returns the same dict shape detect_disks_yolo does so every
     downstream consumer (IDAssigner, CSV export, drawing, scale calibration)
-    needs no change. "conf" is a coarse fill-ratio proxy (contour area vs.
-    minimum-enclosing-circle area), not a model confidence -- a real disk
-    silhouette should be close to 1.0; a lower value flags a partially
-    occluded/cut-off blob without rejecting it outright (the circularity gate
-    already did the hard rejection).
+    needs no change, plus a "color" field (see resolve_marker_flipped_scheme
+    for why that's now propagated instead of re-derived). "conf" is a coarse
+    fill-ratio proxy (contour area vs. minimum-enclosing-circle area), not a
+    model confidence -- a real disk silhouette should be close to 1.0; a
+    lower value flags a partially occluded/cut-off blob without rejecting it
+    outright (the circularity gate already did the hard rejection).
+
+    Identify-by-exclusion: if the strict per-color search finds exactly one
+    of the two disks, tries a looser color net (FLIPPED_EXCLUSION_LOWER/
+    UPPER) for the other, searching only outside the confident disk's own
+    region. See FLIPPED_EXCLUSION_LOWER's comment for why this is safe (only
+    fires on a strict 1-of-2 result, shape gates unrelaxed) and why it's
+    needed (direct glare desaturates this green paint toward grey, per
+    2026-09-17 user report).
     """
     if color_ranges is None:
         color_ranges = {
@@ -472,20 +506,48 @@ def detect_disks_color(frame, color_ranges=None):
         min_circularity=COLOR_DISK_MIN_CIRCULARITY,
     )
 
-    disks = []
+    best_by_color = {}
     for color_name in color_ranges:
         same_color = [c for c in candidates if c["color"] == color_name]
-        if not same_color:
-            continue
-        best = max(same_color, key=lambda c: c["area"])
+        if same_color:
+            best_by_color[color_name] = max(same_color, key=lambda c: c["area"])
+
+    if len(best_by_color) == 1 and len(color_ranges) == 2:
+        found_color = next(iter(best_by_color))
+        missing_color = next(c for c in color_ranges if c != found_color)
+        found = best_by_color[found_color]
+        ex_cx, ex_cy = found["center"]
+        exclude_radius = found["radius"] * 1.3
+
+        broad = prp.segment_disks_by_color(
+            frame, {missing_color: (FLIPPED_EXCLUSION_LOWER, FLIPPED_EXCLUSION_UPPER)},
+            min_radius=COLOR_DISK_MIN_RADIUS, max_radius=COLOR_DISK_MAX_RADIUS,
+            min_circularity=COLOR_DISK_MIN_CIRCULARITY,
+        )
+        broad = [
+            c for c in broad
+            if math.hypot(c["center"][0] - ex_cx, c["center"][1] - ex_cy) > exclude_radius
+        ]
+        if broad:
+            best = max(broad, key=lambda c: c["area"])
+            best["via_exclusion"] = True
+            best_by_color[missing_color] = best
+
+    disks = []
+    for color_name, best in best_by_color.items():
         r = best["radius"]
         fill_ratio = best["area"] / (math.pi * r * r) if r > 0 else 0.0
+        conf = float(min(fill_ratio, 1.0))
+        if best.get("via_exclusion"):
+            conf *= 0.5  # weaker signal -- color gate was relaxed to find this one
         disks.append({
             "center": best["center"],
             "radius": r,
             "marker_center": None,
-            "conf": float(min(fill_ratio, 1.0)),
+            "conf": conf,
             "source": "color",
+            "color": color_name,
+            "via_exclusion": bool(best.get("via_exclusion", False)),
         })
 
     return disks

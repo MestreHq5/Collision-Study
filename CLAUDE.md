@@ -35,35 +35,49 @@ see "Marker detection: two schemes" below), and 3 real webcam test clips exist a
 `Previous_Side_No_Light.mp4`, `Other_Side.mp4`, ~1080p@56-57fps — actual webcam fps drifts
 below the nominal 60, use each video's own measured fps, not an assumed 60).
 
-**Status as of 2026-09-17 session end — real but partial progress, not a finished pipeline:**
+**Status as of 2026-09-17 session end — real progress on a bigger sample, still not final:**
 1. **Marker/color logic (flipped scheme): retuned against real data.** `MARKER_SCHEME =
    "flipped"`, constants retuned against a real calibration survey — see "Marker detection:
    two schemes" for the numbers. Only 3 clips / ~1300 frames, smaller than the classic
    scheme's 580-sample survey — good first pass, not final.
-2. **Position detection: pivoted from YOLO to color-thresholding, and it's the one piece
-   validated end-to-end against real footage — on exactly one clip.** `train-5` YOLO does not
-   generalize to painted disks (measured regression, see Model section) — rather than
-   annotate+retrain, built `color-thresholding` (new branch, HSV color-contour position, no
-   model). Ran the *actual physics pipeline* (not just detection recall) against
-   `Previous_Side_Light` and got a plausible result (e=0.898, momentum error 5.6%) — real
-   proof the approach works, but **n=1 clean clip is an early result, not a validated
-   pipeline.** `Other_Side` and `Previous_Side_No_Light` both failed for reasons unrelated to
-   the detector itself (uncut boundary bounce; this paint desaturating under no light) — see
-   ToDo.md sections 5/5b for the numbers on all three.
-3. **What's NOT yet validated, for a fresh session to know before calling this "done":**
-   - Only one real collision has been run through end-to-end and checked for physically sane
-     output. No test yet across multiple clips/speeds/lighting the way the classic scheme's
-     580-sample survey or the rotation-fitting held-out-footage checks were done.
-   - The marker/dimple/rotation side of the flipped scheme has only been checked via the
-     static calibration survey (HSV/shape percentiles) — **not** the classic scheme's
-     stationary-disk real-motion check (angle std / flip-flop test) that caught the classic
-     scheme's known marker bug. Real `theta`/`omega_fit` quality on the new paint is unverified.
-   - YOLO annotation/retraining is deprioritized, not abandoned — still the fallback if
-     color-thresholding doesn't hold up on a broader footage set (see CLAUDE.md "Disk
-     position" and ToDo.md).
-   - **New videos were recorded this session but not yet processed** — pending: run the same
-     detection+metrics check against them before drawing any broader conclusion from the one
-     clean result above.
+2. **Position detection: pivoted from YOLO to color-thresholding** (`color-thresholding`
+   branch, `detect_disks_color()` / `Pre_process.segment_disks_by_color()`, no model — `train-5`
+   YOLO confirmed not to generalize to painted disks, see Model section). Two added
+   refinements this session (both user-requested):
+   - **Identify-by-exclusion** (`FLIPPED_EXCLUSION_LOWER/UPPER`): if the strict per-color
+     search finds exactly one disk, tries a looser color net for the other, restricted to
+     outside the confident disk's own region — safe because exactly 2 disks/colors exist, so
+     the missing identity is unambiguous. Confirmed real and needed: direct glare measurably
+     desaturates this specific green paint toward grey (user-observed, then confirmed in
+     data — green used this fallback far more often than blue across the 18-clip batch below).
+   - **Known-color propagation**: `detect_disks_color` now tags each detection with the color
+     that matched it; `resolve_marker_flipped_scheme` reuses that instead of re-running an
+     independent bulk-color vote, so identity isn't determined twice by two checks that could
+     disagree.
+3. **Batch-tested end-to-end against 18 new real clips** (`C:\Users\gonca\Pictures\Camera
+   Roll\New Disks\1.mp4`-`18.mp4`, not yet in repo) — full detection + `build_student_excel`
+   physics, not just recall:
+   - **~9-10 of 18 clips produced plausible collision metrics** (e roughly 0.6-1.05,
+     momentum error mostly <10%; clip 4 was a partial exception — momentum error 5.5% but an
+     unphysical e=1.46, not yet explained). This is a real base rate on a real sample, not
+     the single lucky clip from earlier the same day.
+   - **The other ~8 clips failed on sparse both-disk coverage around the collision moment
+     (few simultaneous detections → noisy velocity fit → nonsense e/momentum), not on
+     identity/tracking bugs.** Specifically traced this (user asked for a continuity check):
+     replayed `IDAssigner.assign()` frame-by-frame on the two worst clips and confirmed large
+     position deltas are real fast motion between consecutive frames (~5 m/s, physically
+     plausible for a hand-thrown puck), not ID swaps — position-lock, gated velocity
+     prediction, and the color-first fallback are all functioning as designed. **Root cause of
+     the sparse-coverage failures is still open** — didn't get to why detection density drops
+     specifically near contact on those clips (motion blur at contact? gates too strict under
+     partial occlusion? something else) — that's the actual next step, not further
+     ID-assignment work.
+4. **Still not validated**: the marker/dimple/rotation side of the flipped scheme (theta,
+   omega_fit) — only checked via the static calibration survey (HSV/shape percentiles), not
+   the classic scheme's stationary-disk real-motion check (angle std / flip-flop test) that
+   caught the classic scheme's known marker bug. YOLO annotation/retraining remains
+   deprioritized, not abandoned, as the fallback if color-thresholding's coverage problem
+   turns out not to be fixable.
 
 **Hardware is locked to webcam 1080p@60fps** (see "Lab / lighting history" #6) — that's the
 deployment spec to validate everything against going forward, not a stopgap. `Novos Videos`/
@@ -102,12 +116,13 @@ than assuming it already happened.
   - **`color-thresholding` branch (this one)**: `detect_disks_color()` / `Pre_process.
     segment_disks_by_color()` — direct HSV color-contour on each disk's own paint color, no
     model, no background image needed for position itself. Measured 78-92% both-disk recall
-    in-window on real footage (vs. YOLO's near-total failure on the same clips) and produced
-    physically plausible collision metrics end-to-end on real footage (`Previous_Side_Light`:
-    e=0.898, momentum error 5.6%, matching the same ballpark as `main`'s old classical-contour
-    result on old footage). `scale_mm_per_px` now comes from the median of the first 8
-    color-sourced radii (same `RADIUS_SAMPLE_TARGET` mechanism, same "don't trust one frame's
-    radius" rationale as YOLO's bbox). Bounds (`COLOR_DISK_MIN/MAX_RADIUS`,
+    in-window on real footage (vs. YOLO's near-total failure on the same clips) and, on an
+    18-clip real batch, ~9-10/18 produced physically plausible collision metrics end-to-end
+    (see Standing objective for the full breakdown, including the identify-by-exclusion and
+    known-color-propagation additions and the still-open sparse-coverage failure mode).
+    `scale_mm_per_px` comes from the median of the first 8 color-sourced radii (same
+    `RADIUS_SAMPLE_TARGET` mechanism, same "don't trust one frame's radius" rationale as
+    YOLO's bbox). Bounds (`COLOR_DISK_MIN/MAX_RADIUS`,
     `COLOR_DISK_MIN_CIRCULARITY`) are placeholders for this webcam's 1080p framing — retune if
     camera distance changes.
     **If this hits a real problem** (a footage condition where color-thresholding alone can't

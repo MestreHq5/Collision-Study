@@ -416,9 +416,10 @@ def _compute_metrics(df0m: pd.DataFrame, df1m: pd.DataFrame, masses: tuple, radi
     """
     Returns a dict with:
         - collision_frame
-        - restitution_e (full-data means, along line-of-centers)
+        - restitution_e (full-data means, along the impulse direction -- see below)
         - momentum_error_rel (full-data means)
         - energy_drop_rel_COM (medians with COM de-jitter, includes rotation)
+        - collision_gap_mm (diagnostic -- see below)
     """
     # Collision frame
     cf = _find_collision_frame(df0m, df1m)
@@ -428,26 +429,64 @@ def _compute_metrics(df0m: pd.DataFrame, df1m: pd.DataFrame, masses: tuple, radi
     before1 = df1m["frame"] < cf
     after1  = df1m["frame"] > cf
 
-    # ---- Coefficient of restitution e (means, full data; line of centers) ----
+    # ---- Coefficient of restitution e (means, full data) ----
     v0b = _safe_vxvy_mean(df0m, before0)
     v0a = _safe_vxvy_mean(df0m, after0)
     v1b = _safe_vxvy_mean(df1m, before1)
     v1a = _safe_vxvy_mean(df1m, after1)
 
-    # Line-of-centers at collision (meters)
+    # Collision normal: derived from each disk's OWN measured velocity change
+    # (impulse direction), NOT from disk positions at the recorded collision
+    # frame (bug found + fixed 2026-09-17). On a frictionless air table (see
+    # CLAUDE.md) the contact force has no tangential component, so each
+    # disk's Delta-v is exactly along the true line of centers at the
+    # instant of contact -- true regardless of whether that instant was
+    # actually sampled. The old position-based line of centers, by
+    # contrast, is only as good as how close the nearest RECORDED frame's
+    # positions were to the true contact instant, and real short/sparse
+    # clips don't guarantee that: measured on real footage (clip 4,
+    # 2026-09-17), the recorded minimum center-to-center distance was 87mm
+    # against an expected ~70mm contact distance (2x disk radius) -- the
+    # true closest approach fell in a gap between detected frames -- and
+    # the position-based normal it produced gave an unphysical e=1.46, while
+    # this impulse-based normal gives e=0.945 on the same data, in line with
+    # every other clip in the same batch. See `collision_gap_mm` below for
+    # the general-purpose version of that same diagnostic.
+    dv0 = v0a - v0b
+    dv1 = v1a - v1b
+    nvec = (dv0 - dv1).astype(float)
+    n = nvec / (np.linalg.norm(nvec) + 1e-12)
+
+    vrel_b = np.array([v1b[0] - v0b[0], v1b[1] - v0b[1]])
+    vrel_a = np.array([v1a[0] - v0a[0], v1a[1] - v0a[1]])
+    v_n_before = -float(np.dot(vrel_b, n))   # approach speed, sign convention below
+    v_n_after  =  float(np.dot(vrel_a, n))   # separation speed, same convention
+    if np.isfinite(v_n_before) and v_n_before < 0:
+        # n's sign is arbitrary (dv0 - dv1 only defines a line, not which way
+        # it points) -- flipping both together doesn't change e (numerator
+        # and denominator both flip), it only fixes v_n_before's sign to
+        # match the "positive = approaching" convention the gate below and
+        # any caller inspecting v_n_before directly expect.
+        v_n_before, v_n_after = -v_n_before, -v_n_after
+    e = float(v_n_after / v_n_before) if (np.isfinite(v_n_before) and v_n_before > 1e-12) else np.nan
+
+    # ---- Diagnostic: how close was the recorded collision frame to a real
+    # contact? (user-requested, 2026-09-17: "frame rate doesn't allow the
+    # collision to be spotted in detail... some videos could not have a
+    # collision at all"). A real contact has center-to-center distance ==
+    # sum of radii at the true contact instant; the RECORDED minimum being
+    # meaningfully larger means the true closest approach likely fell in a
+    # gap between detected frames (or there was no real collision in this
+    # clip at all). Positive = recorded frames never got this close;
+    # strongly positive is a reason to distrust the whole result, not just
+    # the old position-based normal above.
     p0c = df0m.loc[df0m["frame"] == cf, ["cx","cy"]]
     p1c = df1m.loc[df1m["frame"] == cf, ["cx","cy"]]
     if p0c.empty or p1c.empty:  # fallback if exact frame missing
         p0c = df0m.iloc[[(df0m["frame"] - cf).abs().idxmin()]][["cx","cy"]]
         p1c = df1m.iloc[[(df1m["frame"] - cf).abs().idxmin()]][["cx","cy"]]
-    nvec = (p1c.values[0] - p0c.values[0]).astype(float)
-    n = nvec / (np.linalg.norm(nvec) + 1e-12)
-
-    vrel_b = np.array([v1b[0] - v0b[0], v1b[1] - v0b[1]])
-    vrel_a = np.array([v1a[0] - v0a[0], v1a[1] - v0a[1]])
-    v_n_before = -float(np.dot(vrel_b, n))   # approach speed (>0)
-    v_n_after  =  float(np.dot(vrel_a, n))   # separation speed (>=0)
-    e = float(v_n_after / v_n_before) if (np.isfinite(v_n_before) and v_n_before > 1e-12) else np.nan
+    recorded_gap_m = float(np.linalg.norm(p1c.values[0].astype(float) - p0c.values[0].astype(float)))
+    collision_gap_mm = (recorded_gap_m - (radius[0] + radius[1])) * 1000.0
 
     # ---- Momentum error (relative; full-data means) ----
     RADIUS_M = (radius[0] + radius[1]) / 2
@@ -526,6 +565,7 @@ def _compute_metrics(df0m: pd.DataFrame, df1m: pd.DataFrame, masses: tuple, radi
         "restitution_e": e,
         "momentum_error_rel": p_err,
         "energy_drop_rel_COM": K_drop_COM,
+        "collision_gap_mm": collision_gap_mm,
     }
 
 # --------------------------------------------------------------------------------------------------
@@ -649,6 +689,8 @@ def build_student_excel(
                  f'{metrics["momentum_error_rel"]:.6g}' if np.isfinite(metrics["momentum_error_rel"]) else str(metrics["momentum_error_rel"])),
                 ("Energy drop (rel, COM frame)",
                  f'{metrics["energy_drop_rel_COM"]:.6g}' if np.isfinite(metrics["energy_drop_rel_COM"]) else str(metrics["energy_drop_rel_COM"])),
+                ("Collision gap (mm, recorded-min minus expected contact dist.)",
+                 f'{metrics["collision_gap_mm"]:.6g}' if np.isfinite(metrics["collision_gap_mm"]) else str(metrics["collision_gap_mm"])),
             ],
             columns=["Quantity","Value"]
         )

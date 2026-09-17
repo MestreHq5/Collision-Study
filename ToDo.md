@@ -200,6 +200,126 @@ recall:
 - `Previous_Side_No_Light` skipped — disk 0 (green) has zero detections in that clip (see
   section 5), so there's no "before" track to compute anything from at all.
 
+## 5c. 18-clip real batch test + exclusion-logic + continuity check (2026-09-17)
+
+New real footage: `C:\Users\gonca\Pictures\Camera Roll\New Disks\1.mp4`-`18.mp4` (not yet in
+repo). Also added, both user-requested:
+- **Identify-by-exclusion** in `detect_disks_color`: if only one color strictly matches, try a
+  loosened net for the other outside the confident disk's region (safe: only 2 disks/colors
+  exist, so the missing one is unambiguous). Confirmed needed — direct glare visibly
+  desaturates this green paint toward grey (user-observed).
+- **Known-color propagation**: `resolve_marker_flipped_scheme` now reuses the color
+  `detect_disks_color` already found instead of re-voting independently, so identity isn't
+  determined twice by checks that could disagree.
+
+Ran full `detector.main()` + `Post_process.build_student_excel(..., include_metrics=True)`
+against all 18:
+
+| clip | both_frames | e | momentum err | verdict |
+|---|---|---|---|---|
+| 1 | 18 | -1.36 | 75.2% | bad |
+| 2 | 42 | nan | 62.7% | bad |
+| 3 | 18 | 0.886 | 1.7% | good |
+| 4 | 16 | 1.462 | 5.5% | mixed — e unphysical (>1) despite low momentum error, unexplained |
+| 5 | 18 | 0.910 | 4.9% | good |
+| 6 | 18 | 0.914 | 3.5% | good |
+| 7 | 17 | 0.958 | 6.4% | good |
+| 8 | 18 | 1.028 | 6.0% | good |
+| 9 | 16 | 0.640 | 35.3% | bad |
+| 10 | 28 | 0.736 | 6.7% | good |
+| 11 | 11 | -4.42 | 5.7% | bad (e unphysical despite low momentum err) |
+| 12 | 15 | -0.791 | 91.7% | bad |
+| 13 | 9 | -0.165 | 95.9% | bad |
+| 14 | 1 | nan | nan | bad — only 1 both-disk frame |
+| 15 | 20 | 0.639 | 1.6% | good |
+| 16 | 16 | -5.80 | 2.8% | bad (e unphysical despite low momentum err) |
+| 17 | 19 | 0.906 | 0.1% | good |
+| 18 | 27 | 0.911 | 8.1% | good |
+
+**~9-10/18 good.** Real base rate on a real sample, not the single lucky clip from earlier
+this session.
+
+**Continuity check (user-requested)**: traced `IDAssigner.assign()` frame-by-frame on the two
+worst clips (13, 16) to check whether bad clips = ID swaps. They aren't: every large
+frame-to-frame position jump traced back to a *consecutive*-frame delta consistent with a
+genuinely fast puck (~5 m/s at this scale, physically plausible for a hand throw), and
+identify-by-exclusion firing rate doesn't correlate with good vs. bad clips (both good and bad
+clips use it often for green). **Position-lock + gated velocity prediction + color-first
+fallback are all working as designed.**
+
+**Real cause of the bad clips looks like sparse both-disk detection specifically around the
+collision moment** (few simultaneous detections right when it matters → noisy velocity fit →
+garbage e/momentum), not a tracking/identity bug. **Not yet root-caused** — candidates not yet
+checked: motion blur at the contact frame specifically, `COLOR_DISK_MIN_CIRCULARITY`/area
+gates being too strict under partial occlusion during contact, or a framing/distance
+difference across these 18 clips vs. the earlier 3. This is the actual next step for whoever
+picks this up next, not more work on ID assignment.
+
+**Clip 4/11/16 anomaly**, separate from the coverage problem: unphysical e (>1, or very
+negative) despite *low* momentum error in the same clip — worth a closer look on its own,
+since low momentum error means position tracking was probably fine, so the restitution
+calculation specifically (which reduces to relative approach/separation speed along the
+collision normal) is where to look first.
+
+## 5d. Open action item — clean single-collision video set, then hunt the metrics bug
+
+**2026-09-17, user note**: the 18 `New Disks` clips tested in 5c were raw/untreated — some
+contain more than one collision (disk re-entering frame after a bounce), which is the likely
+cause of a chunk of the "bad" clips there, same root cause as the `Other_Side` failure in 5b.
+**User is cropping a clean set (one classical single collision per clip, disk doesn't
+reappear) — wait for the folder path before re-running anything.**
+
+Once that clean set exists:
+1. **Re-run the full batch (5c's table) against it first**, to get an honest mean/spread of
+   e, momentum error, and energy drop across multiple real clean collisions — not just
+   pass/fail per clip. This is the actual measurement the standing objective has been working
+   toward; the 18-clip batch was a detector stress-test, not this.
+2. **Then hunt the metrics bug** the user flagged: clips 4/11/16 had *low* momentum error but
+   *unphysical* restitution (e>1, or very negative) in the same clip/run. Low momentum error
+   implies position tracking was fine, so the bug is likely narrower than tracking — probably
+   in `_compute_metrics`'s restitution calculation itself (relative approach/separation speed
+   along the collision normal) or in `_find_collision_frame`/velocity-window selection feeding
+   it, not a detection-quality issue. **Deliberately deferred until the clean video set is
+   ready** — debugging against uncropped, possibly-multi-collision footage risks chasing a
+   data problem instead of a code bug.
+
+## 5e. Restitution bug found and fixed (2026-09-17)
+
+**Root cause of the clip 4/11/16 anomaly (unphysical e despite low momentum error), confirmed
+against real data**: `_compute_metrics` derived the collision normal from disk *positions* at
+the single recorded "collision frame" (closest recorded center-to-center distance). On clip 4,
+that recorded minimum was 87mm against an expected ~70mm true contact distance (2x disk
+radius) — the true closest approach fell in a gap between detected frames (exactly the
+"frame rate doesn't let us see the collision in detail" problem the user flagged), so the
+position-based normal it produced pointed the wrong way and gave e=1.46 (impossible, e can't
+exceed 1).
+
+**Fix**: derive the collision normal from each disk's own measured velocity change (impulse
+direction: `(v0_after - v0_before) - (v1_after - v1_before)`) instead of from position data.
+This isn't just a more-robust workaround — on a frictionless air table (see CLAUDE.md) the
+contact force has no tangential component, so each disk's Δv is *exactly* along the true line
+of centers at the instant of contact, regardless of whether that instant was ever actually
+sampled. Re-ran clip 4: e went from 1.462 → **0.945**, in line with every other clip in the
+batch. Also added a `collision_gap_mm` diagnostic to `_compute_metrics`'s output (recorded
+minimum distance minus expected contact distance) so a badly-undersampled or possibly-fake
+collision can be flagged going forward instead of silently trusted — surfaces in
+`build_student_excel`'s Results sheet too.
+
+**Re-ran the 11-clip clean set with the fix**: e cluster tightened to **mean 0.874, range
+0.669–0.959 (10 clips, excluding `1 - Trim.mp4`)**. That one file separately threw a
+`Warning: only 53/60 frames were read` (its trim export looks corrupted) and its own collision
+frame sits right at the edge of what was actually decoded — a data problem, not evidence
+against the fix; worth re-exporting that trim before trusting its number. Full numbers in the
+5d/5e work.
+
+**Not yet done**: this fix only addresses the restitution normal. The `_find_collision_frame`
+segmentation itself (which frame counts as "the" collision, used to split before/after data
+for momentum and energy too) still just picks the closest *recorded* frame — still fragile
+exactly when `collision_gap_mm` is large, just no longer silently producing an impossible e
+when it is. Whether momentum error / energy drop have an analogous fragility wasn't checked
+this session — momentum error stayed low and plausible across all 11 clips both before and
+after this fix, so it wasn't the priority, but it's not proven robust either.
+
 ## 6. Minor bug found along the way
 
 `main`'s `detector.py` hardcodes `DISK_DIAMETER_MM = 80.0`; this branch
@@ -217,3 +337,16 @@ for the new disks.
   clean approach/contact/separation per video (see CLAUDE.md "Filming pattern"), so any clip
   shot on that side needs the post-bounce tail (and any pre-bounce noise) trimmed out by hand
   first. Not an issue for the regular side's normal throws.
+- [ ] **At 56-60fps, some "collisions" may not be real ones at all** (user note, 2026-09-17):
+  the frame rate isn't always enough to actually resolve contact, so a clip that looks like a
+  near-miss/graze to the detector might genuinely not have a collision in it. The new
+  `collision_gap_mm` diagnostic (see 5e) is a first automatable flag for this — a large gap
+  means either bad sampling around a real collision, or no real collision at all, and today
+  nothing distinguishes those two cases. Worth a threshold/policy once more data exists on
+  what a "real but undersampled" gap typically looks like vs. "no collision happened."
+- [ ] **Idea, not designed yet (user, 2026-09-17)**: some kind of lightweight
+  server/notification setup so results (e, momentum error, energy drop, collision_gap_mm) can
+  be checked from a phone shortly after a trial run, so a bad run can be flagged for the
+  student to redo on the spot rather than discovered later. User said "more on this later" —
+  no requirements gathered yet (push vs. pull, hosting, who else needs access), don't start
+  designing until asked.
