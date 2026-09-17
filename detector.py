@@ -337,35 +337,47 @@ def resolve_marker_color(frame, det, scale_mm_per_px=None):
 
 
 # --- Flipped marker scheme: whole disk painted, marker = black dimple -------
-# Not used by any footage yet (no repainted disks exist to test against) --
-# see CLAUDE.md "Pre-repaint roadmap" for the objective this exists for:
-# built now, against nothing but synthetic sanity checks, so that once real
-# footage of the repainted disks exists the only remaining work is retuning
-# the placeholder constants below against real samples, not writing new
-# logic. Keep MARKER_SCHEME = "classic" until that footage exists and these
-# constants have been retuned -- switching it blind would just swap one
-# untested path for another on footage this scheme was never built for.
-MARKER_SCHEME = "classic"  # "classic" (current footage) or "flipped" (repainted disks)
+# Real repainted-disk footage now exists (3 webcam clips, 2026-09-17: lit/
+# unlit/other-side-of-table, ~1300 frames total) and the constants below were
+# retuned against it via a classical color-blob survey independent of YOLO
+# (95 green-disk / 251 blue-disk body samples, ~94/250 dimple samples;
+# p1/p50/p99 percentiles, same methodology as the classic scheme's 580-sample
+# survey but a smaller first pass -- worth a wider survey once more footage
+# exists, same as the classic scheme's constants were revised more than once).
+# Switching MARKER_SCHEME here is safe now that it's been validated against
+# real samples instead of only synthetic ones.
+#
+# IMPORTANT CAVEAT: this calibration says nothing about YOLO position
+# detection, which was measured (same session) to NOT generalize to painted
+# disks -- `train-5` was trained exclusively on gray-body disks, and on this
+# new footage its boxes came back 4-5x undersized (radius ~10-14px vs a real
+# ~40-66px) at conf ~0.05-0.25 (below the 0.10 operating threshold), with only
+# ~5-26% frame recall. New annotated training data is required before the
+# full pipeline (position + marker together) works end-to-end on repainted
+# disks -- see CLAUDE.md Model section.
+MARKER_SCHEME = "flipped"  # "classic" (old gray-body footage) or "flipped" (repainted disks)
 
-# Same green/blue family and hue windows as the current marker HSV as a
-# starting point (paint spec calls for staying in that family, just more
-# saturated/matte) -- the disk *body* covers a much larger, more uniform
-# area than the small marker dot did, so these will very likely need
-# *tightening* (narrower range) once real samples exist, not widening.
-FLIPPED_GREEN_LOWER = GREEN_LOWER.copy()
-FLIPPED_GREEN_UPPER = GREEN_UPPER.copy()
-FLIPPED_BLUE_LOWER = BLUE_LOWER.copy()
-FLIPPED_BLUE_UPPER = BLUE_UPPER.copy()
-FLIPPED_MARKER_DARK_VALUE_FRAC = 0.55  # see detect_dark_marker_center; pure placeholder
-# Dimple is roughly the same physical size/shape as the current marker dot,
-# so its area/circularity gates start from the same calibrated constants --
-# but MARKER_MIN_AREA_FRAC in particular was calibrated against a small
-# blob on a large gray disk; against a large colored disk this fraction
-# means a different absolute pixel count, so treat this as a placeholder
-# too, not an inherited calibration.
-FLIPPED_MARKER_MIN_AREA_FRAC = MARKER_MIN_AREA_FRAC
-FLIPPED_MARKER_MIN_CIRCULARITY = MARKER_MIN_CIRCULARITY
-FLIPPED_MARKER_MAX_CIRCULARITY = MARKER_MAX_CIRCULARITY
+# Real body-color survey found blue paint saturation runs much hotter than
+# the classic scheme's small-dot calibration assumed (observed S up to
+# ~248 vs the classic BLUE_UPPER's S=175, which would have silently clipped
+# most of the real blue disk out of the bulk-color vote) -- confirms the
+# "expect tightening, not widening" prediction was directionally right for
+# hue but wrong about saturation heading the other way. Green's real range
+# sat comfortably inside the classic bounds; tightened here anyway now that
+# real data exists, rather than left needlessly wide.
+FLIPPED_GREEN_LOWER = np.array([60, 55, 30])
+FLIPPED_GREEN_UPPER = np.array([85, 110, 110])
+FLIPPED_BLUE_LOWER = np.array([95, 100, 70])
+FLIPPED_BLUE_UPPER = np.array([112, 255, 190])
+FLIPPED_MARKER_DARK_VALUE_FRAC = 0.55  # measured real dimple-V/body-V ratio: p50 ~0.37-0.46,
+# p99 ~0.61-0.63 -- the inherited placeholder already sits above nearly all real
+# ratios (safe), so left as-is; only the ~1% tail past 0.55 would be missed.
+FLIPPED_MARKER_MIN_AREA_FRAC = 0.012  # measured real dimple area_frac p1 ~0.016-0.019;
+# floor nudged slightly below that for margin (was inheriting classic's 0.015, coincidentally close)
+FLIPPED_MARKER_MIN_CIRCULARITY = MARKER_MIN_CIRCULARITY  # measured real p1 ~0.70-0.73,
+# comfortably above the inherited 0.62 floor -- no change needed
+FLIPPED_MARKER_MAX_CIRCULARITY = 0.94  # measured real p99 ~0.91-0.92 -- the inherited 0.90
+# ceiling would have rejected ~1% of real dimples for being "too circular"; raised for margin
 
 
 def resolve_marker_flipped_scheme(frame, det, scale_mm_per_px=None):

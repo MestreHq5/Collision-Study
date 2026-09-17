@@ -443,10 +443,11 @@ def detect_dark_marker_center(
     dark_value_frac: float = 0.55,
 ) -> Optional[Tuple[int, int]]:
     """
-    Flipped-scheme marker detection (not used by the current pipeline --
-    see MARKER_SCHEME in detector.py; no footage with this paint scheme
-    exists yet). Once the disk itself is painted a reliable, saturated
-    color, the marker becomes the disk's *only* dark/desaturated feature (a
+    Flipped-scheme marker detection (active when MARKER_SCHEME="flipped" in
+    detector.py -- repainted-disk footage now exists and calibrated the
+    dark_value_frac/area/circularity constants that feed this). Once the disk
+    itself is painted a reliable, saturated color, the marker becomes the
+    disk's *only* dark/desaturated feature (a
     black-painted dimple) instead of a small saturated blob on a gray disk,
     so this finds the darkest compact blob within the disk instead of
     hunting a specific hue. See CLAUDE.md "Design idea... paint the whole
@@ -507,8 +508,8 @@ def detect_dark_marker_center(
 def classify_disk_bulk_color(frame, disk_center, disk_radius, color_ranges,
                               pad_factor: float = 1.0, min_share: float = 0.15):
     """
-    Flipped-scheme disk identity (not used by the current pipeline -- see
-    MARKER_SCHEME in detector.py). Classifies which of color_ranges the
+    Flipped-scheme disk identity (active when MARKER_SCHEME="flipped" in
+    detector.py). Classifies which of color_ranges the
     disk's own BODY matches by majority vote over the disk's circular
     interior, instead of matching a small offset marker blob. Structurally
     more robust than the current scheme: this votes over hundreds/thousands

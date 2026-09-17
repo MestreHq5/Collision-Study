@@ -27,16 +27,29 @@ scaled physical metrics (mm, s) to CSV for Discrete Element Method (DEM) validat
   real collision-study runs — expect varied/non-representative trajectories there, unlike real
   single-collision footage.
 
-## Standing objective (until new footage exists)
+## Standing objective
 
-**User is repainting the disks** (whole disk colored, marker becomes a black dimple — see
-"Marker detection: two schemes" below) but can't do that or shoot new footage until back in
-the lab, target **2026-08-30**. Until then: **lay as much groundwork as possible against
-current footage so that once new footage exists, remaining work is minimal — ideally just
-retuning HSV constants against real paint samples, not writing or restructuring logic.**
-Judge new work by this bar: does it stay directly useful post-repaint with no rework? Current
-footage (`Novos Videos`/`NL`) is dataset-building/test footage, not real collision runs — no
-new real data to work from until the lab trip.
+**Disks are now repainted** (whole disk colored blue/green, marker is a black-or-grey dimple —
+see "Marker detection: two schemes" below), and 3 real webcam test clips exist as of
+2026-09-17 (`C:\Users\gonca\Pictures\Camera Roll\New Disk Tests\`: `Previous_Side_Light.mp4`,
+`Previous_Side_No_Light.mp4`, `Other_Side.mp4`, ~1080p@56-57fps — actual webcam fps drifts
+below the nominal 60, use each video's own measured fps, not an assumed 60).
+
+**Two separate tracks of work, now split by what's actually done vs. not:**
+1. **Marker/color logic (flipped scheme): done for this first pass.** Constants retuned
+   against a real calibration survey and `MARKER_SCHEME` switched to `"flipped"` — see
+   "Marker detection: two schemes" for the numbers. Treat as a good first pass, not final —
+   only 3 clips / ~1300 frames, smaller than the classic scheme's 580-sample survey.
+2. **YOLO position detection: confirmed broken on the new appearance, unstarted follow-up.**
+   `train-5` does not generalize to painted disks (measured regression, see Model section) —
+   **new annotated training data of the painted disks is required**, then fine-tune from
+   `train-5`'s weights. This is the actual remaining blocker to an end-to-end working pipeline
+   on repainted disks, not the marker logic.
+
+**Hardware is locked to webcam 1080p@60fps** (see "Lab / lighting history" #6) — that's the
+deployment spec to validate everything against going forward, not a stopgap. `Novos Videos`/
+`NL` remain old-appearance dataset-building/test footage, not representative of current
+collision runs.
 
 ## Architecture
 
@@ -84,8 +97,9 @@ Single active branch: **`deepLearning`**.
 
 ### Marker detection: two schemes
 
-`detector.MARKER_SCHEME` selects which runs — **`"classic"` is the default and what any
-current run actually uses.**
+`detector.MARKER_SCHEME` selects which runs — **`"flipped"` is the default as of 2026-09-17**
+(repainted-disk footage now exists and calibrated it; see below). `"classic"` remains for the
+old gray-body footage (`Novos Videos`/`NL`).
 
 - **`"classic"`** (current, unpainted footage — small colored dot on a gray disk body):
   `resolve_marker_color()` / `Pre_process.detect_marker_center()`. Searches a padded crop
@@ -106,25 +120,37 @@ current run actually uses.**
   radius bound, marker angle std stayed ~100-122° and `marker_color` still flip-flopped
   green/blue frame-to-frame. This is why the repaint is the real fix, not further classical-CV
   work on current material.
-- **`"flipped"`** (future, repainted disks — whole disk colored, marker = black dimple):
+- **`"flipped"`** (current, repainted disks — whole disk colored, marker = black/grey dimple):
   `resolve_marker_flipped_scheme()` / `Pre_process.classify_disk_bulk_color()` (disk identity
   via majority-vote color match over the whole disk interior, ≥15% share required) +
   `Pre_process.detect_dark_marker_center()` (marker = darkest compact blob within the disk,
   threshold relative to that disk's own median V). Shares crop/geometry/contour-selection
-  logic with the classic path via `Pre_process._select_best_blob`. Placeholder constants
-  (`FLIPPED_GREEN_LOWER/UPPER`, `FLIPPED_BLUE_LOWER/UPPER`, `FLIPPED_MARKER_DARK_VALUE_FRAC`,
-  `FLIPPED_MARKER_MIN_AREA_FRAC`, `FLIPPED_MARKER_MIN/MAX_CIRCULARITY`, all in `detector.py`,
-  clearly marked) currently just inherit the classic scheme's calibrated values — **expect
-  these to need real retuning, not just reuse**, once real painted samples exist. Validated
-  only synthetically (idealized solid-fill circles) — no real footage of this scheme exists
-  yet, so treat it as structurally sound but unvalidated against real noise/glare/paint
-  texture. **Paint spec** (if repainting): matte/flat finish only (no gloss/metallic — glare
-  was the #1 recurring root cause of false marker matches), spray paint formulated for
-  plastic (not craft acrylic — these disks take repeated impacts), stay in the green/blue
-  family but saturated mid-tones (kelly/emerald green, royal/cobalt blue — avoid pastels,
-  red/orange, navy, neon), marker dimple painted black (not left bare) and the disk's *other*
-  (non-marker) dimple filled/painted to match the body so it stops being a second candidate
-  feature. Test one disk under real lab lighting before committing the full set.
+  logic with the classic path via `Pre_process._select_best_blob`.
+  **Constants retuned 2026-09-17** against a first real calibration survey (3 webcam clips,
+  ~1300 frames, classical color-blob detection independent of YOLO — see Model section for why
+  YOLO itself couldn't be used for this survey): 95 green-disk / 251 blue-disk body-color
+  samples, ~94/250 dimple samples, p1/p50/p99 percentiles (same methodology as the classic
+  scheme's 580-sample survey, but a smaller first pass — worth widening later, same as classic
+  scheme's constants were revised more than once).
+  - `FLIPPED_GREEN_LOWER/UPPER`, `FLIPPED_BLUE_LOWER/UPPER`: tightened from the inherited
+    classic-scheme bounds to the real measured (H,S,V) clusters + margin. **Blue paint's real
+    saturation runs far hotter than the old assumption** — measured up to S≈248, while the
+    inherited `BLUE_UPPER` capped S at 175 and would have silently clipped most of the real
+    blue disk out of the bulk-color vote. Green's real range sat comfortably inside the old
+    bounds; tightened anyway now that real data exists.
+  - `FLIPPED_MARKER_MAX_CIRCULARITY`: raised 0.90 → 0.94 — measured real dimple circularity
+    p99 ≈ 0.91-0.92, so the inherited 0.90 ceiling would have rejected ~1% of real dimples for
+    being "too circular."
+  - `FLIPPED_MARKER_MIN_AREA_FRAC`: nudged 0.015 → 0.012 for margin below the measured p1
+    (≈0.016-0.019).
+  - `FLIPPED_MARKER_DARK_VALUE_FRAC` (0.55) and `FLIPPED_MARKER_MIN_CIRCULARITY` (0.62,
+    inherited): measured real dimple-V/body-V ratio (p50 ≈0.37-0.46, p99 ≈0.61-0.63) and real
+    circularity floor (p1 ≈0.70-0.73) both landed safely inside these as-is — no change needed.
+  **Paint spec that produced this footage**: matte/flat finish, spray paint formulated for
+  plastic, saturated green/blue mid-tones, marker dimple painted black/grey (not left bare),
+  other dimple filled to match the body. Visually confirmed in the footage: no obvious glare on
+  the disk bodies themselves, dimple clearly visible by eye — the paint job looks like it did
+  its job for the marker-detection side of things.
 
 ### Rotation fitting and recovery (`Post_process.py` + `detector.py`)
 
@@ -186,10 +212,25 @@ there) and robustly fits angular velocity per segment:
 
 - **Deployed**: `runs/pose/train-5/weights/best.pt`, imgsz=1280, single class `puck`,
   `kpt_shape=[2,3]` (`[center, marker]`). Converged, not data-starved (mAP plateaus early;
-  more images of the same kind won't move it).
-- **Position/box detection is solid and validated.** **The marker keypoint is unreliable**
-  (~44% land on a non-marker specular highlight) and is **not used** by the pipeline — marker
-  localization is 100% classical CV, independent of this keypoint.
+  more images of the same kind won't move it) — **but this was measured entirely on gray-body
+  pre-repaint disks; `Puck_Training/` contains zero painted-disk frames.**
+- **Position/box detection is solid and validated — on the OLD gray-body appearance only.**
+  **Confirmed 2026-09-17 to NOT generalize to repainted disks**: run against 3 real webcam
+  clips of the new painted disks (~1300 frames total), `detect_disks_yolo()` returned boxes
+  4-5x undersized (radius ~10-14px vs a real measured ~40-66px, via an independent classical
+  color-blob measurement), at confidence ~0.05-0.25 — mostly below the pipeline's own
+  `YOLO_CONF=0.10` operating threshold — with only ~5-26% frame recall, and only 0-12 frames
+  per clip had *both* disks detected simultaneously (required for tracking). This is a real,
+  measured regression, not a hypothetical risk: **new annotated training data of the painted
+  disks is required before the pipeline works end-to-end on this footage** — retuning the
+  flipped marker-scheme constants (done, see below) was necessary but not sufficient. Once
+  annotated frames exist, fine-tune from `train-5`'s weights rather than retraining from
+  scratch (position/shape detection fundamentals shouldn't need to be relearned, only the new
+  color appearance).
+- **The marker keypoint is unreliable** (~44% land on a non-marker specular highlight, measured
+  on the old gray-body footage) and is **not used** by the pipeline — marker localization is
+  100% classical CV, independent of this keypoint. Irrelevant to the domain-shift problem above
+  (that's the box/center detection, not this keypoint).
 - **Trust the end-to-end pipeline test over isolated pose mAP** — shown twice not to predict
   real performance: a higher-mAP checkpoint (`240fps_trial_02-2`) didn't beat train-5
   end-to-end, and a keypoint-sigma-reweighted retrain (`marker_weighted`, prioritizing the
@@ -216,17 +257,29 @@ whole disk.
    240fps if pursuing this**, not yet done.
 3. 240fps's blur-reduction benefit (shorter shutter, less motion blur during approach/
    separation) is real and separate from rotation sampling (which is oversampled even at
-   60fps). The tradeoff is exposure — the available bright light flickers above 60fps. Don't
-   trade away fps to fix lighting; fix the light source (flicker-free/high-PWM, or more
-   diffuse LEDs) instead.
-4. **Worth testing first, not yet validated**: repositioning the table/collision so the glare
-   reflection falls outside frame, instead of relighting — keeps full brightness, sidesteps
-   the exposure tradeoff entirely if the geometry works out.
-5. **4K resolution**: recommended if the camera supports a still-decent fps at 4K (120fps+) —
-   more pixels directly helps the marker's precision problems. Check actual supported
-   resolution/fps combos first (4K@240fps is uncommon); don't trade away fps for resolution
-   without first checking how many frames of actual contact a collision shows at each
-   candidate fps (short contact + low fps risks losing the collision event itself).
+   60fps). The tradeoff is exposure — the available bright light flickers above 60fps.
+   **Superseded by #6 below** — moot now that the deliverable is locked to a 60fps webcam.
+4. **Repositioning to the other side of the table**: tried 2026-09-17 (`Other_Side.mp4`).
+   Tradeoff observed by eye: noticeably more shadow from that side. A same-session, per-clip
+   color-blob disk count (classical CV, not YOLO — see Model section for why) found more
+   disk-body detections in `Other_Side` (70 green / 151 blue) than either
+   `Previous_Side_Light` (25 / 49) or `Previous_Side_No_Light` (0 / 51) — but this is **not a
+   controlled comparison** (each clip is a different throw/trajectory, so more time
+   on-camera confounds the count) and shouldn't be read as "shadow beats glare" without a
+   same-trajectory repeat. Notable on its own regardless of cause: `Previous_Side_No_Light`
+   had zero green-disk color detections in 374 frames — worth a specific look at whether that
+   clip's green disk was in frame/orientation to be seen at all before concluding anything
+   about the no-light condition itself.
+5. **4K resolution**: would help marker precision in principle, but **moot — superseded by
+   #6**, the deployment camera is a 1080p webcam with no 4K mode.
+6. **Hardware decision (2026-09-17): webcam-only, no external hardware.** Professor requires
+   the project not depend on external hardware (no dedicated camera/phone purchase for the
+   pipeline itself). Deployment target is fixed at **1080p @ 60fps via webcam** — this is not
+   a stopgap, it's the actual spec to validate and tune against going forward. This resolves
+   #3 and #5 above (fps/resolution tradeoffs against phone slow-mo no longer apply) and
+   reinforces #2 (60fps is already the known-good operating point from prior NL testing).
+   A phone may still be used later for one-off calibration/reference footage, but the shipped
+   pipeline must work on webcam 1080p60fps footage.
 
 ## Known bugs / open issues
 
