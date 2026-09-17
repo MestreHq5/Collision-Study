@@ -429,6 +429,68 @@ def resolve_marker(frame, det, scale_mm_per_px=None):
     return resolve_marker_color(frame, det, scale_mm_per_px)
 
 
+# --- color-thresholding branch: position via HSV color, not YOLO ------------
+# Replaces detect_disks_yolo as this branch's primary position detector (see
+# ToDo.md section 5 for the measured comparison: YOLO doesn't generalize to
+# the repainted disks -- boxes 4-5x undersized, near-zero both-disk recall --
+# while this color-contour approach measured 78-92% both-disk recall
+# in-window on the same real footage). Only viable because the disk *body*
+# itself is now a large, saturated, matte color to threshold on; would not
+# have worked against the old gray-body disks (see prp.segment_disks_by_color
+# docstring). Kept on this branch specifically so `deepLearning` (YOLO-based)
+# stays intact and easy to fall back to if this approach hits a real problem
+# on a broader set of footage.
+COLOR_DISK_MIN_RADIUS = 30   # px; placeholder for this webcam's 1080p framing --
+COLOR_DISK_MAX_RADIUS = 120  # measured real disk radius on the first 3 test clips
+                             # was ~40-66px (median ~48-57px); retune if camera
+                             # distance/framing changes.
+COLOR_DISK_MIN_CIRCULARITY = 0.75
+
+
+def detect_disks_color(frame, color_ranges=None):
+    """
+    Primary position detector for this branch: finds at most one disk per
+    color (the largest contour passing the gates, mirroring
+    remove_duplicate_detections' "keep the best" logic instead of needing it),
+    and returns the same dict shape detect_disks_yolo does so every
+    downstream consumer (IDAssigner, CSV export, drawing, scale calibration)
+    needs no change. "conf" is a coarse fill-ratio proxy (contour area vs.
+    minimum-enclosing-circle area), not a model confidence -- a real disk
+    silhouette should be close to 1.0; a lower value flags a partially
+    occluded/cut-off blob without rejecting it outright (the circularity gate
+    already did the hard rejection).
+    """
+    if color_ranges is None:
+        color_ranges = {
+            "green": (FLIPPED_GREEN_LOWER, FLIPPED_GREEN_UPPER),
+            "blue": (FLIPPED_BLUE_LOWER, FLIPPED_BLUE_UPPER),
+        }
+
+    candidates = prp.segment_disks_by_color(
+        frame, color_ranges,
+        min_radius=COLOR_DISK_MIN_RADIUS, max_radius=COLOR_DISK_MAX_RADIUS,
+        min_circularity=COLOR_DISK_MIN_CIRCULARITY,
+    )
+
+    disks = []
+    for color_name in color_ranges:
+        same_color = [c for c in candidates if c["color"] == color_name]
+        if not same_color:
+            continue
+        best = max(same_color, key=lambda c: c["area"])
+        r = best["radius"]
+        fill_ratio = best["area"] / (math.pi * r * r) if r > 0 else 0.0
+        disks.append({
+            "center": best["center"],
+            "radius": r,
+            "marker_center": None,
+            "conf": float(min(fill_ratio, 1.0)),
+            "source": "color",
+        })
+
+    return disks
+
+
 class IDAssigner:
     """
     Assigns stable IDs (0/1) to detections:
@@ -835,22 +897,22 @@ def main(video_path, bg_path, dtc_path, csv_path, fps_eff, progress_callback=Non
     dependency and shouldn't gain one just for this.
     """
 
-    # 1) Load the YOLO Pose model first -- needed below to keep a puck that's
-    # already on the table out of the background estimate (moved ahead of
-    # background estimation for exactly that reason).
-    yolo_model, yolo_device = _get_yolo_model()
-    info("Info", f"YOLO Pose model loaded ({_resolve_model_path().name}) on device={yolo_device}")
+    # 1) color-thresholding branch: no model to load -- position detection is
+    # detect_disks_color (HSV contour) end to end. (deepLearning branch has
+    # the YOLO Pose load here instead; see ToDo.md section 5 for why this
+    # branch exists.)
 
     # 1b) Average background from a clean interval at the beggining of the filming
-    # (still needed: sets the disk-size scale reference and backs the contour fallback).
-    # puck_masker excludes any YOLO-detected disk region per sampled frame
+    # (still needed: backs the contour fallback -- scale_mm_per_px now comes
+    # from detect_disks_color's own radius samples instead, see below).
+    # puck_masker excludes any color-detected disk region per sampled frame
     # from the median instead of assuming the whole window is puck-free --
     # a puck already resting on the table (or moving too little) for the
     # entire clean_seconds window would otherwise get baked into the
     # "background" as if it were table surface (see CLAUDE.md Known bugs;
     # estimate_background_median's own docstring has the full mechanism).
     def _puck_masker(frame):
-        return [(d["center"][0], d["center"][1], d["radius"]) for d in detect_disks_yolo(yolo_model, yolo_device, frame)]
+        return [(d["center"][0], d["center"][1], d["radius"]) for d in detect_disks_color(frame)]
 
     bg_path = prp.estimate_background_median(
         video_path         = video_path,
@@ -920,8 +982,8 @@ def main(video_path, bg_path, dtc_path, csv_path, fps_eff, progress_callback=Non
         if not ret:
             break
 
-        # 4) Primary detection: YOLO Pose
-        disks = detect_disks_yolo(yolo_model, yolo_device, frame)
+        # 4) Primary detection: HSV color-contour (color-thresholding branch)
+        disks = detect_disks_color(frame)
         disks = remove_duplicate_detections(disks)
 
         # 4b) Hybrid fallback: if YOLO missed a disk, look for it via background
@@ -949,10 +1011,13 @@ def main(video_path, bg_path, dtc_path, csv_path, fps_eff, progress_callback=Non
                 expected_radius=expected_radius_px
             ))
 
-        # 5) Compute scale from the median of several YOLO-sourced radii
+        # 5) Compute scale from the median of several color-sourced radii
+        # (never from a contour_fallback radius -- see fallback_contour_disks,
+        # same rationale as the YOLO branch: don't let a fallback-quality
+        # measurement corrupt the one-time scale calibration).
         if scale_mm_per_px is None:
             for d in disks:
-                if d.get("source") == "yolo" and d["radius"] > 0:
+                if d.get("source") == "color" and d["radius"] > 0:
                     radius_samples.append(float(d["radius"]))
             if len(radius_samples) >= RADIUS_SAMPLE_TARGET:
                 median_rpx = float(np.median(radius_samples))
@@ -969,8 +1034,8 @@ def main(video_path, bg_path, dtc_path, csv_path, fps_eff, progress_callback=Non
             mark, marker_color = resolve_marker(frame, d, scale_mm_per_px)
 
             # 7) Drawing (disk & marker) on the original video
-            # Green edge = YOLO detection, orange edge = contour fallback (debug aid)
-            edge_color = (0, 255, 0) if d.get("source") == "yolo" else (0, 140, 255)
+            # Green edge = color-contour detection, orange edge = contour fallback (debug aid)
+            edge_color = (0, 255, 0) if d.get("source") == "color" else (0, 140, 255)
             cv2.circle(frame, (int(cx_px), int(cy_px)), int(r_px), edge_color, 2)
             cv2.circle(frame, (int(cx_px), int(cy_px)), 4, (0, 0, 255), -1)
             if mark is not None:

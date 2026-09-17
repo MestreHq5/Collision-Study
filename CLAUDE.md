@@ -35,16 +35,35 @@ see "Marker detection: two schemes" below), and 3 real webcam test clips exist a
 `Previous_Side_No_Light.mp4`, `Other_Side.mp4`, ~1080p@56-57fps — actual webcam fps drifts
 below the nominal 60, use each video's own measured fps, not an assumed 60).
 
-**Two separate tracks of work, now split by what's actually done vs. not:**
-1. **Marker/color logic (flipped scheme): done for this first pass.** Constants retuned
-   against a real calibration survey and `MARKER_SCHEME` switched to `"flipped"` — see
-   "Marker detection: two schemes" for the numbers. Treat as a good first pass, not final —
-   only 3 clips / ~1300 frames, smaller than the classic scheme's 580-sample survey.
-2. **YOLO position detection: confirmed broken on the new appearance, unstarted follow-up.**
-   `train-5` does not generalize to painted disks (measured regression, see Model section) —
-   **new annotated training data of the painted disks is required**, then fine-tune from
-   `train-5`'s weights. This is the actual remaining blocker to an end-to-end working pipeline
-   on repainted disks, not the marker logic.
+**Status as of 2026-09-17 session end — real but partial progress, not a finished pipeline:**
+1. **Marker/color logic (flipped scheme): retuned against real data.** `MARKER_SCHEME =
+   "flipped"`, constants retuned against a real calibration survey — see "Marker detection:
+   two schemes" for the numbers. Only 3 clips / ~1300 frames, smaller than the classic
+   scheme's 580-sample survey — good first pass, not final.
+2. **Position detection: pivoted from YOLO to color-thresholding, and it's the one piece
+   validated end-to-end against real footage — on exactly one clip.** `train-5` YOLO does not
+   generalize to painted disks (measured regression, see Model section) — rather than
+   annotate+retrain, built `color-thresholding` (new branch, HSV color-contour position, no
+   model). Ran the *actual physics pipeline* (not just detection recall) against
+   `Previous_Side_Light` and got a plausible result (e=0.898, momentum error 5.6%) — real
+   proof the approach works, but **n=1 clean clip is an early result, not a validated
+   pipeline.** `Other_Side` and `Previous_Side_No_Light` both failed for reasons unrelated to
+   the detector itself (uncut boundary bounce; this paint desaturating under no light) — see
+   ToDo.md sections 5/5b for the numbers on all three.
+3. **What's NOT yet validated, for a fresh session to know before calling this "done":**
+   - Only one real collision has been run through end-to-end and checked for physically sane
+     output. No test yet across multiple clips/speeds/lighting the way the classic scheme's
+     580-sample survey or the rotation-fitting held-out-footage checks were done.
+   - The marker/dimple/rotation side of the flipped scheme has only been checked via the
+     static calibration survey (HSV/shape percentiles) — **not** the classic scheme's
+     stationary-disk real-motion check (angle std / flip-flop test) that caught the classic
+     scheme's known marker bug. Real `theta`/`omega_fit` quality on the new paint is unverified.
+   - YOLO annotation/retraining is deprioritized, not abandoned — still the fallback if
+     color-thresholding doesn't hold up on a broader footage set (see CLAUDE.md "Disk
+     position" and ToDo.md).
+   - **New videos were recorded this session but not yet processed** — pending: run the same
+     detection+metrics check against them before drawing any broader conclusion from the one
+     clean result above.
 
 **Hardware is locked to webcam 1080p@60fps** (see "Lab / lighting history" #6) — that's the
 deployment spec to validate everything against going forward, not a stopgap. `Novos Videos`/
@@ -66,20 +85,52 @@ Collision-Study/
 └── runs/pose/train-5/weights/best.pt   # Fine-tuned YOLO Pose model (deployed)
 ```
 
-Single active branch: **`deepLearning`**.
+**Two active branches as of 2026-09-17**: `deepLearning` (YOLO-based position detection,
+prior main line) and **`color-thresholding`** (current work — HSV color-contour position
+detection, branched off `deepLearning`; see "Disk position" below and ToDo.md section 5 for
+why). `main` and `noLiveFeed` are older, not part of current work. All of this session's
+changes (both branches' worth of work — the flipped-scheme retune plus the new
+color-thresholding detector) are **uncommitted** on `color-thresholding` as of session end —
+`git status` shows `CLAUDE.md`, `Pre_process.py`, `detector.py`, `ToDo.md` modified. Nothing
+lost (it's all on disk), just not yet committed — do that deliberately next session rather
+than assuming it already happened.
 
 ### Detection pipeline (`detector.py`)
 
-- **Disk position**: YOLO Pose (single class `puck`, 2 keypoints `[center, marker]`),
-  `detect_disks_yolo()`, `conf=0.10`, `imgsz=1280`. Solid/near-perfect once a puck is in frame
-  — see Model section. **Treat bbox radius as noisy, not ground truth** (measured cases
-  underestimating the true disk by >3x) — never build tight geometry off a single frame's
-  bbox; `scale_mm_per_px` uses the median of the first 8 YOLO-sourced radii
-  (`RADIUS_SAMPLE_TARGET`) for exactly this reason.
-- **Fallback**: `fallback_contour_disks()` (background-subtraction contour), only when YOLO
-  found <2 disks, only within `FALLBACK_SEARCH_RADIUS_PX` of a missing disk's *predicted*
-  position (see `IDAssigner.predicted_pos`, not a stale last-seen one), radius-gated so
-  glare/reflection blobs can't slip through.
+- **Disk position — two branches, split 2026-09-17 after real repainted-disk footage exposed a
+  YOLO domain-shift failure (see Model section and ToDo.md section 5 for the measured numbers):**
+  - **`color-thresholding` branch (this one)**: `detect_disks_color()` / `Pre_process.
+    segment_disks_by_color()` — direct HSV color-contour on each disk's own paint color, no
+    model, no background image needed for position itself. Measured 78-92% both-disk recall
+    in-window on real footage (vs. YOLO's near-total failure on the same clips) and produced
+    physically plausible collision metrics end-to-end on real footage (`Previous_Side_Light`:
+    e=0.898, momentum error 5.6%, matching the same ballpark as `main`'s old classical-contour
+    result on old footage). `scale_mm_per_px` now comes from the median of the first 8
+    color-sourced radii (same `RADIUS_SAMPLE_TARGET` mechanism, same "don't trust one frame's
+    radius" rationale as YOLO's bbox). Bounds (`COLOR_DISK_MIN/MAX_RADIUS`,
+    `COLOR_DISK_MIN_CIRCULARITY`) are placeholders for this webcam's 1080p framing — retune if
+    camera distance changes.
+    **If this hits a real problem** (a footage condition where color-thresholding alone can't
+    find a disk reliably — e.g. a shadow or reflection desaturating the paint below the
+    calibrated HSV window for a stretch of frames): the fix is a **hybrid**, not a full
+    reversion — reuse `fallback_contour_disks()` (below) more aggressively as a background-
+    subtraction backup for exactly the frames color-thresholding misses, the same pattern
+    already used for YOLO's own gaps. Don't rebuild this branch as pure background-subtraction
+    (that's `main`'s old approach and it inherits the new lab's confirmed glare problem on its
+    own) — the color signal is the reliable part now that the whole disk is painted; background
+    subtraction is only ever the patch for the frames it can't reach.
+  - **`deepLearning` branch (prior)**: YOLO Pose (single class `puck`, 2 keypoints
+    `[center, marker]`), `detect_disks_yolo()`, `conf=0.10`, `imgsz=1280` — solid/near-perfect
+    on the *old* gray-body disks (see Model section), but confirmed not to generalize to
+    painted ones. Kept intact and switchable back to if `color-thresholding` doesn't hold up
+    on a broader footage set. **Treat bbox radius as noisy, not ground truth** (measured cases
+    underestimating the true disk by >3x) — never build tight geometry off a single frame's
+    bbox.
+- **Fallback**: `fallback_contour_disks()` (background-subtraction contour), only when the
+  primary detector (YOLO or color, per branch) found <2 disks, only within
+  `FALLBACK_SEARCH_RADIUS_PX` of a missing disk's *predicted* position (see
+  `IDAssigner.predicted_pos`, not a stale last-seen one), radius-gated so glare/reflection
+  blobs can't slip through.
 - **`IDAssigner`**: position-lock (within `POSITION_LOCK_GATE_PX`=60px of a tracked ID's last
   position claims it immediately, before color) makes the pipeline robust to a bad single-frame
   color read. Beyond the lock gate, matches against a *predicted* position (last position

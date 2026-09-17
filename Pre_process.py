@@ -239,6 +239,83 @@ def segment_disks(
     return disks
 
 
+def segment_disks_by_color(
+    frame: np.ndarray,
+    color_ranges: Dict[str, Tuple[np.ndarray, np.ndarray]],
+    min_radius: float = 30,
+    max_radius: float = 120,
+    min_circularity: float = 0.75,
+    morph_kernel: Tuple[int, int] = (7, 7),
+) -> List[Dict]:
+    """
+    color-thresholding branch: position detection via direct HSV color-range
+    matching instead of background subtraction (segment_disks) or a trained
+    model (detector.detect_disks_yolo). Only viable now that the disks
+    themselves are painted a large, saturated, matte color (see CLAUDE.md
+    "Marker detection: two schemes" / flipped scheme) -- against the old
+    gray-body disks there was no whole-disk color signal to threshold on.
+
+    Unlike segment_disks, this doesn't need a background image or care about
+    ambient brightness drifting between frames -- it only asks whether a
+    pixel's hue/saturation falls in a calibrated color window, so it isn't
+    fooled by a glare patch reading as "changed from background" the way
+    background subtraction was (see CLAUDE.md "deepLearning vs. classical
+    OpenCV contour" and ToDo.md section 5 for the measured comparison this
+    was built to replace: 78-92% both-disk recall in-window on real
+    repainted-disk footage vs. YOLO's near-total failure on the same clips).
+
+    Searches each color independently (one HSV mask per entry in
+    color_ranges), so a detection's `color` comes directly from which mask
+    it was found in -- no separate bulk-color vote needed to know identity,
+    unlike the flipped marker scheme's classify_disk_bulk_color (which still
+    runs separately for the *marker* dimple search, unaffected by this).
+
+    Args:
+      color_ranges: dict of name -> (hsv_lower, hsv_upper), e.g.
+        {"green": (FLIPPED_GREEN_LOWER, FLIPPED_GREEN_UPPER), "blue": (...)}
+      min_radius/max_radius: plausible disk radius in px (min-enclosing-circle
+        based) -- placeholder bounds for this camera's framing, same caveat
+        as segment_disks' own min/max_radius: retune per camera setup.
+      min_circularity: rejects thin rim/sliver artifacts same as the marker
+        shape gates elsewhere in this file -- a real disk silhouette is
+        close to a filled circle.
+
+    Returns a list of dicts, each with "contour", "center", "radius", "color",
+    "area" -- one entry per contour that passed the gates (may be more than
+    one per color; caller picks e.g. the largest as the real disk).
+    """
+    disks = []
+    for color_name, (lower, upper) in color_ranges.items():
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        mask = cv2.inRange(hsv, lower, upper)
+        mask = cv2.medianBlur(mask, 5)
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, morph_kernel)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=1)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=2)
+
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        for cnt in contours:
+            (x, y), r = cv2.minEnclosingCircle(cnt)
+            if not (min_radius <= r <= max_radius):
+                continue
+            area = cv2.contourArea(cnt)
+            perimeter = cv2.arcLength(cnt, True)
+            if perimeter <= 0:
+                continue
+            circularity = 4 * np.pi * area / (perimeter * perimeter)
+            if circularity < min_circularity:
+                continue
+            disks.append({
+                "contour": cnt,
+                "center": (x, y),
+                "radius": r,
+                "color": color_name,
+                "area": area,
+            })
+
+    return disks
+
+
 def detect_marker_center(
     frame: np.ndarray,
     disk_center: Tuple[float, float],

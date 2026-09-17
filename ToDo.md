@@ -179,6 +179,27 @@ side to dodge that band (cheap, keeps full throw distance) before conceding reca
 cramped alternate side. Other-side footage still useful as supplementary training diversity,
 not as the primary experimental setup.
 
+## 5b. Option A built and run end-to-end (`color-thresholding` branch)
+
+Implemented as `Pre_process.segment_disks_by_color()` + `detector.detect_disks_color()`,
+wired in as `main()`'s primary position detector (replacing `detect_disks_yolo()` on this
+branch only — `deepLearning` is untouched). Ran the real `build_student_excel(...,
+include_metrics=True)` physics pipeline against the actual CSV output, not just detection
+recall:
+
+- **`Previous_Side_Light`**: clean, physically plausible result — e=0.898, momentum error
+  5.6% (rel.), energy drop 23% (COM frame). Same ballpark as `main`'s old classical result on
+  Video11 (e=0.9485, 7.14%) — real end-to-end validation, not just a recall number.
+- **`Other_Side`**: garbage — e=-0.435 (unphysical, implies the disks were approaching after
+  the "collision"), momentum error 86.6%, energy drop NaN. **This is not a color-thresholding
+  failure** — it's the boundary-bounce problem the user already flagged (section 7 action
+  item): that clip has more than one contact event (wall bounce), which breaks
+  `_find_collision_frame`'s single-collision assumption and poisons the before/after velocity
+  segments it depends on. Confirms manual clipping of `Other_Side`-style footage isn't
+  optional busywork — uncut, it produces confidently-wrong physics, not just noisier numbers.
+- `Previous_Side_No_Light` skipped — disk 0 (green) has zero detections in that clip (see
+  section 5), so there's no "before" track to compute anything from at all.
+
 ## 6. Minor bug found along the way
 
 `main`'s `detector.py` hardcodes `DISK_DIAMETER_MM = 80.0`; this branch
