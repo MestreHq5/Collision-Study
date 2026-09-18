@@ -372,6 +372,26 @@ FLIPPED_BLUE_UPPER = np.array([112, 255, 190])
 FLIPPED_MARKER_DARK_VALUE_FRAC = 0.55  # measured real dimple-V/body-V ratio: p50 ~0.37-0.46,
 # p99 ~0.61-0.63 -- the inherited placeholder already sits above nearly all real
 # ratios (safe), so left as-is; only the ~1% tail past 0.55 would be missed.
+# That p50-p99 survey was blue-disk-dominated (95 green / 251 blue body samples,
+# see CLAUDE.md) and this single global constant hid a real per-color split: the
+# black dimple's own absolute brightness is roughly constant regardless of which
+# disk it's painted on, but this scheme thresholds RELATIVE to that disk's own
+# median V, and green's paint measures far darker overall than blue's (FLIPPED_
+# GREEN_UPPER's V cap is 110 vs FLIPPED_BLUE_UPPER's 190, confirmed again in a
+# 2026-09-18 measurement on clips 3/5: green body median V ~79-85, dimple V
+# ~50-60 -> ratio ~0.6-0.65, ABOVE 0.55). Net effect measured end-to-end on
+# clips 3 & 5 (detector.main(), real pipeline): green marker found in 0/40 rows
+# at 0.55 vs blue's 78-83% -- not a shape/area gate problem, the dark-pixel mask
+# was simply empty for green before cleanup even ran. A frac sweep on the same
+# two clips (both-clips-combined green recall) found 0.55:14%, 0.65:50%,
+# 0.70:93%, 0.72:100%, with the 0.72 hits visually confirmed landing on the
+# real dimple (not shadow/noise) across sampled frames -- see
+# FLIPPED_MARKER_DARK_VALUE_FRAC_GREEN below. This is a software mitigation,
+# not the real fix -- the real fix is a brighter/lighter green paint (raising
+# the disk body's own V) so green gets the same contrast margin blue already
+# has; revisit this constant (and consider reverting to one shared value) once
+# that repaint happens.
+FLIPPED_MARKER_DARK_VALUE_FRAC_GREEN = 0.72
 FLIPPED_MARKER_MIN_AREA_FRAC = 0.012  # measured real dimple area_frac p1 ~0.016-0.019;
 # floor nudged slightly below that for margin (was inheriting classic's 0.015, coincidentally close)
 FLIPPED_MARKER_MIN_CIRCULARITY = MARKER_MIN_CIRCULARITY  # measured real p1 ~0.70-0.73,
@@ -442,7 +462,12 @@ def resolve_marker_flipped_scheme(frame, det, scale_mm_per_px=None):
         max_circularity=FLIPPED_MARKER_MAX_CIRCULARITY,
         mask_center=(cx, cy), mask_radius=mask_outer,
         mask_inner_radius=r * MARKER_DIST_MIN_FRAC,
-        dark_value_frac=FLIPPED_MARKER_DARK_VALUE_FRAC,
+        # Green's disk body reads measurably darker than blue's (see
+        # FLIPPED_MARKER_DARK_VALUE_FRAC's comment) -- the same relative
+        # threshold that reliably isolates blue's dimple leaves near-zero
+        # margin for green's, so green gets its own retuned constant.
+        dark_value_frac=(FLIPPED_MARKER_DARK_VALUE_FRAC_GREEN if color == "green"
+                          else FLIPPED_MARKER_DARK_VALUE_FRAC),
     )
     return mark, color
 

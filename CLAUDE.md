@@ -361,6 +361,37 @@ whole disk.
    sample window — if a puck sits somewhere YOLO doesn't detect it at all during that window,
    that spot still isn't protected. Edge case, not hit in testing so far.
 
+**Resolved 2026-09-18** (found from user-reported symptoms on real clips 3 & 5, `New Disks`
+batch; both verified by re-running the real pipeline end-to-end, not just unit-level):
+
+3. **`collision_gap_mm` unit-mismatch bug, fixed.** `_compute_metrics` (`Post_process.py`)
+   received `radius` in mm (the GUI field is labeled mm — `disk_r_g_val`/`disk_r_b_val`) but
+   treated it as meters in two places: the `collision_gap_mm` diagnostic subtracted the raw mm
+   sum from a meter-scale recorded distance before re-multiplying by 1000, and `RADIUS_M` (feeding
+   `INERTIA` for the rotational-KE term in `energy_drop_rel_COM`) used the raw mm value as
+   meters — inflating rotational KE by ~1e6x whenever a segment's fitted omega was nonzero.
+   Symptom: `collision_gap_mm` values like -69924.5 instead of a few mm. Fix: convert `radius`
+   to meters once at the top of `_compute_metrics` (`radius_m`), used everywhere downstream.
+   Verified on clips 3/5: gap now reads +3.8mm / +5.5mm (physically sane — recorded frames
+   didn't quite reach true contact distance, as expected from frame-rate sampling).
+4. **Green marker (dimple) detection, fixed for now — real fix still pending.** Root cause:
+   `detect_dark_marker_center`'s threshold is relative to *that disk's own* median V
+   (`dark_value_frac × median_V`), but green's painted body measures far darker overall than
+   blue's (`FLIPPED_GREEN_UPPER` V-cap 110 vs `FLIPPED_BLUE_UPPER`'s 190; confirmed again
+   directly on clips 3/5: green body median V ~79-85, blue ~139-146). The black dimple's own
+   absolute brightness is roughly constant regardless of which disk it's on (~50-60 V measured),
+   so the same 0.55 relative threshold that reliably isolates it on bright blue (ratio ~0.36-0.48)
+   almost never triggers on darker green (ratio ~0.6-0.65, above the 0.55 cutoff) — confirmed via
+   the real pipeline: green marker recall was 0/40 rows across clips 3+5 before the fix. Software
+   mitigation: `FLIPPED_MARKER_DARK_VALUE_FRAC_GREEN = 0.72` (detector.py), used only for green
+   disks, chosen via a real-footage sweep (0.55→14%, 0.65→50%, 0.70→93%, 0.72→100% green-marker
+   recall on clips 3+5 combined) and visually confirmed landing on the real dimple, not
+   noise/shadow. Re-ran full pipeline post-fix: green recall 100%/95% on clips 3/5 (was 0%/0%).
+   **This is a stopgap, not the real fix** — same conclusion as the classic scheme's known bug
+   above: the durable fix is a brighter/more saturated green paint so green gets the same V
+   headroom blue already has, at which point this constant should be revisited (possibly merged
+   back into one shared value).
+
 ## Reference: local test footage
 
 - `Camera Roll\NL\` — no-glare lighting test clips (NL01/02 = 60fps; NL03-05 = 240fps,

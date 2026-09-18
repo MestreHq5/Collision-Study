@@ -421,6 +421,13 @@ def _compute_metrics(df0m: pd.DataFrame, df1m: pd.DataFrame, masses: tuple, radi
         - energy_drop_rel_COM (medians with COM de-jitter, includes rotation)
         - collision_gap_mm (diagnostic -- see below)
     """
+    # `radius` arrives in mm (GUI field is labeled mm, see app.py/gui.ui disk_r_g/disk_r_b),
+    # but every position column here (cx/cy, from _add_meter_cols) is in meters -- bug found
+    # 2026-09-18: collision_gap_mm was mixing the two unconverted (subtracting an mm-scale
+    # sum from a meter-scale distance, then re-multiplying by 1000), producing nonsense like
+    # -69924.5 instead of a value near zero. Convert once, here, to meters.
+    radius_m = (radius[0] / 1000.0, radius[1] / 1000.0)
+
     # Collision frame
     cf = _find_collision_frame(df0m, df1m)
 
@@ -486,10 +493,10 @@ def _compute_metrics(df0m: pd.DataFrame, df1m: pd.DataFrame, masses: tuple, radi
         p0c = df0m.iloc[[(df0m["frame"] - cf).abs().idxmin()]][["cx","cy"]]
         p1c = df1m.iloc[[(df1m["frame"] - cf).abs().idxmin()]][["cx","cy"]]
     recorded_gap_m = float(np.linalg.norm(p1c.values[0].astype(float) - p0c.values[0].astype(float)))
-    collision_gap_mm = (recorded_gap_m - (radius[0] + radius[1])) * 1000.0
+    collision_gap_mm = (recorded_gap_m - (radius_m[0] + radius_m[1])) * 1000.0
 
     # ---- Momentum error (relative; full-data means) ----
-    RADIUS_M = (radius[0] + radius[1]) / 2
+    RADIUS_M = (radius_m[0] + radius_m[1]) / 2
     MASS = {0: masses[0], 1: masses[1]}
     p_before = np.array([MASS[0]*v0b[0] + MASS[1]*v1b[0],
                          MASS[0]*v0b[1] + MASS[1]*v1b[1]])
