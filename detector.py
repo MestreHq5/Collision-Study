@@ -7,54 +7,16 @@ import numpy as np
 # Built-in modules
 import csv
 import math
-import sys
-from pathlib import Path
 
 # Personal Modules
 import Pre_process as prp
 import Post_process as pp
-
-# Third-party
-from ultralytics import YOLO  # YOLO Pose model for disk detection
-import pandas as pd  # rotation-recovery pass reads/writes the detections CSV
 
 # 1) Core global constants
 FRAME_LIMIT_AVG  = 60 # maximum amount of frames needed to average the background
 CLEAN_SECONDS = 2.0 # first part of the video where script averages the background
 BLUR_KERNEL  = (5, 5) # diemnsion of the kernel used in the Gaussian Blur
 DEFAULT_MASS = 0.0118 # default mass
-
-# HSV ranges for the offset mark. Recalibrated this session from a broad survey
-# (see CLAUDE.md) of 580 marker-blob samples pulled from 859 puck-containing
-# frames spanning all 28 videos in Camera Roll/Novos Videos/ — a much broader
-# base than earlier single-clip calibrations, which kept turning out to be
-# overfit to whichever one clip they were validated against. Bounds are ~p1-p99
-# of each color's measured (hue, sat, val) cluster, with the hue split placed
-# in the natural gap between the two clusters (~80-89, only 6/580 samples).
-GREEN_LOWER = np.array([48, 55, 25])
-GREEN_UPPER = np.array([85, 245, 150])
-BLUE_LOWER  = np.array([88, 55, 28])
-BLUE_UPPER  = np.array([115, 175, 165])
-
-# A real paint marker is a compact round dot; a false-positive blob from an
-# over-permissive HSV floor (edge anti-aliasing, shadow, specular glint) tends
-# to be a thin sliver following the disk's rim instead. Gate both area (scaled
-# to the disk's own size, not a fixed tiny constant that any noise clears) and
-# circularity so "no marker visible this frame" (legitimate — the marker
-# rotates out of view) stays a null result instead of a wrong color lock.
-# MARKER_MIN_AREA_FRAC came from the same broad survey: median real-marker
-# area was ~4.4% of the disk's face, p25 ~2.5% — the previous 0.07 (7%) floor
-# was above the median, silently rejecting most genuine detections.
-MARKER_MIN_AREA_FRAC = 0.015   # min marker area as a fraction of the disk's face area
-MARKER_MIN_CIRCULARITY = 0.62  # 4*pi*area/perimeter^2; validated true~0.72-0.83 vs false~0.61.
-# Circularity carries most of the false-positive rejection burden (the known
-# false case was 95px/circ~0.61 on a disk where even 0.07*area ~= 55px would
-# NOT have rejected it on area alone) — area is a coarse floor, not the
-# primary filter.
-MARKER_MAX_CIRCULARITY = 0.90  # reject anything MORE circular than this too — a small
-# (~28px) noise/compression-artifact blob measured 0.943, more "perfectly" round than any
-# confirmed real marker (max observed 0.833). Surfaced once `detect_marker_center` started
-# considering every valid contour instead of only the largest raw one (see Pre_process.py).
 
 # Real disk diameter in mm (user-confirmed: 35mm radius, not 40mm — this drives
 # scale_mm_per_px, so it was scaling every mm value in the CSV/Excel output ~14% high)
@@ -63,23 +25,20 @@ DISK_RADIUS_MM = DISK_DIAMETER_MM / 2.0
 
 # Marker search geometry: exclude only a small central disc (the offset
 # marker, user-measured at 20-30mm from center on a 35mm-radius disk, is
-# never near-center regardless of how wrong a given frame's bbox radius is).
-# MARKER_SEARCH_PAD_FACTOR still sizes the *crop* generously (see
-# resolve_marker_color) so a per-frame bbox-radius underestimate can't clip
-# real signal out of the search region before the outer mask even runs, but
-# the outer *mask* bound is now a hard physical one: the marker can never
-# legitimately land outside the disk's own 35mm radius, so anything the
-# color search finds past that is background/table, never the puck, by
-# construction, not by threshold tuning. An earlier version of this file
-# tried an outer bound (both bbox-relative and mm-calibrated) and reverted
-# it for costing recall on a whole-dataset survey (42% -> 28%) — revisited
-# after a controlled real-footage test (`240_15.mp4`, a motionless disk
-# used as ground truth so any detected marker movement is pure noise, not
-# real rotation) found detected positions landing up to 3.5x the disk
-# radius away, i.e. confidently off the physical disk — the no-bound design
-# was letting background noise dominate on this footage's dark disk
-# material + overhead glare, not just occasionally missing a legitimately
-# off-radius real marker. See CLAUDE.md for the full writeup.
+# never near-center regardless of how wrong a given frame's detected radius
+# is). MARKER_SEARCH_PAD_FACTOR still sizes the *crop* generously (see
+# resolve_marker) so a per-frame radius underestimate can't clip real signal
+# out of the search region before the outer mask even runs, but the outer
+# *mask* bound is now a hard physical one: the marker can never legitimately
+# land outside the disk's own 35mm radius, so anything the search finds past
+# that is background/table, never the puck, by construction, not by
+# threshold tuning. An earlier version of this file tried an outer bound and
+# reverted it for costing recall on a whole-dataset survey (42% -> 28%) —
+# revisited after a controlled real-footage test (a motionless disk used as
+# ground truth so any detected marker movement is pure noise, not real
+# rotation) found detected positions landing up to 3.5x the disk radius
+# away, i.e. confidently off the physical disk. See CLAUDE.md for the full
+# writeup.
 MARKER_DIST_MIN_FRAC = 0.3
 MARKER_SEARCH_PAD_FACTOR = 3.5
 
@@ -87,107 +46,14 @@ MARKER_SEARCH_PAD_FACTOR = 3.5
 COLOR_ID_MAP = {"green": 0, "blue": 1}
 ALL_IDS = sorted(COLOR_ID_MAP.values())  # [0,1]
 
-# --- YOLO Pose detection settings ---
-# Best fine-tuned run to date (see CLAUDE.md). Single class "puck", 2 keypoints
-# per detection: kpt[0] = disk center, kpt[1] = offset color marker.
-YOLO_WEIGHTS_REL = Path("runs") / "pose" / "train-5" / "weights" / "best.pt"
-YOLO_CONF = 0.10          # directive: keep conf around 0.10-0.15; validated against real
-                          # footage (240_25.mp4): 0.10 recovers frames 0.15 misses with zero
-                          # measured false positives in puck-free stretches of the same video
-YOLO_IOU = 0.5
-YOLO_IMGSZ = 1280          # match training imgsz (train-5/args.yaml) for best accuracy
-YOLO_MIN_RADIUS = 10
-YOLO_MAX_RADIUS = 200
-YOLO_DEDUP_DIST_PX = 30   # merge duplicate boxes closer than this (directive)
-YOLO_KPT_CONF_MIN = 0.25  # minimum keypoint confidence to trust a keypoint
+FALLBACK_MIN_RADIUS = 10
+FALLBACK_MAX_RADIUS = 200
+DEDUP_DIST_PX = 30        # merge duplicate detections closer than this
 FALLBACK_GATE_PX = 200    # only look for a missing disk within this radius of its last seen position
 FALLBACK_SEARCH_RADIUS_PX = 250  # how far from that last position a contour fallback candidate may be
 
-_yolo_model = None
-_yolo_device = None
 
-
-def _resolve_model_path() -> Path:
-    """PyInstaller-safe path to the model weights (mirrors helper.resource_path)."""
-    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
-    return base / YOLO_WEIGHTS_REL
-
-
-def _get_yolo_model():
-    """Lazily load (and cache) the YOLO Pose model + preferred device."""
-    global _yolo_model, _yolo_device
-    if _yolo_model is None:
-        weights_path = _resolve_model_path()
-        if not weights_path.exists():
-            raise FileNotFoundError(f"YOLO pose weights not found at {weights_path}")
-        _yolo_model = YOLO(str(weights_path))
-        try:
-            import torch
-            _yolo_device = 0 if torch.cuda.is_available() else "cpu"
-        except Exception:
-            _yolo_device = "cpu"
-    return _yolo_model, _yolo_device
-
-
-def detect_disks_yolo(model, device, frame, conf=YOLO_CONF, iou=YOLO_IOU, imgsz=YOLO_IMGSZ,
-                       min_radius=YOLO_MIN_RADIUS, max_radius=YOLO_MAX_RADIUS):
-    """
-    Runs the YOLO Pose model on a single frame and returns candidate disks:
-      center:  (cx, cy) px  -> from the "center" keypoint if confident, else bbox center
-      radius:  float px     -> from the bounding box
-      marker_center: (mx, my) px or None -> raw "marker" keypoint (refined later via HSV)
-      conf:    detection confidence (used for de-duplication)
-    """
-    results = model.predict(frame, conf=conf, iou=iou, imgsz=imgsz, device=device, verbose=False)[0]
-
-    disks = []
-    boxes = results.boxes
-    if boxes is None or len(boxes) == 0:
-        return disks
-
-    xyxy = boxes.xyxy.cpu().numpy()
-    confs = boxes.conf.cpu().numpy()
-
-    kpts_xy = None
-    kpts_conf = None
-    if results.keypoints is not None:
-        kpts_xy = results.keypoints.xy.cpu().numpy()
-        if results.keypoints.conf is not None:
-            kpts_conf = results.keypoints.conf.cpu().numpy()
-
-    for i, box in enumerate(xyxy):
-        x1, y1, x2, y2 = box
-        r = ((x2 - x1) + (y2 - y1)) / 4.0
-        if not (min_radius <= r <= max_radius):
-            continue
-
-        bbox_center = (float((x1 + x2) / 2.0), float((y1 + y2) / 2.0))
-        center = bbox_center
-        marker_center = None
-
-        if kpts_xy is not None and kpts_xy.shape[1] >= 2:
-            cx0, cy0 = kpts_xy[i, 0]
-            c0_conf = float(kpts_conf[i, 0]) if kpts_conf is not None else 1.0
-            if c0_conf >= YOLO_KPT_CONF_MIN and not (cx0 == 0 and cy0 == 0):
-                center = (float(cx0), float(cy0))
-
-            mx, my = kpts_xy[i, 1]
-            m_conf = float(kpts_conf[i, 1]) if kpts_conf is not None else 1.0
-            if m_conf >= YOLO_KPT_CONF_MIN and not (mx == 0 and my == 0):
-                marker_center = (float(mx), float(my))
-
-        disks.append({
-            "center": center,
-            "radius": float(r),
-            "marker_center": marker_center,
-            "conf": float(confs[i]),
-            "source": "yolo",
-        })
-
-    return disks
-
-
-def remove_duplicate_detections(disks, dist_threshold=YOLO_DEDUP_DIST_PX):
+def remove_duplicate_detections(disks, dist_threshold=DEDUP_DIST_PX):
     """Keeps the highest-confidence detection among any cluster of near-duplicate boxes."""
     kept = []
     for d in sorted(disks, key=lambda d: -d.get("conf", 0.0)):
@@ -201,12 +67,13 @@ def remove_duplicate_detections(disks, dist_threshold=YOLO_DEDUP_DIST_PX):
 
 
 def fallback_contour_disks(frame, background, existing_disks, prev_pos, missing_ids,
-                            dedup_dist=YOLO_DEDUP_DIST_PX, search_radius=FALLBACK_SEARCH_RADIUS_PX,
+                            dedup_dist=DEDUP_DIST_PX, search_radius=FALLBACK_SEARCH_RADIUS_PX,
                             expected_radius=None):
     """
-    Background-subtraction fallback for disks YOLO missed this frame. Only searches
-    near each missing ID's last known position, rather than trusting every contour
-    found on the table (directive: expected-region fallback, not whole-frame).
+    Background-subtraction fallback for disks the color detector missed this
+    frame. Only searches near each missing ID's last known position, rather
+    than trusting every contour found on the table (expected-region fallback,
+    not whole-frame).
     """
     if not missing_ids:
         return []
@@ -214,16 +81,17 @@ def fallback_contour_disks(frame, background, existing_disks, prev_pos, missing_
     contour_disks = prp.segment_disks(
         frame, background,
         thresh_val=50, morph_kernel=(5, 5),
-        min_radius=YOLO_MIN_RADIUS, max_radius=YOLO_MAX_RADIUS
+        min_radius=FALLBACK_MIN_RADIUS, max_radius=FALLBACK_MAX_RADIUS
     )
 
     # Sanity gate: a contour candidate is only a plausible puck if its radius is
     # close to a known puck radius. Without this, a glare/reflection blob (still
-    # circular enough, still inside [YOLO_MIN_RADIUS, YOLO_MAX_RADIUS]) can slip
-    # through, get a spurious HSV color match, and get locked in as a phantom
-    # second puck by IDAssigner. Prefer this frame's own YOLO measurement; fall
-    # back to the calibrated disk radius (from scale_mm_per_px) when YOLO found
-    # nothing at all this frame; only use the generic wide bounds as a last resort.
+    # circular enough, still inside [FALLBACK_MIN_RADIUS, FALLBACK_MAX_RADIUS])
+    # can slip through, get a spurious HSV color match, and get locked in as a
+    # phantom second puck by IDAssigner. Prefer this frame's own color-detected
+    # radius; fall back to the calibrated disk radius (from scale_mm_per_px)
+    # when nothing was found at all this frame; only use the generic wide
+    # bounds as a last resort.
     if existing_disks:
         ref_r = sum(ed["radius"] for ed in existing_disks) / len(existing_disks)
     elif expected_radius is not None:
@@ -234,9 +102,9 @@ def fallback_contour_disks(frame, background, existing_disks, prev_pos, missing_
     if ref_r is not None:
         r_lo, r_hi = ref_r * 0.5, ref_r * 1.8
     else:
-        r_lo, r_hi = YOLO_MIN_RADIUS, YOLO_MAX_RADIUS
+        r_lo, r_hi = FALLBACK_MIN_RADIUS, FALLBACK_MAX_RADIUS
 
-    # Drop contour candidates that just duplicate an already-found YOLO disk,
+    # Drop contour candidates that just duplicate an already-found disk,
     # or whose size doesn't plausibly match a puck.
     candidates = [
         cd for cd in contour_disks
@@ -271,133 +139,48 @@ def fallback_contour_disks(frame, background, existing_disks, prev_pos, missing_
     return added
 
 
-def resolve_marker_color(frame, det, scale_mm_per_px=None):
-    """
-    Finds the HSV-confirmed marker centroid + color for a detection.
-
-    Scans a generously padded crop around the disk (MARKER_SEARCH_PAD_FACTOR)
-    for the largest matching color blob, excluding a small central disc
-    (MARKER_DIST_MIN_FRAC — the marker is never near-center) and, when
-    scale_mm_per_px is available, excluding anything past the disk's own
-    physical 35mm radius (DISK_RADIUS_MM) too — see MARKER_SEARCH_PAD_FACTOR's
-    comment for why this was reintroduced after being reverted once already.
-    Deliberately keyed off the run-level scale calibration (a median over
-    RADIUS_SAMPLE_TARGET frames), not this frame's own YOLO bbox radius `r`:
-    `r` alone is exactly the noisy per-frame quantity that broke the first
-    attempt at an outer bound (see Model section — it can underestimate the
-    true disk by >3x), so bounding directly off it would still clip real
-    markers on the frames where it's bad. `r` is only used as a crop-size
-    floor now (never as the actual outer bound), so a bad `r` can make the
-    crop bigger than necessary but can no longer make the mask wrong.
-    No outer bound is applied for the handful of frames before
-    scale_mm_per_px is calibrated (falls back to the old bbox-relative pad).
-
-    Precision against background otherwise comes from color range +
-    MARKER_MIN_AREA_FRAC + MARKER_MIN_CIRCULARITY (a real paint marker is a
-    compact round blob at a characteristic size; validated against known
-    true/false cases — see CLAUDE.md) plus IDAssigner's position-lock, which
-    already stops an occasional bad color read from corrupting an established
-    track.
-    """
-    cx, cy = det["center"]
-    r = det["radius"]
-    pad_factor = MARKER_SEARCH_PAD_FACTOR
-
-    mask_inner = r * MARKER_DIST_MIN_FRAC
-    if scale_mm_per_px:
-        mask_outer = DISK_RADIUS_MM / scale_mm_per_px
-    else:
-        mask_outer = r * pad_factor
-
-    # Crop must stay big enough to contain mask_outer even on a frame whose
-    # bbox radius r underestimates the true disk -- pad off whichever of the
-    # two implies the larger crop.
-    crop_radius = max(r, mask_outer / pad_factor)
-
-    min_area = MARKER_MIN_AREA_FRAC * math.pi * r * r
-
-    mark = prp.detect_marker_center(frame, (cx, cy), crop_radius, GREEN_LOWER, GREEN_UPPER,
-                                     pad_factor=pad_factor,
-                                     min_area=min_area, min_circularity=MARKER_MIN_CIRCULARITY,
-                                     max_circularity=MARKER_MAX_CIRCULARITY,
-                                     mask_center=(cx, cy), mask_radius=mask_outer,
-                                     mask_inner_radius=mask_inner)
-    if mark is not None:
-        return mark, "green"
-    mark = prp.detect_marker_center(frame, (cx, cy), crop_radius, BLUE_LOWER, BLUE_UPPER,
-                                     pad_factor=pad_factor,
-                                     min_area=min_area, min_circularity=MARKER_MIN_CIRCULARITY,
-                                     max_circularity=MARKER_MAX_CIRCULARITY,
-                                     mask_center=(cx, cy), mask_radius=mask_outer,
-                                     mask_inner_radius=mask_inner)
-    if mark is not None:
-        return mark, "blue"
-
-    return None, None
-
-
-# --- Flipped marker scheme: whole disk painted, marker = black dimple -------
-# Real repainted-disk footage now exists (3 webcam clips, 2026-09-17: lit/
-# unlit/other-side-of-table, ~1300 frames total) and the constants below were
-# retuned against it via a classical color-blob survey independent of YOLO
-# (95 green-disk / 251 blue-disk body samples, ~94/250 dimple samples;
-# p1/p50/p99 percentiles, same methodology as the classic scheme's 580-sample
-# survey but a smaller first pass -- worth a wider survey once more footage
-# exists, same as the classic scheme's constants were revised more than once).
-# Switching MARKER_SCHEME here is safe now that it's been validated against
-# real samples instead of only synthetic ones.
+# --- Marker detection: whole disk painted, marker = black/grey dimple ------
+# Disks are painted a large, saturated, matte color (whole body, not just a
+# small offset dot) with the offset marker itself a black-painted dimple --
+# see CLAUDE.md "Marker detection" for the paint spec and the real-footage
+# survey that calibrated the constants below (95 green-disk / 251 blue-disk
+# body samples, ~94/250 dimple samples; p1/p50/p99 percentiles).
 #
-# IMPORTANT CAVEAT: this calibration says nothing about YOLO position
-# detection, which was measured (same session) to NOT generalize to painted
-# disks -- `train-5` was trained exclusively on gray-body disks, and on this
-# new footage its boxes came back 4-5x undersized (radius ~10-14px vs a real
-# ~40-66px) at conf ~0.05-0.25 (below the 0.10 operating threshold), with only
-# ~5-26% frame recall. New annotated training data is required before the
-# full pipeline (position + marker together) works end-to-end on repainted
-# disks -- see CLAUDE.md Model section.
-MARKER_SCHEME = "flipped"  # "classic" (old gray-body footage) or "flipped" (repainted disks)
-
 # Real body-color survey found blue paint saturation runs much hotter than
-# the classic scheme's small-dot calibration assumed (observed S up to
-# ~248 vs the classic BLUE_UPPER's S=175, which would have silently clipped
-# most of the real blue disk out of the bulk-color vote) -- confirms the
-# "expect tightening, not widening" prediction was directionally right for
-# hue but wrong about saturation heading the other way. Green's real range
-# sat comfortably inside the classic bounds; tightened here anyway now that
-# real data exists, rather than left needlessly wide.
-FLIPPED_GREEN_LOWER = np.array([60, 55, 30])
-FLIPPED_GREEN_UPPER = np.array([85, 110, 110])
-FLIPPED_BLUE_LOWER = np.array([95, 100, 70])
-FLIPPED_BLUE_UPPER = np.array([112, 255, 190])
-FLIPPED_MARKER_DARK_VALUE_FRAC = 0.55  # measured real dimple-V/body-V ratio: p50 ~0.37-0.46,
+# first assumed (observed S up to ~248) while green's range was already
+# comfortably inside the initial bounds -- tightened both here now that real
+# data exists.
+GREEN_LOWER = np.array([60, 55, 30])
+GREEN_UPPER = np.array([85, 110, 110])
+BLUE_LOWER = np.array([95, 100, 70])
+BLUE_UPPER = np.array([112, 255, 190])
+MARKER_DARK_VALUE_FRAC = 0.55  # measured real dimple-V/body-V ratio: p50 ~0.37-0.46,
 # p99 ~0.61-0.63 -- the inherited placeholder already sits above nearly all real
 # ratios (safe), so left as-is; only the ~1% tail past 0.55 would be missed.
 # That p50-p99 survey was blue-disk-dominated (95 green / 251 blue body samples,
 # see CLAUDE.md) and this single global constant hid a real per-color split: the
 # black dimple's own absolute brightness is roughly constant regardless of which
 # disk it's painted on, but this scheme thresholds RELATIVE to that disk's own
-# median V, and green's paint measures far darker overall than blue's (FLIPPED_
-# GREEN_UPPER's V cap is 110 vs FLIPPED_BLUE_UPPER's 190, confirmed again in a
-# 2026-09-18 measurement on clips 3/5: green body median V ~79-85, dimple V
-# ~50-60 -> ratio ~0.6-0.65, ABOVE 0.55). Net effect measured end-to-end on
-# clips 3 & 5 (detector.main(), real pipeline): green marker found in 0/40 rows
-# at 0.55 vs blue's 78-83% -- not a shape/area gate problem, the dark-pixel mask
-# was simply empty for green before cleanup even ran. A frac sweep on the same
-# two clips (both-clips-combined green recall) found 0.55:14%, 0.65:50%,
-# 0.70:93%, 0.72:100%, with the 0.72 hits visually confirmed landing on the
-# real dimple (not shadow/noise) across sampled frames -- see
-# FLIPPED_MARKER_DARK_VALUE_FRAC_GREEN below. This is a software mitigation,
-# not the real fix -- the real fix is a brighter/lighter green paint (raising
-# the disk body's own V) so green gets the same contrast margin blue already
-# has; revisit this constant (and consider reverting to one shared value) once
-# that repaint happens.
-FLIPPED_MARKER_DARK_VALUE_FRAC_GREEN = 0.72
-FLIPPED_MARKER_MIN_AREA_FRAC = 0.012  # measured real dimple area_frac p1 ~0.016-0.019;
-# floor nudged slightly below that for margin (was inheriting classic's 0.015, coincidentally close)
-FLIPPED_MARKER_MIN_CIRCULARITY = MARKER_MIN_CIRCULARITY  # measured real p1 ~0.70-0.73,
-# comfortably above the inherited 0.62 floor -- no change needed
-FLIPPED_MARKER_MAX_CIRCULARITY = 0.94  # measured real p99 ~0.91-0.92 -- the inherited 0.90
-# ceiling would have rejected ~1% of real dimples for being "too circular"; raised for margin
+# median V, and green's paint measures far darker overall than blue's (GREEN_
+# UPPER's V cap is 110 vs BLUE_UPPER's 190, confirmed again in a 2026-09-18
+# measurement on clips 3/5: green body median V ~79-85, dimple V ~50-60 ->
+# ratio ~0.6-0.65, ABOVE 0.55). Net effect measured end-to-end on clips 3 & 5
+# (detector.main(), real pipeline): green marker found in 0/40 rows at 0.55 vs
+# blue's 78-83% -- not a shape/area gate problem, the dark-pixel mask was
+# simply empty for green before cleanup even ran. A frac sweep on the same two
+# clips (both-clips-combined green recall) found 0.55:14%, 0.65:50%, 0.70:93%,
+# 0.72:100%, with the 0.72 hits visually confirmed landing on the real dimple
+# (not shadow/noise) across sampled frames -- see MARKER_DARK_VALUE_FRAC_GREEN
+# below. This is a software mitigation, not the real fix -- the real fix is a
+# brighter/lighter green paint (raising the disk body's own V) so green gets
+# the same contrast margin blue already has; revisit this constant (and
+# consider reverting to one shared value) once that repaint happens.
+MARKER_DARK_VALUE_FRAC_GREEN = 0.72
+MARKER_MIN_AREA_FRAC = 0.012  # measured real dimple area_frac p1 ~0.016-0.019;
+# floor nudged slightly below that for margin
+MARKER_MIN_CIRCULARITY = 0.62  # measured real p1 ~0.70-0.73, comfortably above this floor
+MARKER_MAX_CIRCULARITY = 0.94  # measured real p99 ~0.91-0.92 -- a 0.90 ceiling
+# would have rejected ~1% of real dimples for being "too circular"; raised for margin
 
 # 2026-09-19: real 18-clip batch (`Camera Roll/New Disks/`) diagnosis found the
 # per-frame dimple recall (given the disk itself was found) is already high on
@@ -409,17 +192,20 @@ FLIPPED_MARKER_MAX_CIRCULARITY = 0.94  # measured real p99 ~0.91-0.92 -- the inh
 # camera-facing arc where it's genuinely foreshortened/self-occluded by the
 # disk's own rim from this side-mounted camera position (visually confirmed on
 # 17.mp4 green: no visible dark dimple at all for ~15 consecutive frames, then
-# a real one at frame 214). Neither is fixable by retuning a threshold -- see
-# Post_process's per-segment theta interpolation for the actual fix (theta vs.
-# frame is linear between collisions on this frictionless table regardless, so
-# filling those gaps by interpolating the segment's own measured neighbors is
-# physically correct, not just a stopgap).
+# a real one at frame 214) -- later confirmed (user, 2026-09-19) that clips
+# 17/18 were shot with a previous, grey-bodied (not black) dimple, i.e. lower
+# marker/body contrast by construction, not a detection bug. Neither cause is
+# fixable by retuning a threshold -- see Post_process's per-segment theta
+# interpolation for the actual fix (theta vs. frame is linear between
+# collisions on this frictionless table regardless, so filling those gaps by
+# interpolating the segment's own measured neighbors is physically correct,
+# not just a stopgap).
 # What IS a real, measured threshold gap: a handful of frames sit right at the
-# edge of FLIPPED_MARKER_DARK_VALUE_FRAC(_GREEN) with a genuinely darker-than-
+# edge of MARKER_DARK_VALUE_FRAC(_GREEN) with a genuinely darker-than-
 # background but marginally-subtle dimple (measured on 17.mp4 green frame 213,
-# one frame before the strict pass already succeeds at 214). FLIPPED_MARKER_
+# one frame before the strict pass already succeeds at 214). MARKER_
 # RELAX_FRAC_DELTA gives detect_dark_marker_center one relaxed retry for
-# exactly these marginal misses, gated by FLIPPED_MARKER_MAX_AREA_FRAC so the
+# exactly these marginal misses, gated by MARKER_MAX_AREA_FRAC so the
 # relaxed pass can't mistake a frame where the WHOLE disk dipped darker
 # (motion blur / passing shadow / exposure) for the marker -- measured on the
 # same clip (frames ~205-212) that relaxing the threshold without a size cap
@@ -433,17 +219,17 @@ FLIPPED_MARKER_MAX_CIRCULARITY = 0.94  # measured real p99 ~0.91-0.92 -- the inh
 # picked up one or two more genuine reads each without any new false
 # positives on the frames the max_area gate exists to reject -- no clip
 # regressed.
-FLIPPED_MARKER_RELAX_FRAC_DELTA = 0.10
-FLIPPED_MARKER_MAX_AREA_FRAC = 0.12  # generous margin above FLIPPED_MARKER_MIN_AREA_FRAC's
+MARKER_RELAX_FRAC_DELTA = 0.10
+MARKER_MAX_AREA_FRAC = 0.12  # generous margin above MARKER_MIN_AREA_FRAC's
 # measured real dimple floor (~0.012-0.019) -- no real per-clip max-area survey run yet
-# (only the min side was surveyed, see FLIPPED_MARKER_MIN_AREA_FRAC), but a near-disk-sized
+# (only the min side was surveyed, see MARKER_MIN_AREA_FRAC), but a near-disk-sized
 # false blob measures far larger than this regardless (the 17.mp4 case above filled most of
 # the disk's own face), so this placeholder already does its job of rejecting that case;
 # revisit with a real survey if the relaxed retry ever needs finer tuning
 
 # Identify-by-exclusion net (2026-09-17, user-observed): under direct overhead
 # glare the green paint specifically reads as desaturated grey rather than
-# green, dropping below FLIPPED_GREEN_LOWER's saturation floor -- but since
+# green, dropping below GREEN_LOWER's saturation floor -- but since
 # exactly two disks/colors exist in this study (COLOR_ID_MAP), whichever one
 # ISN'T the confidently-found color is unambiguous. This range is
 # deliberately much looser on saturation than either real color's calibrated
@@ -452,39 +238,39 @@ FLIPPED_MARKER_MAX_AREA_FRAC = 0.12  # generous margin above FLIPPED_MARKER_MIN_
 # it's only ever tried when the strict search found exactly one of the two
 # disks (see detect_disks_color) -- never both, never neither, so it can't
 # manufacture a second disk out of noise when only one is genuinely on table.
-FLIPPED_EXCLUSION_LOWER = np.array([45, 20, 30])
-FLIPPED_EXCLUSION_UPPER = np.array([135, 255, 255])
+EXCLUSION_LOWER = np.array([45, 20, 30])
+EXCLUSION_UPPER = np.array([135, 255, 255])
 
 
-def resolve_marker_flipped_scheme(frame, det, scale_mm_per_px=None):
+def resolve_marker(frame, det, scale_mm_per_px=None):
     """
-    Flipped-scheme counterpart to resolve_marker_color: disk *identity*
-    comes from the disk body's bulk color (classify_disk_bulk_color, a
-    majority vote over the whole disk interior) instead of a small offset
-    blob's hue, and the *marker* comes from the darkest compact region
-    within that now-reliably-colored disk (detect_dark_marker_center)
-    instead of a specific saturated hue. Same (marker_center, color) return
-    shape as resolve_marker_color, so callers can swap between them via
-    MARKER_SCHEME without any other change.
+    Resolves a detection's disk *identity* and offset *marker* position.
+    Identity comes from the disk body's bulk color (classify_disk_bulk_color,
+    a majority vote over the whole disk interior) instead of a small offset
+    blob's hue, and the marker comes from the darkest compact region within
+    that now-reliably-colored disk (detect_dark_marker_center) instead of a
+    specific saturated hue -- the disk body itself is the color signal now,
+    so the marker's only distinguishing feature left is that it's dark.
+    Returns (marker_center_xy_or_None, color_or_None).
     """
     cx, cy = det["center"]
     r = det["radius"]
 
     # If the position detector already determined this disk's identity via
-    # its own HSV search (color-thresholding branch's detect_disks_color
-    # knows which mask it matched, including an identify-by-exclusion call),
-    # reuse it instead of re-running an independent bulk-color vote -- two
-    # separate color checks disagreeing with each other is exactly the kind
-    # of instability that could destabilize IDAssigner's color-first
-    # fallback for new tracks (user-requested continuity check, 2026-09-17).
-    # Detections without a known color yet (e.g. the contour_fallback path,
-    # or plain YOLO dicts) fall through to the original bulk-vote lookup.
+    # its own HSV search (detect_disks_color knows which mask it matched,
+    # including an identify-by-exclusion call), reuse it instead of
+    # re-running an independent bulk-color vote -- two separate color checks
+    # disagreeing with each other is exactly the kind of instability that
+    # could destabilize IDAssigner's color-first fallback for new tracks
+    # (user-requested continuity check, 2026-09-17). Detections without a
+    # known color yet (e.g. the contour_fallback path) fall through to the
+    # original bulk-vote lookup.
     color = det.get("color")
     if color is None:
         color = prp.classify_disk_bulk_color(
             frame, (cx, cy), r,
-            {"green": (FLIPPED_GREEN_LOWER, FLIPPED_GREEN_UPPER),
-             "blue": (FLIPPED_BLUE_LOWER, FLIPPED_BLUE_UPPER)},
+            {"green": (GREEN_LOWER, GREEN_UPPER),
+             "blue": (BLUE_LOWER, BLUE_UPPER)},
         )
     if color is None:
         return None, None
@@ -495,46 +281,32 @@ def resolve_marker_flipped_scheme(frame, det, scale_mm_per_px=None):
     else:
         mask_outer = r * pad_factor
     crop_radius = max(r, mask_outer / pad_factor)
-    min_area = FLIPPED_MARKER_MIN_AREA_FRAC * math.pi * r * r
-    max_area = FLIPPED_MARKER_MAX_AREA_FRAC * math.pi * r * r
+    min_area = MARKER_MIN_AREA_FRAC * math.pi * r * r
+    max_area = MARKER_MAX_AREA_FRAC * math.pi * r * r
 
     mark = prp.detect_dark_marker_center(
         frame, (cx, cy), crop_radius,
         pad_factor=pad_factor,
-        min_area=min_area, min_circularity=FLIPPED_MARKER_MIN_CIRCULARITY,
-        max_circularity=FLIPPED_MARKER_MAX_CIRCULARITY,
+        min_area=min_area, min_circularity=MARKER_MIN_CIRCULARITY,
+        max_circularity=MARKER_MAX_CIRCULARITY,
         mask_center=(cx, cy), mask_radius=mask_outer,
         mask_inner_radius=r * MARKER_DIST_MIN_FRAC,
         # Green's disk body reads measurably darker than blue's (see
-        # FLIPPED_MARKER_DARK_VALUE_FRAC's comment) -- the same relative
+        # MARKER_DARK_VALUE_FRAC's comment) -- the same relative
         # threshold that reliably isolates blue's dimple leaves near-zero
         # margin for green's, so green gets its own retuned constant.
-        dark_value_frac=(FLIPPED_MARKER_DARK_VALUE_FRAC_GREEN if color == "green"
-                          else FLIPPED_MARKER_DARK_VALUE_FRAC),
+        dark_value_frac=(MARKER_DARK_VALUE_FRAC_GREEN if color == "green"
+                          else MARKER_DARK_VALUE_FRAC),
         max_area=max_area,
-        relax_frac_delta=FLIPPED_MARKER_RELAX_FRAC_DELTA,
+        relax_frac_delta=MARKER_RELAX_FRAC_DELTA,
     )
     return mark, color
 
 
-def resolve_marker(frame, det, scale_mm_per_px=None):
-    """Dispatches to the classic or flipped scheme per MARKER_SCHEME -- the single call site (main()) needing to change."""
-    if MARKER_SCHEME == "flipped":
-        return resolve_marker_flipped_scheme(frame, det, scale_mm_per_px)
-    return resolve_marker_color(frame, det, scale_mm_per_px)
-
-
-# --- color-thresholding branch: position via HSV color, not YOLO ------------
-# Replaces detect_disks_yolo as this branch's primary position detector (see
-# ToDo.md section 5 for the measured comparison: YOLO doesn't generalize to
-# the repainted disks -- boxes 4-5x undersized, near-zero both-disk recall --
-# while this color-contour approach measured 78-92% both-disk recall
-# in-window on the same real footage). Only viable because the disk *body*
-# itself is now a large, saturated, matte color to threshold on; would not
-# have worked against the old gray-body disks (see prp.segment_disks_by_color
-# docstring). Kept on this branch specifically so `deepLearning` (YOLO-based)
-# stays intact and easy to fall back to if this approach hits a real problem
-# on a broader set of footage.
+# --- Disk position via HSV color contour ------------------------------------
+# Only viable because the disk *body* itself is a large, saturated, matte
+# color to threshold on; would not have worked against the old gray-body
+# disks (see prp.segment_disks_by_color docstring).
 COLOR_DISK_MIN_RADIUS = 30   # px; placeholder for this webcam's 1080p framing --
 COLOR_DISK_MAX_RADIUS = 120  # measured real disk radius on the first 3 test clips
                              # was ~40-66px (median ~48-57px); retune if camera
@@ -544,30 +316,27 @@ COLOR_DISK_MIN_CIRCULARITY = 0.75
 
 def detect_disks_color(frame, color_ranges=None):
     """
-    Primary position detector for this branch: finds at most one disk per
-    color (the largest contour passing the gates, mirroring
-    remove_duplicate_detections' "keep the best" logic instead of needing it),
-    and returns the same dict shape detect_disks_yolo does so every
-    downstream consumer (IDAssigner, CSV export, drawing, scale calibration)
-    needs no change, plus a "color" field (see resolve_marker_flipped_scheme
-    for why that's now propagated instead of re-derived). "conf" is a coarse
+    Primary position detector: finds at most one disk per color (the largest
+    contour passing the gates, mirroring remove_duplicate_detections' "keep
+    the best" logic instead of needing it). Returns a list of dicts with
+    "center", "radius", "marker_center" (always None here -- filled in later
+    by resolve_marker), "conf", "source", "color". "conf" is a coarse
     fill-ratio proxy (contour area vs. minimum-enclosing-circle area), not a
     model confidence -- a real disk silhouette should be close to 1.0; a
     lower value flags a partially occluded/cut-off blob without rejecting it
     outright (the circularity gate already did the hard rejection).
 
     Identify-by-exclusion: if the strict per-color search finds exactly one
-    of the two disks, tries a looser color net (FLIPPED_EXCLUSION_LOWER/
-    UPPER) for the other, searching only outside the confident disk's own
-    region. See FLIPPED_EXCLUSION_LOWER's comment for why this is safe (only
-    fires on a strict 1-of-2 result, shape gates unrelaxed) and why it's
-    needed (direct glare desaturates this green paint toward grey, per
-    2026-09-17 user report).
+    of the two disks, tries a looser color net (EXCLUSION_LOWER/UPPER) for
+    the other, searching only outside the confident disk's own region. See
+    EXCLUSION_LOWER's comment for why this is safe (only fires on a strict
+    1-of-2 result, shape gates unrelaxed) and why it's needed (direct glare
+    desaturates this green paint toward grey, per 2026-09-17 user report).
     """
     if color_ranges is None:
         color_ranges = {
-            "green": (FLIPPED_GREEN_LOWER, FLIPPED_GREEN_UPPER),
-            "blue": (FLIPPED_BLUE_LOWER, FLIPPED_BLUE_UPPER),
+            "green": (GREEN_LOWER, GREEN_UPPER),
+            "blue": (BLUE_LOWER, BLUE_UPPER),
         }
 
     candidates = prp.segment_disks_by_color(
@@ -590,7 +359,7 @@ def detect_disks_color(frame, color_ranges=None):
         exclude_radius = found["radius"] * 1.3
 
         broad = prp.segment_disks_by_color(
-            frame, {missing_color: (FLIPPED_EXCLUSION_LOWER, FLIPPED_EXCLUSION_UPPER)},
+            frame, {missing_color: (EXCLUSION_LOWER, EXCLUSION_UPPER)},
             min_radius=COLOR_DISK_MIN_RADIUS, max_radius=COLOR_DISK_MAX_RADIUS,
             min_circularity=COLOR_DISK_MIN_CIRCULARITY,
         )
@@ -794,227 +563,6 @@ class IDAssigner:
         return [(pid, assigned[pid]) for pid in sorted(assigned.keys())]
 
 
-# --- Rotation recovery: physics-assisted recovery + interpolation fill ------
-# (CLAUDE.md Rotation plan steps 3-5). Post-processing pass over an already-
-# exported detections CSV -- separate from the live per-frame detection loop
-# above, and never mutates it or the CSV it wrote. Scheme-agnostic: works the
-# same regardless of MARKER_SCHEME, since it operates on whatever theta
-# values fit_rotation_segments already extracted.
-RECOVERY_SEARCH_RADIUS_FRAC = 0.35  # fraction of the estimated marker-offset
-# radius used as the confirmation search's radius around the physics-
-# predicted position -- generous enough to absorb some fit error, tight
-# enough that it can't accidentally cover unrelated parts of the disk.
-RECOVERY_MIN_CIRCULARITY = 0.5  # relaxed vs. MARKER_MIN_CIRCULARITY (0.62):
-# a noise blob confidently mimicking a marker's shape AND landing within a
-# few px of a physics-predicted position by chance is a much rarer
-# coincidence than either alone, so the shape gate can afford to be looser
-# here specifically.
-MAX_FIT_RESIDUAL_STD_DEG = 45.0  # refuse to recover/interpolate against a
-# segment fit whose own residual std exceeds this -- "0 outliers" alone
-# does NOT mean a fit is precise enough to extrapolate from (see
-# Post_process.fit_rotation_segments' omega_fit_residual_std_deg
-# docstring): sigma-clipping only rejects points relative to the fit's own
-# noise floor, so a fit built on mostly-poor data can inflate that floor
-# and report zero outliers while still being nearly useless for
-# extrapolation. Measured directly on real footage (240_25.mp4 disk 1): a
-# segment reporting 0 outliers and a plausible-looking omega had a residual
-# std of ~79 deg, and recovery against it produced errors averaging ~52 deg
-# (several near-180, i.e. essentially random) on a held-out real-detection
-# test. This threshold is a placeholder judgment call (not yet validated
-# against a real fit that's genuinely precise enough to trust), not a
-# calibrated cutoff -- but leaving the gate out entirely was measured to
-# actively produce wrong, confident-looking output, which is worse than
-# refusing to recover at all.
-
-
-def _recover_segment_gaps(seg_df, cap, scale_mm_per_px, hsv_lower, hsv_upper,
-                           recovery_search_radius_frac, recovery_min_circularity,
-                           max_fit_residual_std_deg=MAX_FIT_RESIDUAL_STD_DEG):
-    """
-    Core of the recovery/interpolation fill for a single disk+segment's rows
-    (one "before" or "after" slice of fit_rotation_segments' output). Mutates
-    and returns seg_df's theta_unwrapped_deg/theta_source columns in place
-    for every row that isn't already a trend-consistent "measured" inlier.
-    No-op if the segment has no fit at all (fit_rotation_segments already
-    leaves omega_fit_deg_per_frame/theta_fit_intercept_deg NaN in that case
-    -- too few marker detections to satisfy its min_points floor).
-
-    For each such row: predicts the marker's expected position from the
-    segment's fitted trend (theta = omega_fit_deg_per_frame * frame +
-    theta_fit_intercept_deg) and this disk's own measured marker-offset
-    radius (median distance from center among that segment's inliers).
-    Stage 1 (only if `cap` is given): seeks the real video to that frame and
-    runs a real, narrow, high-sensitivity confirmation search centered on
-    the predicted position, in this disk's already-known color (no
-    green/blue ambiguity -- identity is already established by this point,
-    unlike the live per-frame detector). This is safe to do narrowly,
-    unlike a blind per-frame search over the whole disk, specifically
-    because the search location is already physics-constrained (CLAUDE.md
-    Rotation plan step 3). If found, re-anchors the result to the same 2*pi
-    branch as the prediction so it stays continuous with the segment's
-    trend, and tags theta_source "recovered". Stage 2 (always, as the
-    fallback): if stage 1 wasn't run or didn't find anything, uses the pure
-    predicted value with no further confirmation, tagged "interpolated".
-    """
-    inliers = seg_df[seg_df["theta_trend_consistent"] == True]
-    fit_vals = seg_df["omega_fit_deg_per_frame"].dropna()
-    intercept_vals = seg_df["theta_fit_intercept_deg"].dropna()
-    residual_vals = seg_df["omega_fit_residual_std_deg"].dropna()
-    if inliers.empty or fit_vals.empty or intercept_vals.empty:
-        return seg_df
-    if residual_vals.empty or float(residual_vals.iloc[0]) > max_fit_residual_std_deg:
-        return seg_df  # fit isn't precise enough to extrapolate from -- see MAX_FIT_RESIDUAL_STD_DEG
-
-    slope = float(fit_vals.iloc[0])
-    intercept = float(intercept_vals.iloc[0])
-    marker_radius_m = float(np.hypot(inliers["mx"] - inliers["cx"], inliers["my"] - inliers["cy"]).median())
-    if not np.isfinite(marker_radius_m) or marker_radius_m <= 0:
-        return seg_df  # can't build a search position without a radius estimate
-    marker_radius_px = (marker_radius_m * 1000.0) / scale_mm_per_px if scale_mm_per_px else None
-
-    needs_work = seg_df[seg_df["theta_trend_consistent"] != True]
-    for idx, row in needs_work.iterrows():
-        frame_idx = int(row["frame"])
-        predicted_theta_deg = slope * frame_idx + intercept
-        theta_rad = math.radians(predicted_theta_deg)
-
-        found = None
-        if cap is not None and marker_radius_px is not None:
-            cx_px = row["cx"] * 1000.0 / scale_mm_per_px
-            cy_px = row["cy"] * 1000.0 / scale_mm_per_px
-            pred_mx_px = cx_px + marker_radius_px * math.cos(theta_rad)
-            pred_my_px = cy_px + marker_radius_px * math.sin(theta_rad)
-
-            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
-            ret, frame = cap.read()
-            if ret:
-                search_r = max(4.0, marker_radius_px * recovery_search_radius_frac)
-                found = prp.detect_marker_center(
-                    frame, (pred_mx_px, pred_my_px), search_r,
-                    hsv_lower, hsv_upper, pad_factor=2.5,
-                    min_area=MARKER_MIN_AREA_FRAC * math.pi * search_r * search_r,
-                    min_circularity=recovery_min_circularity, max_circularity=1.0,
-                    mask_center=(pred_mx_px, pred_my_px), mask_radius=search_r,
-                )
-
-        if found is not None:
-            theta_actual = math.atan2(found[1] - cy_px, found[0] - cx_px)
-            # Re-anchor to the SAME 2*pi branch as the prediction (not
-            # necessarily the wrapped principal value) so this row's
-            # theta_unwrapped_deg stays continuous with its segment's trend.
-            k = round((theta_rad - theta_actual) / (2 * math.pi))
-            seg_df.loc[idx, "theta_unwrapped_deg"] = math.degrees(theta_actual + 2 * math.pi * k)
-            seg_df.loc[idx, "theta_source"] = "recovered"
-        else:
-            seg_df.loc[idx, "theta_unwrapped_deg"] = predicted_theta_deg
-            seg_df.loc[idx, "theta_source"] = "interpolated"
-
-    return seg_df
-
-
-def fill_rotation_gaps(out_df, color, cap=None, scale_mm_per_px=None,
-                        recovery_search_radius_frac=RECOVERY_SEARCH_RADIUS_FRAC,
-                        recovery_min_circularity=RECOVERY_MIN_CIRCULARITY,
-                        max_fit_residual_std_deg=MAX_FIT_RESIDUAL_STD_DEG):
-    """
-    Physics-assisted recovery + interpolation fill (CLAUDE.md Rotation plan
-    steps 3-5), applied to one disk's Post_process.fit_rotation_segments
-    output.
-
-    Adds a theta_source column ("measured" / "recovered" / "interpolated" /
-    None) and overwrites theta_unwrapped_deg for non-"measured" rows with a
-    recovered or interpolated value; every other column (including the raw
-    cx_mm/cy_mm/mx_mm/my_mm) is left exactly as fit_rotation_segments
-    produced it. Frames in the "collision" segment, in a segment with no fit
-    at all (too few marker detections for fit_rotation_segments' own
-    min_points floor), or in a segment whose fit exists but isn't precise
-    enough to trust (see max_fit_residual_std_deg), are left alone -- not
-    recoverable by this mechanism.
-
-    Args:
-      out_df: one disk's fit_rotation_segments output.
-      color: "green" or "blue" -- this disk's already-established identity
-        (from COLOR_ID_MAP), used to search in the right HSV range with no
-        ambiguity, unlike the live per-frame detector.
-      cap: an open cv2.VideoCapture on the source video, for the stage-1
-        recovery confirmation search. Pass None to skip straight to
-        stage-2 interpolation-only -- e.g. when the video isn't available,
-        or to measure "how much would pure interpolation alone get us"
-        against a real-video-search comparison.
-      scale_mm_per_px: required whenever cap is given (converts the fitted-
-        trend prediction into a pixel search position).
-      max_fit_residual_std_deg: refuse recovery/interpolation for a segment
-        whose fit's own residual std exceeds this -- see
-        MAX_FIT_RESIDUAL_STD_DEG for why "0 outliers" alone isn't enough to
-        trust a fit for extrapolation, and the real-footage case that
-        motivated adding this gate.
-    """
-    out = out_df.copy()
-    out["theta_source"] = None
-    out.loc[out["theta_trend_consistent"] == True, "theta_source"] = "measured"
-    collision_mask = out["rotation_segment"] == "collision"
-    out.loc[collision_mask & out["mx"].notna(), "theta_source"] = "measured"
-
-    if cap is not None and not scale_mm_per_px:
-        raise ValueError("scale_mm_per_px is required when cap is given (recovery needs pixel geometry).")
-
-    hsv_lower, hsv_upper = (GREEN_LOWER, GREEN_UPPER) if color == "green" else (BLUE_LOWER, BLUE_UPPER)
-
-    for label in ("before", "after"):
-        seg_idx = out.index[out["rotation_segment"] == label]
-        if len(seg_idx) == 0:
-            continue
-        filled_seg = _recover_segment_gaps(
-            out.loc[seg_idx].copy(), cap, scale_mm_per_px, hsv_lower, hsv_upper,
-            recovery_search_radius_frac, recovery_min_circularity, max_fit_residual_std_deg,
-        )
-        out.loc[seg_idx, ["theta_unwrapped_deg", "theta_source"]] = \
-            filled_seg[["theta_unwrapped_deg", "theta_source"]]
-
-    return out
-
-
-def recover_and_fill_rotation(video_path, csv_path, out_csv_path=None, **fill_kwargs):
-    """
-    Two-disk CSV entry point for fill_rotation_gaps. Reads the exported
-    detections CSV, fits+segments both disks sharing one collision frame
-    (Post_process.fit_rotation), fills gaps via a real video search when
-    possible, and writes a SEPARATE enriched CSV -- never overwrites the
-    original -- with theta_source plus a filled theta_unwrapped_deg column.
-
-    Returns (out_csv_path, combined_dataframe).
-    """
-    df = pd.read_csv(csv_path)
-    id_color_map = {v: k for k, v in COLOR_ID_MAP.items()}
-    df0_raw = df[df["disk_id"] == 0].copy()
-    df1_raw = df[df["disk_id"] == 1].copy()
-    if df0_raw.empty or df1_raw.empty:
-        raise ValueError("recover_and_fill_rotation needs both disks present in the CSV "
-                          "(the collision frame is computed from both).")
-
-    out0, out1, summary = pp.fit_rotation(df0_raw, df1_raw)
-
-    # Recomputed here rather than read from the CSV (not stored there) --
-    # only used to size the video-frame search crop below, so an
-    # independent re-derivation (same method main() uses) is fine; it
-    # doesn't affect any reported mm value.
-    all_r_px = pd.concat([df0_raw["r_px"], df1_raw["r_px"]])
-    scale_mm_per_px = DISK_DIAMETER_MM / (2.0 * float(all_r_px.median()))
-
-    cap = cv2.VideoCapture(video_path)
-    filled0 = fill_rotation_gaps(out0, id_color_map[0], cap=cap, scale_mm_per_px=scale_mm_per_px, **fill_kwargs)
-    filled1 = fill_rotation_gaps(out1, id_color_map[1], cap=cap, scale_mm_per_px=scale_mm_per_px, **fill_kwargs)
-    cap.release()
-
-    filled0["disk_id"] = 0
-    filled1["disk_id"] = 1
-    combined = pd.concat([filled0, filled1], ignore_index=True).sort_values(["frame", "disk_id"])
-
-    out_path = out_csv_path or (str(Path(csv_path).with_suffix("")) + "_rotation_filled.csv")
-    combined.to_csv(out_path, index=False)
-    return out_path, combined
-
-
 def info(info_type, message):
     print(f"[{info_type}] {message}")
 
@@ -1029,10 +577,8 @@ def main(video_path, bg_path, dtc_path, csv_path, fps_eff, progress_callback=Non
     dependency and shouldn't gain one just for this.
     """
 
-    # 1) color-thresholding branch: no model to load -- position detection is
-    # detect_disks_color (HSV contour) end to end. (deepLearning branch has
-    # the YOLO Pose load here instead; see ToDo.md section 5 for why this
-    # branch exists.)
+    # 1) No model to load -- position detection is detect_disks_color (HSV
+    # contour) end to end.
 
     # 1b) Average background from a clean interval at the beggining of the filming
     # (still needed: backs the contour fallback -- scale_mm_per_px now comes
@@ -1086,11 +632,11 @@ def main(video_path, bg_path, dtc_path, csv_path, fps_eff, progress_callback=Non
 
     # Variables, list of arrays for detections
     scale_mm_per_px = None
-    # Collect several YOLO-sourced radii and take the median instead of locking
-    # scale from a single first detection — measured on real footage that a
-    # single frame's bbox radius can underestimate the true disk by >3x, which
-    # would otherwise corrupt scale_mm_per_px (and therefore every mm value in
-    # the output) for the entire run from one bad frame.
+    # Collect several color-sourced radii and take the median instead of
+    # locking scale from a single first detection — a single frame's radius
+    # reading can be off (partial occlusion, glare), which would otherwise
+    # corrupt scale_mm_per_px (and therefore every mm value in the output)
+    # for the entire run from one bad frame.
     RADIUS_SAMPLE_TARGET = 8
     radius_samples = []
     all_detections = []  # each entry: [frame, disk_id, cx_mm, cy_mm, mx_mm, my_mm, r_px]
@@ -1114,13 +660,14 @@ def main(video_path, bg_path, dtc_path, csv_path, fps_eff, progress_callback=Non
         if not ret:
             break
 
-        # 4) Primary detection: HSV color-contour (color-thresholding branch)
+        # 4) Primary detection: HSV color-contour
         disks = detect_disks_color(frame)
         disks = remove_duplicate_detections(disks)
 
-        # 4b) Hybrid fallback: if YOLO missed a disk, look for it via background
-        # subtraction, but only in the region where it was last seen (not the
-        # whole frame) so we don't reintroduce contour noise everywhere.
+        # 4b) Hybrid fallback: if the color detector missed a disk, look for
+        # it via background subtraction, but only in the region where it was
+        # last seen (not the whole frame) so we don't reintroduce contour
+        # noise everywhere.
         if len(disks) < len(ALL_IDS) and assigner.prev_pos:
             covered_ids = set()
             for pid, prev in assigner.prev_pos.items():
@@ -1144,9 +691,9 @@ def main(video_path, bg_path, dtc_path, csv_path, fps_eff, progress_callback=Non
             ))
 
         # 5) Compute scale from the median of several color-sourced radii
-        # (never from a contour_fallback radius -- see fallback_contour_disks,
-        # same rationale as the YOLO branch: don't let a fallback-quality
-        # measurement corrupt the one-time scale calibration).
+        # (never from a contour_fallback radius -- see fallback_contour_disks:
+        # don't let a fallback-quality measurement corrupt the one-time scale
+        # calibration).
         if scale_mm_per_px is None:
             for d in disks:
                 if d.get("source") == "color" and d["radius"] > 0:
@@ -1157,7 +704,7 @@ def main(video_path, bg_path, dtc_path, csv_path, fps_eff, progress_callback=Non
                 info("Info", f"Computed scale: {scale_mm_per_px:.3f} mm/px "
                               f"(median of {len(radius_samples)} radius samples)")
 
-        # 6) Resolve marker color per disk (HSV, anchored on the YOLO keypoint when available)
+        # 6) Resolve marker position + disk identity per disk (HSV)
         frame_dets = []
         for d in disks:
             cx_px, cy_px = d["center"]

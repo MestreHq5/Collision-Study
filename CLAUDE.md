@@ -13,76 +13,70 @@ Python/PyQt6 desktop app that analyzes 2D collisions of two circular pucks on an
 from video footage, tracking position/orientation/kinematics per frame and exporting
 scaled physical metrics (mm, s) to CSV for Discrete Element Method (DEM) validation.
 
-- Disk 0 = Green marker, Disk 1 = Blue marker
-- Disk diameter: 70.0 mm (35mm radius, user-confirmed), default mass: 0.0118 kg
-- Offset marker sits ~20-30mm from disk center, circular, colored blue or green
-- Disk **bodies** are gray/slate — only the small offset marker dot is colored (current,
-  pre-repaint footage only — see "Marker detection: two schemes" below).
+- Disk 0 = Green, Disk 1 = Blue.
+- Disk diameter: 70.0 mm (35mm radius, user-confirmed), default mass: 0.0118 kg.
+- Disks are painted their full body color (matte, saturated green/blue); the offset marker is
+  a black-painted dimple ~20-30mm from disk center, not a separate colored dot — see "Marker
+  detection" below. Older footage with a small colored dot on a gray disk body (`Novos
+  Videos`/`NL`) is not representative of current runs.
 - **Physics**: air table is frictionless (user-confirmed) — angular velocity is expected
   constant between collisions, no torque except during contact.
 - **Filming pattern**: real collision videos are a single collision each — two disks
   approach, contact once, separate. Not multi-bounce. Rotation segmentation is exactly two
   segments (before/after) per video, always.
-- `Camera Roll/Novos Videos/` clips were recorded to build the deep-learning dataset, not as
-  real collision-study runs — expect varied/non-representative trajectories there, unlike real
-  single-collision footage.
+- **Hardware is locked to webcam 1080p@60fps** (see "Lab / lighting history" #6) — the actual
+  deployment spec everything is validated against, not a stopgap. Actual webcam fps drifts
+  below the nominal 60 — use each video's own measured fps, not an assumed 60.
+
+## Branch note
+
+This branch (`color-thresholding`) removed the entire YOLO-based detection pipeline and its
+training assets (`Puck_Training/`, `Puck_Training_Legacy/`, `runs/`, `yolov8n-pose.pt`,
+`yolo26n.pt`, `train.py`, `model_acc.py`, `Model_Image_Rel/`) as of 2026-09-19, after
+confirming across two real footage sets that it doesn't generalize past the exact gray-body
+footage it was trained on (see "Position detection" below for the measured numbers). The
+classic small-colored-dot-on-gray-disk marker scheme was removed alongside it, since it only
+existed to pair with that old footage. **If YOLO-based detection or the classic marker scheme
+is ever needed again** (e.g. a return to unpainted disks), the parent `deepLearning` branch
+still has the full implementation, training data, and trained weights intact — don't
+reimplement from scratch, check out from there.
 
 ## Standing objective
 
-**Disks are now repainted** (whole disk colored blue/green, marker is a black-or-grey dimple —
-see "Marker detection: two schemes" below), and 3 real webcam test clips exist as of
-2026-09-17 (`C:\Users\gonca\Pictures\Camera Roll\New Disk Tests\`: `Previous_Side_Light.mp4`,
-`Previous_Side_No_Light.mp4`, `Other_Side.mp4`, ~1080p@56-57fps — actual webcam fps drifts
-below the nominal 60, use each video's own measured fps, not an assumed 60).
+Disks are painted (whole body colored, dimple marker) and position/marker detection are both
+color-based (`detect_disks_color` / `resolve_marker`, both in `detector.py`) — no model in the
+loop. Current real-footage batches: 3 calibration clips (`Camera Roll\New Disk Tests\`) used to
+first tune the color/dimple constants, and a larger batch at `Camera Roll\New Disks\` (10 of
+an originally-referenced 18 clips are actually present: `3,4,5,6,7,8,10,17,18.mp4` +
+`13 - Trim.mp4`) used to validate end-to-end.
 
-**Status as of 2026-09-17 session end — real progress on a bigger sample, still not final:**
-1. **Marker/color logic (flipped scheme): retuned against real data.** `MARKER_SCHEME =
-   "flipped"`, constants retuned against a real calibration survey — see "Marker detection:
-   two schemes" for the numbers. Only 3 clips / ~1300 frames, smaller than the classic
-   scheme's 580-sample survey — good first pass, not final.
-2. **Position detection: pivoted from YOLO to color-thresholding** (`color-thresholding`
-   branch, `detect_disks_color()` / `Pre_process.segment_disks_by_color()`, no model — `train-5`
-   YOLO confirmed not to generalize to painted disks, see Model section). Two added
-   refinements this session (both user-requested):
-   - **Identify-by-exclusion** (`FLIPPED_EXCLUSION_LOWER/UPPER`): if the strict per-color
-     search finds exactly one disk, tries a looser color net for the other, restricted to
-     outside the confident disk's own region — safe because exactly 2 disks/colors exist, so
-     the missing identity is unambiguous. Confirmed real and needed: direct glare measurably
-     desaturates this specific green paint toward grey (user-observed, then confirmed in
-     data — green used this fallback far more often than blue across the 18-clip batch below).
-   - **Known-color propagation**: `detect_disks_color` now tags each detection with the color
-     that matched it; `resolve_marker_flipped_scheme` reuses that instead of re-running an
-     independent bulk-color vote, so identity isn't determined twice by two checks that could
-     disagree.
-3. **Batch-tested end-to-end against 18 new real clips** (`C:\Users\gonca\Pictures\Camera
-   Roll\New Disks\1.mp4`-`18.mp4`, not yet in repo) — full detection + `build_student_excel`
-   physics, not just recall:
-   - **~9-10 of 18 clips produced plausible collision metrics** (e roughly 0.6-1.05,
-     momentum error mostly <10%; clip 4 was a partial exception — momentum error 5.5% but an
-     unphysical e=1.46, not yet explained). This is a real base rate on a real sample, not
-     the single lucky clip from earlier the same day.
-   - **The other ~8 clips failed on sparse both-disk coverage around the collision moment
-     (few simultaneous detections → noisy velocity fit → nonsense e/momentum), not on
-     identity/tracking bugs.** Specifically traced this (user asked for a continuity check):
-     replayed `IDAssigner.assign()` frame-by-frame on the two worst clips and confirmed large
-     position deltas are real fast motion between consecutive frames (~5 m/s, physically
-     plausible for a hand-thrown puck), not ID swaps — position-lock, gated velocity
-     prediction, and the color-first fallback are all functioning as designed. **Root cause of
-     the sparse-coverage failures is still open** — didn't get to why detection density drops
-     specifically near contact on those clips (motion blur at contact? gates too strict under
-     partial occlusion? something else) — that's the actual next step, not further
-     ID-assignment work.
-4. **Still not validated**: the marker/dimple/rotation side of the flipped scheme (theta,
-   omega_fit) — only checked via the static calibration survey (HSV/shape percentiles), not
-   the classic scheme's stationary-disk real-motion check (angle std / flip-flop test) that
-   caught the classic scheme's known marker bug. YOLO annotation/retraining remains
-   deprioritized, not abandoned, as the fallback if color-thresholding's coverage problem
-   turns out not to be fixable.
-
-**Hardware is locked to webcam 1080p@60fps** (see "Lab / lighting history" #6) — that's the
-deployment spec to validate everything against going forward, not a stopgap. `Novos Videos`/
-`NL` remain old-appearance dataset-building/test footage, not representative of current
-collision runs.
+**Current state, as of the 2026-09-19 cleanup session:**
+- **Position detection** (`detect_disks_color`): solid. Measured 78-92% both-disk recall
+  in-window on the calibration clips.
+- **Marker/dimple detection** (`resolve_marker` / `detect_dark_marker_center`): recall, given
+  the disk itself was found, is high on most real clips (80-100%). Where it drops, the cause is
+  physical, not a threshold bug (see "Marker detection" below): motion blur during the fast
+  approach/separation around contact, or the dimple rotating to an arc where it's genuinely
+  foreshortened/self-occluded by the disk's own rim from this side-mounted camera's angle.
+  **Confirmed 2026-09-19 (user)**: the two clips with the worst dimple contrast (`17`/`18.mp4`)
+  were shot with a previous disk batch whose dimple was painted *grey*, not black — lower
+  contrast by construction, not a detection failure. Current disks use a black dimple and don't
+  have this problem.
+- **Excel output always has a theta value per row** (`Post_process._fill_theta_gaps_per_disk`,
+  see "Rotation fitting and recovery" below) via per-segment interpolation — the one honest
+  exception is a segment with *zero* measured detections at all (nothing to interpolate from),
+  which stays blank rather than fabricated.
+- **Open, not yet root-caused**: raw disk *position* recall across a clip's full duration is
+  often only ~10-40% in the `New Disks` batch — most of a clip is before/after the disk is
+  actually in its active throw/collision window, so this isn't necessarily alarming by itself,
+  but it caps how much data exists for the theta pipeline regardless of marker-detection
+  quality. Worth a dedicated look if more of the batch becomes available.
+- **Also open**: sparse both-disk coverage specifically *around the collision moment* on some
+  clips (few simultaneous detections right when it matters → noisy velocity fit → unreliable
+  e/momentum). Traced (frame-by-frame `IDAssigner` replay) to real fast motion between frames,
+  not ID swaps or a tracking bug — position-lock, gated velocity prediction, and the
+  color-first fallback are all working as designed. Root cause of the density drop itself
+  (motion blur at contact? shape gates too strict under partial occlusion?) is still open.
 
 ## Architecture
 
@@ -91,61 +85,38 @@ Collision-Study/
 ├── initializer.py    # Entry point; imports app and calls app.main()
 ├── app.py             # PyQt6 GUI (file selectors, FPS inputs, process triggers)
 ├── helper.py          # Bridges GUI calls to backend pipeline
-├── detector.py        # Core pipeline: video I/O, detection, ID tracking, CSV export,
-│                       # rotation-recovery post-processing pass
-├── Pre_process.py     # CV utilities (HSV filtering, marker isolation, background estimation)
-├── Post_process.py    # CSV -> kinematics/rotation/Excel + collision metrics
-├── train.py           # Retrains the YOLO Pose model from Puck_Training/ (see Model section)
-└── runs/pose/train-5/weights/best.pt   # Fine-tuned YOLO Pose model (deployed)
+├── detector.py        # Core pipeline: video I/O, detection, ID tracking, CSV export
+└── Pre_process.py     # CV utilities (HSV filtering, marker isolation, background estimation)
+└── Post_process.py    # CSV -> kinematics/rotation/Excel + collision metrics
 ```
 
-**Two active branches as of 2026-09-17**: `deepLearning` (YOLO-based position detection,
-prior main line) and **`color-thresholding`** (current work — HSV color-contour position
-detection, branched off `deepLearning`; see "Disk position" below and ToDo.md section 5 for
-why). `main` and `noLiveFeed` are older, not part of current work. All of this session's
-changes (both branches' worth of work — the flipped-scheme retune plus the new
-color-thresholding detector) are **uncommitted** on `color-thresholding` as of session end —
-`git status` shows `CLAUDE.md`, `Pre_process.py`, `detector.py`, `ToDo.md` modified. Nothing
-lost (it's all on disk), just not yet committed — do that deliberately next session rather
-than assuming it already happened.
+No trained model, no training data, no training scripts — position and marker detection are
+both classical HSV/contour CV. See "Branch note" above if that ever needs to change.
 
 ### Detection pipeline (`detector.py`)
 
-- **Disk position — two branches, split 2026-09-17 after real repainted-disk footage exposed a
-  YOLO domain-shift failure (see Model section and ToDo.md section 5 for the measured numbers):**
-  - **`color-thresholding` branch (this one)**: `detect_disks_color()` / `Pre_process.
-    segment_disks_by_color()` — direct HSV color-contour on each disk's own paint color, no
-    model, no background image needed for position itself. Measured 78-92% both-disk recall
-    in-window on real footage (vs. YOLO's near-total failure on the same clips) and, on an
-    18-clip real batch, ~9-10/18 produced physically plausible collision metrics end-to-end
-    (see Standing objective for the full breakdown, including the identify-by-exclusion and
-    known-color-propagation additions and the still-open sparse-coverage failure mode).
-    `scale_mm_per_px` comes from the median of the first 8 color-sourced radii (same
-    `RADIUS_SAMPLE_TARGET` mechanism, same "don't trust one frame's radius" rationale as
-    YOLO's bbox). Bounds (`COLOR_DISK_MIN/MAX_RADIUS`,
-    `COLOR_DISK_MIN_CIRCULARITY`) are placeholders for this webcam's 1080p framing — retune if
-    camera distance changes.
-    **If this hits a real problem** (a footage condition where color-thresholding alone can't
-    find a disk reliably — e.g. a shadow or reflection desaturating the paint below the
-    calibrated HSV window for a stretch of frames): the fix is a **hybrid**, not a full
-    reversion — reuse `fallback_contour_disks()` (below) more aggressively as a background-
-    subtraction backup for exactly the frames color-thresholding misses, the same pattern
-    already used for YOLO's own gaps. Don't rebuild this branch as pure background-subtraction
-    (that's `main`'s old approach and it inherits the new lab's confirmed glare problem on its
-    own) — the color signal is the reliable part now that the whole disk is painted; background
-    subtraction is only ever the patch for the frames it can't reach.
-  - **`deepLearning` branch (prior)**: YOLO Pose (single class `puck`, 2 keypoints
-    `[center, marker]`), `detect_disks_yolo()`, `conf=0.10`, `imgsz=1280` — solid/near-perfect
-    on the *old* gray-body disks (see Model section), but confirmed not to generalize to
-    painted ones. Kept intact and switchable back to if `color-thresholding` doesn't hold up
-    on a broader footage set. **Treat bbox radius as noisy, not ground truth** (measured cases
-    underestimating the true disk by >3x) — never build tight geometry off a single frame's
-    bbox.
+- **Disk position**: `detect_disks_color()` / `Pre_process.segment_disks_by_color()` — direct
+  HSV color-contour on each disk's own paint color, no background image needed for position
+  itself. `scale_mm_per_px` comes from the median of the first 8 color-sourced radii
+  (`RADIUS_SAMPLE_TARGET`) — don't trust any single frame's radius reading alone.
+  Bounds (`COLOR_DISK_MIN/MAX_RADIUS`, `COLOR_DISK_MIN_CIRCULARITY`) are placeholders for this
+  webcam's 1080p framing — retune if camera distance changes.
+  **Identify-by-exclusion** (`EXCLUSION_LOWER/UPPER`): if the strict per-color search finds
+  exactly one disk, tries a looser color net for the other, restricted to outside the confident
+  disk's own region — safe because exactly 2 disks/colors exist, so the missing identity is
+  unambiguous. Needed because direct glare measurably desaturates the green paint toward grey.
+  **Known-color propagation**: `detect_disks_color` tags each detection with the color that
+  matched it; `resolve_marker` reuses that instead of re-running an independent bulk-color
+  vote, so identity isn't determined twice by two checks that could disagree.
+  **If color-thresholding alone ever can't find a disk reliably** (e.g. a shadow/reflection
+  desaturating the paint below the calibrated HSV window for a stretch of frames): the fix is
+  to lean harder on `fallback_contour_disks()` (below) as a background-subtraction backup for
+  exactly the frames color-thresholding misses — not a reversion to pure background-subtraction
+  (that inherits the new lab's confirmed glare problem on its own).
 - **Fallback**: `fallback_contour_disks()` (background-subtraction contour), only when the
-  primary detector (YOLO or color, per branch) found <2 disks, only within
-  `FALLBACK_SEARCH_RADIUS_PX` of a missing disk's *predicted* position (see
-  `IDAssigner.predicted_pos`, not a stale last-seen one), radius-gated so glare/reflection
-  blobs can't slip through.
+  primary color detector found <2 disks, only within `FALLBACK_SEARCH_RADIUS_PX` of a missing
+  disk's *predicted* position (see `IDAssigner.predicted_pos`, not a stale last-seen one),
+  radius-gated so glare/reflection blobs can't slip through.
 - **`IDAssigner`**: position-lock (within `POSITION_LOCK_GATE_PX`=60px of a tracked ID's last
   position claims it immediately, before color) makes the pipeline robust to a bad single-frame
   color read. Beyond the lock gate, matches against a *predicted* position (last position
@@ -155,70 +126,61 @@ than assuming it already happened.
   fallback too). Deterministic left-right fallback (step 4) only applies to genuinely
   history-less IDs, never overrides a step-3 rejection.
 - **Background estimation** (`Pre_process.estimate_background_median`): median of frames
-  sampled from the first `CLEAN_SECONDS`, with an optional `puck_masker` callback (`main()`
-  passes a YOLO-detection closure) that excludes detected-puck pixels per sampled frame from
-  the median — otherwise a puck already on the table at t=0 gets baked into the "background."
+  sampled from the first `CLEAN_SECONDS`, with a `puck_masker` callback (`main()` passes a
+  `detect_disks_color` closure) that excludes detected-puck pixels per sampled frame from the
+  median — otherwise a puck already on the table at t=0 gets baked into the "background."
   Falls back to the plain median where no clean sample exists anywhere for a pixel (honest
-  limit, not fixable without different data).
+  limit, not fixable without different data). Only backs the contour fallback now — position
+  detection itself doesn't need it.
 
-### Marker detection: two schemes
+### Marker detection (`resolve_marker` in `detector.py`)
 
-`detector.MARKER_SCHEME` selects which runs — **`"flipped"` is the default as of 2026-09-17**
-(repainted-disk footage now exists and calibrated it; see below). `"classic"` remains for the
-old gray-body footage (`Novos Videos`/`NL`).
+Disk *identity* comes from the disk body's bulk color (`Pre_process.classify_disk_bulk_color`,
+a majority vote over the whole disk interior, ≥15% share required), and the *marker* comes
+from the darkest compact region within that now-reliably-colored disk
+(`Pre_process.detect_dark_marker_center`, threshold relative to that disk's own median V).
+Both share crop/geometry/contour-selection logic via `Pre_process._select_best_blob`.
 
-- **`"classic"`** (current, unpainted footage — small colored dot on a gray disk body):
-  `resolve_marker_color()` / `Pre_process.detect_marker_center()`. Searches a padded crop
-  (`MARKER_SEARCH_PAD_FACTOR=3.5`), excluding a small central disc (`MARKER_DIST_MIN_FRAC=0.3`)
-  and — once `scale_mm_per_px` is known — hard-bounded to the disk's own physical 35mm radius
-  (`DISK_RADIUS_MM`), not the old unbounded search. Picks the **largest contour that passes
-  the shape gate** (`MARKER_MIN_AREA_FRAC`, `MARKER_MIN_CIRCULARITY=0.62`,
-  `MARKER_MAX_CIRCULARITY=0.90`), not simply the largest contour — a real marker can be fused
-  with background by mask cleanup into one large blob that fails the shape gate while the real
-  small round blob sits right next to it unconsidered. CLAHE tile grid and morphological
-  kernel scale to crop/disk size (fixed pixel constants break across different object scales).
-  Calibrated from a broad survey (580 marker samples, all 28 `Novos Videos` clips).
-  **Known limitation, not fixable by more tuning on this footage**: the disk material is
-  near-black (HSV hue/saturation inherently unstable at low value), there's a second unpainted
-  dimple next to the real marker that sometimes reads as a plausible false match, and overhead
-  glare crosses the disk in many frames — confirmed via a controlled real-footage test (a
-  stationary disk, so any detected marker movement is pure noise): even after the physical
-  radius bound, marker angle std stayed ~100-122° and `marker_color` still flip-flopped
-  green/blue frame-to-frame. This is why the repaint is the real fix, not further classical-CV
-  work on current material.
-- **`"flipped"`** (current, repainted disks — whole disk colored, marker = black/grey dimple):
-  `resolve_marker_flipped_scheme()` / `Pre_process.classify_disk_bulk_color()` (disk identity
-  via majority-vote color match over the whole disk interior, ≥15% share required) +
-  `Pre_process.detect_dark_marker_center()` (marker = darkest compact blob within the disk,
-  threshold relative to that disk's own median V). Shares crop/geometry/contour-selection
-  logic with the classic path via `Pre_process._select_best_blob`.
-  **Constants retuned 2026-09-17** against a first real calibration survey (3 webcam clips,
-  ~1300 frames, classical color-blob detection independent of YOLO — see Model section for why
-  YOLO itself couldn't be used for this survey): 95 green-disk / 251 blue-disk body-color
-  samples, ~94/250 dimple samples, p1/p50/p99 percentiles (same methodology as the classic
-  scheme's 580-sample survey, but a smaller first pass — worth widening later, same as classic
-  scheme's constants were revised more than once).
-  - `FLIPPED_GREEN_LOWER/UPPER`, `FLIPPED_BLUE_LOWER/UPPER`: tightened from the inherited
-    classic-scheme bounds to the real measured (H,S,V) clusters + margin. **Blue paint's real
-    saturation runs far hotter than the old assumption** — measured up to S≈248, while the
-    inherited `BLUE_UPPER` capped S at 175 and would have silently clipped most of the real
-    blue disk out of the bulk-color vote. Green's real range sat comfortably inside the old
-    bounds; tightened anyway now that real data exists.
-  - `FLIPPED_MARKER_MAX_CIRCULARITY`: raised 0.90 → 0.94 — measured real dimple circularity
-    p99 ≈ 0.91-0.92, so the inherited 0.90 ceiling would have rejected ~1% of real dimples for
-    being "too circular."
-  - `FLIPPED_MARKER_MIN_AREA_FRAC`: nudged 0.015 → 0.012 for margin below the measured p1
-    (≈0.016-0.019).
-  - `FLIPPED_MARKER_DARK_VALUE_FRAC` (0.55) and `FLIPPED_MARKER_MIN_CIRCULARITY` (0.62,
-    inherited): measured real dimple-V/body-V ratio (p50 ≈0.37-0.46, p99 ≈0.61-0.63) and real
-    circularity floor (p1 ≈0.70-0.73) both landed safely inside these as-is — no change needed.
-  **Paint spec that produced this footage**: matte/flat finish, spray paint formulated for
-  plastic, saturated green/blue mid-tones, marker dimple painted black/grey (not left bare),
-  other dimple filled to match the body. Visually confirmed in the footage: no obvious glare on
-  the disk bodies themselves, dimple clearly visible by eye — the paint job looks like it did
-  its job for the marker-detection side of things.
+- `GREEN_LOWER/UPPER`, `BLUE_LOWER/UPPER`: calibrated from a real survey (95 green-disk /
+  251 blue-disk body-color samples, p1/p50/p99 percentiles). Blue's real saturation runs
+  hotter than green's (up to S≈248 vs green comfortably inside a narrower band).
+- `MARKER_MIN_AREA_FRAC`/`MARKER_MIN_CIRCULARITY`/`MARKER_MAX_CIRCULARITY`: shape gates for
+  the dimple contour, calibrated against ~94/250 real dimple samples (min area frac p1
+  ≈0.016-0.019, min circularity p1 ≈0.70-0.73, max circularity p99 ≈0.91-0.92).
+- `MARKER_DARK_VALUE_FRAC` (0.55) / `MARKER_DARK_VALUE_FRAC_GREEN` (0.72): the dimple threshold
+  is relative to *that disk's own* median V, but green's painted body measures far darker
+  overall than blue's — the same relative threshold that reliably isolates blue's dimple
+  (ratio ~0.36-0.48) almost never triggers on darker green (ratio ~0.6-0.65). Green gets its
+  own retuned constant, chosen via a real-footage sweep (0.55→14%, 0.65→50%, 0.70→93%,
+  0.72→100% green-marker recall) and visually confirmed landing on the real dimple. **This is a
+  software mitigation, not the real fix** — the real fix is a brighter/lighter green paint so
+  green gets the same V headroom blue already has; revisit (and consider merging back into one
+  shared value) once that repaint happens.
+- `MARKER_RELAX_FRAC_DELTA` (0.10) / `MARKER_MAX_AREA_FRAC` (0.12): a handful of frames sit
+  right at the edge of the calibrated dark-value threshold with a genuinely darker-than-
+  background but marginally-subtle dimple. `detect_dark_marker_center` gets one bounded
+  relaxed retry for exactly these marginal misses (`relax_frac_delta`), gated by a max-area cap
+  (`max_area`) so the relaxed pass can't mistake a frame where the *whole disk* dipped darker
+  (motion blur / passing shadow / exposure dip) for the marker — a relaxed threshold with no
+  cap was measured growing the "dark" region from 0px to >1000px (near-disk-sized) on exactly
+  such a frame, vs. a real dimple's ~100-300px. Verified on the real `New Disks` batch: blue
+  recall on 3 clips jumped 52-77% → 95-100% with no regressions anywhere.
+- `EXCLUSION_LOWER/UPPER`: see "Identify-by-exclusion" above — deliberately much looser on
+  saturation than either real color's calibrated window, but only ever tried when the strict
+  search found exactly one of the two disks, so it can't manufacture a second disk out of noise.
+- **Root cause of remaining marker misses is physical, not tunable**: motion blur near contact,
+  or the dimple rotating to an arc self-occluded by the disk's own rim from this side camera's
+  angle (confirmed visually: a disk crop can show *no* visible dark dimple at all for 15+
+  consecutive frames, not just a low-contrast one, then a clearly visible one reappears later).
+  Confirmed 2026-09-19: the worst-affected clips in the `New Disks` batch (`17`/`18.mp4`) were
+  shot with an earlier disk batch's grey (not black) dimple paint — lower contrast by
+  construction. Current black-dimple disks don't have this problem. The actual mitigation for
+  the frames a dimple genuinely isn't visible is interpolation (see "Rotation fitting and
+  recovery" below), not further threshold tuning.
+- **Paint spec**: matte/flat finish, spray paint formulated for plastic, saturated green/blue
+  mid-tones, marker dimple painted black (not grey, not left bare).
 
-### Rotation fitting and recovery (`Post_process.py` + `detector.py`)
+### Rotation fitting and recovery (`Post_process.py`)
 
 Segments each disk's timeline at the collision frame (`Post_process._find_collision_frame`)
 into "before"/"after" (never fit across the boundary — contact torque means ω isn't constant
@@ -246,232 +208,122 @@ there) and robustly fits angular velocity per segment:
   of only ~1.94° once those were excluded — far more trustworthy despite looking "messier."
   **Always check `omega_fit_residual_std_deg` directly, never infer precision from outlier
   count alone.**
-- **`detector.fill_rotation_gaps`** (per-disk) / **`recover_and_fill_rotation`** (two-disk CSV
-  entry point, writes a *separate* enriched CSV, never overwrites the original): for frames
-  missing or flagged trend-inconsistent, predicts the marker's position from the segment fit
-  and this disk's own measured marker-offset radius. Stage 1 (needs an open `cv2.VideoCapture`,
-  optional): real, narrow, high-sensitivity confirmation search on the actual video frame at
-  the predicted position, in this disk's already-known color (no green/blue ambiguity, unlike
-  the live per-frame detector) — safe to search narrowly here specifically because location is
-  already physics-constrained. Stage 2 (fallback, or whenever no video access): pure predicted
-  value, no confirmation. Writes `theta_source` (`measured`/`recovered`/`interpolated`/`None`).
-  Gated by `detector.MAX_FIT_RESIDUAL_STD_DEG` (45°, explicit placeholder judgment call, not a
-  calibrated cutoff) — refuses to recover/interpolate against a segment whose fit isn't
-  precise enough to trust, leaving `theta_source=None` rather than a confident-looking but
-  possibly-random value. **Validated on real held-out footage** (held out real detections,
-  compared recovered/interpolated values against the true held-out ones): on a trustworthy
-  segment (residual std ~2°), recovery averaged 5.0° error, interpolation 1.3° error; on an
-  untrustworthy one (residual std ~79°), the gate correctly refuses instead of the ~52°-average
-  garbage it would otherwise produce.
-  **Not yet wired into the GUI/`app.py`/`helper.py` flow** — `recover_and_fill_rotation` is a
-  standalone function, called manually or from a script today, not part of a normal
-  detect-then-export run. Wiring it in (and deciding whether/how `theta_source` should feed
-  `build_student_excel`'s output) is unstarted follow-up work, not done.
 - `_compute_metrics` (restitution/momentum/energy) uses the RANSAC-fitted `omega_fit_deg_per_frame`
   for the rotational KE term when available, falling back to the raw per-frame `omega_deg_s`
   median for segments too sparse to fit at all.
 - `_compute_vels` divides by actual elapsed frames (`frame.diff()`), not a hardcoded 1 — a
   disk missing from a frame gets no row at all (not a NaN placeholder), so consecutive rows
   can legitimately be more than 1 frame apart.
-
-## Model (YOLO Pose)
-
-- **Deployed**: `runs/pose/train-5/weights/best.pt`, imgsz=1280, single class `puck`,
-  `kpt_shape=[2,3]` (`[center, marker]`). Converged, not data-starved (mAP plateaus early;
-  more images of the same kind won't move it) — **but this was measured entirely on gray-body
-  pre-repaint disks; `Puck_Training/` contains zero painted-disk frames.**
-- **Position/box detection is solid and validated — on the OLD gray-body appearance only.**
-  **Confirmed 2026-09-17 to NOT generalize to repainted disks**: run against 3 real webcam
-  clips of the new painted disks (~1300 frames total), `detect_disks_yolo()` returned boxes
-  4-5x undersized (radius ~10-14px vs a real measured ~40-66px, via an independent classical
-  color-blob measurement), at confidence ~0.05-0.25 — mostly below the pipeline's own
-  `YOLO_CONF=0.10` operating threshold — with only ~5-26% frame recall, and only 0-12 frames
-  per clip had *both* disks detected simultaneously (required for tracking). This is a real,
-  measured regression, not a hypothetical risk: **new annotated training data of the painted
-  disks is required before the pipeline works end-to-end on this footage** — retuning the
-  flipped marker-scheme constants (done, see below) was necessary but not sufficient. Once
-  annotated frames exist, fine-tune from `train-5`'s weights rather than retraining from
-  scratch (position/shape detection fundamentals shouldn't need to be relearned, only the new
-  color appearance).
-- **The marker keypoint is unreliable** (~44% land on a non-marker specular highlight, measured
-  on the old gray-body footage) and is **not used** by the pipeline — marker localization is
-  100% classical CV, independent of this keypoint. Irrelevant to the domain-shift problem above
-  (that's the box/center detection, not this keypoint).
-- **Trust the end-to-end pipeline test over isolated pose mAP** — shown twice not to predict
-  real performance: a higher-mAP checkpoint (`240fps_trial_02-2`) didn't beat train-5
-  end-to-end, and a keypoint-sigma-reweighted retrain (`marker_weighted`, prioritizing the
-  marker keypoint in the loss) made the keypoint's own accuracy *worse*, not better. Neither
-  switched. Not conclusively disproven (real run-to-run variance exists, one seed each) but not
-  worth pursuing further given the marker keypoint isn't used anyway.
-
-## deepLearning vs. classical OpenCV contour
-
-Settled — **keep YOLO for disk position/tracking**. Classical contour detection failed
-specifically because of glare under the new lab's lighting, independent of blur/shutter; YOLO
-has since been validated near-perfect under the same conditions. Marker color/position has
-always been 100% classical CV regardless (the marker keypoint is unused) — the marker's
-struggle is that same glare problem hitting classical detection on the marker instead of the
-whole disk.
+- **`_fill_theta_gaps_per_disk`** (called from `build_student_excel`): guarantees a `theta_deg`
+  value on every exported row. Per disk, per rotation segment (before/after the collision frame
+  — never across it), linearly interpolates missing `theta_deg` against `frame` from that
+  disk's own nearest measured neighbors. This is more than a smoothing convenience — on this
+  frictionless table, angular velocity is genuinely constant between collisions, so theta vs.
+  frame really is linear within a segment, meaning interpolation recovers the true intermediate
+  value. A gap at a segment's leading/trailing edge (no earlier/later measurement to
+  interpolate between) holds flat at the nearest available value instead of extrapolating past
+  the last real reading. The single collision-frame row (excluded from both segments, since
+  omega isn't assumed constant during contact) can't be modeled at all — if missing, it's
+  carried from the adjacent segment instead of left blank, tagged `collision_nearest`. Adds a
+  `theta_source` column to the Raw_Data sheet (`measured`/`interpolated`/`collision_nearest`/
+  `None` — `None` only when an entire segment has zero measured theta values at all, i.e.
+  nothing to interpolate from; a real but rare limit on badly-occluded footage, not silently
+  papered over).
 
 ## Lab / lighting history — conclusions for the next shoot
 
-1. New lab's overhead LED bars cause glare that broke classical detection (confirmed root
-   cause, not camera choice — webcam and phone camera both failed under the same lighting).
+1. New lab's overhead LED bars cause glare that broke classical detection on the old gray-body
+   footage/marker scheme (confirmed root cause, not camera choice — webcam and phone camera
+   both failed under the same lighting).
 2. Removing the direct-overhead lights (`Camera Roll/NL/`) measurably helped marker recall at
-   60fps (71-73% vs ~44-56% lit). The 240fps NL clips measured worse, but that was later
-   attributed to a since-fixed detection bug + small sample, not exposure — **re-measure NL at
-   240fps if pursuing this**, not yet done.
+   60fps (71-73% vs ~44-56% lit) on that old scheme. Not re-verified against the current
+   painted-disk scheme.
 3. 240fps's blur-reduction benefit (shorter shutter, less motion blur during approach/
    separation) is real and separate from rotation sampling (which is oversampled even at
    60fps). The tradeoff is exposure — the available bright light flickers above 60fps.
    **Superseded by #6 below** — moot now that the deliverable is locked to a 60fps webcam.
-4. **Repositioning to the other side of the table**: tried 2026-09-17 (`Other_Side.mp4`).
-   Tradeoff observed by eye: noticeably more shadow from that side. A same-session, per-clip
-   color-blob disk count (classical CV, not YOLO — see Model section for why) found more
-   disk-body detections in `Other_Side` (70 green / 151 blue) than either
+4. **Repositioning to the other side of the table**: tried once (`Other_Side.mp4`). Tradeoff
+   observed by eye: noticeably more shadow from that side. A same-session, per-clip color-blob
+   disk count found more disk-body detections in `Other_Side` (70 green / 151 blue) than either
    `Previous_Side_Light` (25 / 49) or `Previous_Side_No_Light` (0 / 51) — but this is **not a
-   controlled comparison** (each clip is a different throw/trajectory, so more time
-   on-camera confounds the count) and shouldn't be read as "shadow beats glare" without a
-   same-trajectory repeat. Notable on its own regardless of cause: `Previous_Side_No_Light`
-   had zero green-disk color detections in 374 frames — worth a specific look at whether that
-   clip's green disk was in frame/orientation to be seen at all before concluding anything
-   about the no-light condition itself.
+   controlled comparison** (each clip is a different throw/trajectory, so more time on-camera
+   confounds the count) and shouldn't be read as "shadow beats glare" without a same-trajectory
+   repeat.
 5. **4K resolution**: would help marker precision in principle, but **moot — superseded by
    #6**, the deployment camera is a 1080p webcam with no 4K mode.
-6. **Hardware decision (2026-09-17): webcam-only, no external hardware.** Professor requires
-   the project not depend on external hardware (no dedicated camera/phone purchase for the
-   pipeline itself). Deployment target is fixed at **1080p @ 60fps via webcam** — this is not
-   a stopgap, it's the actual spec to validate and tune against going forward. This resolves
-   #3 and #5 above (fps/resolution tradeoffs against phone slow-mo no longer apply) and
-   reinforces #2 (60fps is already the known-good operating point from prior NL testing).
-   A phone may still be used later for one-off calibration/reference footage, but the shipped
-   pipeline must work on webcam 1080p60fps footage.
+6. **Hardware decision: webcam-only, no external hardware.** Professor requires the project not
+   depend on external hardware (no dedicated camera/phone purchase for the pipeline itself).
+   Deployment target is fixed at **1080p @ 60fps via webcam** — this is not a stopgap, it's the
+   actual spec to validate and tune against going forward. A phone may still be used later for
+   one-off calibration/reference footage, but the shipped pipeline must work on webcam
+   1080p60fps footage.
 
 ## Known bugs / open issues
 
-1. **Still open**: a known false-positive marker match (`240_25.mp4` disk 0, frame 368,
-   returns a wrong color, not a missed detection) is not caught by the sigma-clip fit even
-   though that segment's fit is otherwise trustworthy (residual std ~1.94°) — the bad value's
-   residual apparently isn't large enough relative to that tight fit to get flagged. Not
-   automatically fixed by the recovery/interpolation pass either (that only overwrites rows
-   already flagged missing/inconsistent). No dedicated fix attempted — real fix is expected to
-   be the repaint (removes this failure mode's root cause: the two-dimple / low-saturation
-   material problem), not further per-case tuning.
-2. `estimate_background_median` only masks pixels a puck was *detected* covering during the
-   sample window — if a puck sits somewhere YOLO doesn't detect it at all during that window,
-   that spot still isn't protected. Edge case, not hit in testing so far.
+1. `estimate_background_median` only masks pixels a puck was *detected* covering during the
+   sample window — if a puck sits somewhere the detector doesn't detect it at all during that
+   window, that spot still isn't protected. Edge case, not hit in testing so far.
+2. Raw disk *position* recall across a clip's full duration and sparse both-disk coverage
+   around the collision moment — see "Standing objective" above, both still open.
+3. **Manually clip `Other_Side`-style videos before detection.** That side of the table is
+   cramped enough that disks bounce off the boundary and come back — the pipeline expects one
+   clean approach/contact/separation per video (see "Filming pattern"), so any clip shot on
+   that side needs the post-bounce tail (and any pre-bounce noise) trimmed out by hand first.
+   Not an issue for the regular side's normal throws.
+4. **At 56-60fps, some "collisions" may not be real ones at all.** The frame rate isn't always
+   enough to actually resolve contact, so a clip that looks like a near-miss/graze to the
+   detector might genuinely not have a collision in it. `collision_gap_mm`
+   (`_compute_metrics`'s diagnostic, recorded minimum center-to-center distance minus expected
+   contact distance) is a first automatable flag for this — a large gap means either bad
+   sampling around a real collision, or no real collision at all, and today nothing
+   distinguishes those two cases. Worth a threshold/policy once more data exists on what a
+   "real but undersampled" gap typically looks like vs. "no collision happened."
+5. **Idea, not designed yet**: some kind of lightweight server/notification setup so results
+   (e, momentum error, energy drop, collision_gap_mm) can be checked from a phone shortly after
+   a trial run, so a bad run can be flagged for the student to redo on the spot rather than
+   discovered later. No requirements gathered yet (push vs. pull, hosting, who else needs
+   access) — don't start designing until asked.
 
-**Resolved 2026-09-18** (found from user-reported symptoms on real clips 3 & 5, `New Disks`
-batch; both verified by re-running the real pipeline end-to-end, not just unit-level):
+**Resolved:**
 
-3. **`collision_gap_mm` unit-mismatch bug, fixed.** `_compute_metrics` (`Post_process.py`)
-   received `radius` in mm (the GUI field is labeled mm — `disk_r_g_val`/`disk_r_b_val`) but
-   treated it as meters in two places: the `collision_gap_mm` diagnostic subtracted the raw mm
-   sum from a meter-scale recorded distance before re-multiplying by 1000, and `RADIUS_M` (feeding
-   `INERTIA` for the rotational-KE term in `energy_drop_rel_COM`) used the raw mm value as
-   meters — inflating rotational KE by ~1e6x whenever a segment's fitted omega was nonzero.
-   Symptom: `collision_gap_mm` values like -69924.5 instead of a few mm. Fix: convert `radius`
-   to meters once at the top of `_compute_metrics` (`radius_m`), used everywhere downstream.
-   Verified on clips 3/5: gap now reads +3.8mm / +5.5mm (physically sane — recorded frames
-   didn't quite reach true contact distance, as expected from frame-rate sampling).
-4. **Green marker (dimple) detection, fixed for now — real fix still pending.** Root cause:
-   `detect_dark_marker_center`'s threshold is relative to *that disk's own* median V
-   (`dark_value_frac × median_V`), but green's painted body measures far darker overall than
-   blue's (`FLIPPED_GREEN_UPPER` V-cap 110 vs `FLIPPED_BLUE_UPPER`'s 190; confirmed again
-   directly on clips 3/5: green body median V ~79-85, blue ~139-146). The black dimple's own
-   absolute brightness is roughly constant regardless of which disk it's on (~50-60 V measured),
-   so the same 0.55 relative threshold that reliably isolates it on bright blue (ratio ~0.36-0.48)
-   almost never triggers on darker green (ratio ~0.6-0.65, above the 0.55 cutoff) — confirmed via
-   the real pipeline: green marker recall was 0/40 rows across clips 3+5 before the fix. Software
-   mitigation: `FLIPPED_MARKER_DARK_VALUE_FRAC_GREEN = 0.72` (detector.py), used only for green
-   disks, chosen via a real-footage sweep (0.55→14%, 0.65→50%, 0.70→93%, 0.72→100% green-marker
-   recall on clips 3+5 combined) and visually confirmed landing on the real dimple, not
-   noise/shadow. Re-ran full pipeline post-fix: green recall 100%/95% on clips 3/5 (was 0%/0%).
-   **This is a stopgap, not the real fix** — same conclusion as the classic scheme's known bug
-   above: the durable fix is a brighter/more saturated green paint so green gets the same V
-   headroom blue already has, at which point this constant should be revisited (possibly merged
-   back into one shared value).
-
-**2026-09-19 session: diagnosed why theta/rotation coverage was low on real footage, and
-addressed both the detectable and non-detectable parts of it.**
-
-5. **Root cause of low theta coverage, diagnosed against the real `Camera Roll/New Disks/`
-   batch (only 10 of the 18 referenced clips are actually in that folder as of this session:
-   `3,4,5,6,7,8,10,17,18.mp4` + `13 - Trim.mp4`; the other numbered clips referenced in earlier
-   sessions weren't present on disk).** Instrumented `detect_disks_color` +
-   `resolve_marker_flipped_scheme` directly (not just the exported CSV) across all 10 clips.
-   Per-frame dimple recall **given the disk itself was already found** was already high on most
-   clips (80-100%) even before this session's fix — the low *overall* theta coverage traces to
-   two real, physical causes, confirmed visually by inspecting actual disk crops frame-by-frame,
-   not a threshold bug:
-   - **Motion blur during the fast approach/separation around contact** smears the small dimple
-     below any reasonable contrast threshold (visually confirmed on `4.mp4` blue, frames
-     ~123-131 — the dimple is clearly visible for ~7 frames, then vanishes into blur/glare for
-     the next ~9 right as the disk accelerates into the collision).
-   - **The marker rotating to a camera-facing arc where it's genuinely foreshortened/
-     self-occluded by the disk's own rim**, from this side-mounted camera's angle (see "Lab /
-     lighting history" — camera isn't overhead). Visually confirmed on `17.mp4` green: no
-     visible dark dimple at all for ~15 consecutive frames (the disk face looks uniformly
-     colored, not just low-contrast), then a real, visible one reappears at frame 214. This is a
-     genuine geometric limitation of a side camera viewing a marker near the disk's rim, not
-     fixable by any amount of image-processing on the frames where it's true.
-   Neither cause is fixable by retuning a detection threshold — see item 7 below for the actual
-   mitigation (interpolation), which is physically correct for exactly this kind of gap on a
-   frictionless table.
-6. **What WAS a real, fixable threshold gap, fixed:** a handful of frames sit right at the edge
-   of the calibrated `dark_value_frac` with a genuinely darker-than-background but marginally
-   subtle dimple (measured on `17.mp4` green frame 213, one frame before the strict threshold
-   already succeeds at 214 unaided). Added one bounded relaxed retry to
-   `Pre_process.detect_dark_marker_center` (`relax_frac_delta` param;
-   `detector.FLIPPED_MARKER_RELAX_FRAC_DELTA = 0.10`), gated by a new max-area cap
-   (`max_area` param; `detector.FLIPPED_MARKER_MAX_AREA_FRAC = 0.12`, applied **only** to the
-   relaxed retry, never the strict pass) so relaxing the threshold can't mistake a frame where
-   the **whole disk** dipped darker (motion blur / passing shadow / exposure dip — measured
-   directly: `17.mp4` frames ~205-212 grow from 0px "dark" to >1000px, a near-disk-sized blob,
-   under a relaxed threshold with no cap) for the compact marker dimple (~100-300px). Verified
-   on the real 10-clip batch: **blue recall on 3 clips jumped 52-77% → 95-100%** (previously-
-   missed marginal frames, confirmed visually landing on the real dimple through motion blur),
-   green stayed ~85-100% (already fine), occlusion-limited clips (`17`/`18`) picked up one or
-   two more genuine reads each — **no clip regressed**.
-7. **Excel now guarantees a theta value on every row (user requirement).** Added
-   `Post_process._fill_theta_gaps_per_disk`, called from `build_student_excel`: per disk, per
-   rotation segment (before/after the collision frame — never across it, same rule as
-   `fit_rotation_segments`/`fill_rotation_gaps`), linearly interpolates missing `theta_deg`
-   against `frame` from that disk's own nearest measured neighbors. This isn't just a smoothing
-   convenience — on this frictionless table (see "Physics") angular velocity is genuinely
-   constant between collisions, so theta vs. frame really is linear within a segment, meaning
-   interpolation recovers the true intermediate value, not an approximation. A gap at a
-   segment's leading/trailing edge (no earlier/later measurement to interpolate between) holds
-   flat at the nearest available value instead of extrapolating past the last real reading. The
-   single collision-frame row (excluded from both segments, since omega isn't assumed constant
-   during contact) can't be modeled at all — if missing, it's carried from the adjacent segment
-   instead of left blank. Adds a `theta_source` column to the Raw_Data sheet
-   (`measured`/`interpolated`/`collision_nearest`/`None`).
-   **Known remaining limit, not silently papered over**: if an entire before/after segment has
-   *zero* measured theta values (both disks in `17.mp4`/`18.mp4` hit this for several segments —
-   only 5/44 and 1/58 rows measured respectively, a direct consequence of item 5's occlusion/
-   blur causes being severe enough on those two clips to wipe out a whole segment, not just
-   scattered frames), there's nothing to interpolate from and those rows stay NaN/`None`. This
-   is an honest data limit (this session's simple interpolation, not the more complex
-   physics-fit + video-search `detector.fill_rotation_gaps`/`recover_and_fill_rotation`, which
-   is still unwired from this export path — see "Rotation fitting and recovery" — and wouldn't
-   fully fix these two clips either, since its own `MAX_FIT_RESIDUAL_STD_DEG` gate exists
-   precisely to refuse recovery when too little real data exists to trust a fit).
-8. **Separately noted, not addressed this session**: raw disk *position* recall (not just the
-   marker) across each clip's full duration is quite low in this batch (~10-40%, e.g. `18.mp4`
-   blue only 17.6%) — most frames in a clip are before/after the disk is actually in its active
-   throw/collision window, so this isn't necessarily alarming by itself, but it does cap how
-   much data is available for the theta pipeline above regardless of marker-detection quality,
-   and is worth a dedicated look if more of the referenced 18-clip batch becomes available.
+- **`collision_gap_mm` unit-mismatch bug.** `_compute_metrics` (`Post_process.py`) received
+  `radius` in mm (the GUI field is labeled mm) but treated it as meters in two places: the
+  `collision_gap_mm` diagnostic subtracted the raw mm sum from a meter-scale recorded distance
+  before re-multiplying by 1000, and `RADIUS_M` (feeding `INERTIA` for the rotational-KE term)
+  used the raw mm value as meters — inflating rotational KE by ~1e6x whenever a segment's
+  fitted omega was nonzero. Fix: convert `radius` to meters once at the top of
+  `_compute_metrics` (`radius_m`), used everywhere downstream.
+- **Restitution normal derived from position instead of velocity.** `_compute_metrics` used to
+  derive the collision normal from disk *positions* at the single recorded "collision frame"
+  (closest recorded center-to-center distance) — fragile whenever the true closest approach
+  fell in a gap between detected frames (measured: a recorded 87mm minimum against an expected
+  ~70mm true contact distance produced an unphysical e=1.46). Fix: derive the normal from each
+  disk's own measured velocity change (impulse direction) instead — on a frictionless table the
+  contact force has no tangential component, so each disk's Δv is *exactly* along the true line
+  of centers at the instant of contact, regardless of whether that instant was ever sampled.
+- **Green marker (dimple) detection.** Root cause: the dark-value threshold is relative to that
+  disk's own median V, but green's painted body measures far darker overall than blue's, so the
+  same relative threshold that reliably isolates blue's dimple almost never triggers on green.
+  Fixed via `MARKER_DARK_VALUE_FRAC_GREEN` (see "Marker detection" above) — not the durable
+  fix (a brighter green paint is), but resolves it for the current paint.
+- **Low theta/rotation coverage on real footage, diagnosed and addressed 2026-09-19** — see
+  "Standing objective" and "Marker detection" above for the two physical causes found (motion
+  blur, self-occlusion), the one real threshold gap that was fixed (`MARKER_RELAX_FRAC_DELTA`/
+  `MARKER_MAX_AREA_FRAC`), and the interpolation guarantee added to the Excel export
+  (`_fill_theta_gaps_per_disk`).
 
 ## Reference: local test footage
 
-- `Camera Roll\NL\` — no-glare lighting test clips (NL01/02 = 60fps; NL03-05 = 240fps,
-  inconclusive, see Lab history #2).
-- `Camera Roll\Novos Videos\` — 28 videos (`240_1`...`240_25`, `new01`-`new03`), training-set +
-  calibration-survey source. Not representative of real single-collision runs.
-  `extracted_frames\has_pucks\` (884 frames, not in repo) is a pre-filtered puck-visible subset
-  for quick surveys.
+- `Camera Roll\New Disk Tests\` — 3 webcam clips (`Previous_Side_Light.mp4`,
+  `Previous_Side_No_Light.mp4`, `Other_Side.mp4`, ~1080p@56-57fps) used to first calibrate the
+  color/dimple constants on real painted-disk footage.
+- `Camera Roll\New Disks\` — larger real batch, 10 of an originally-referenced 18 clips present
+  as of the 2026-09-19 cleanup (`3,4,5,6,7,8,10,17,18.mp4` + `13 - Trim.mp4`), not yet in repo.
+  `17`/`18.mp4` used an earlier grey-dimple disk batch (lower marker contrast by construction —
+  see "Marker detection"), not representative of the current black-dimple disks.
+- `Camera Roll\NL\` / `Camera Roll\Novos Videos\` — old gray-body-disk footage (no whole-disk
+  paint, small colored-dot marker). Not representative of current runs; kept only as lighting-
+  history context (see "Lab / lighting history").
 - `Videos/` in the repo itself is empty — no test footage there.
 
 ## Long Term Issues (not critical)

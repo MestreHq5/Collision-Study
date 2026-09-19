@@ -91,8 +91,8 @@ class DetectionWorker(QThread):
     """
     Runs detector.main() off the GUI thread so the window stays responsive
     and can show real progress instead of freezing for the whole run (that
-    call processes the video frame-by-frame with YOLO inference, easily
-    tens of seconds to minutes). progress reports (frame_idx, total_frames);
+    call processes the video frame-by-frame, easily tens of seconds to
+    minutes). progress reports (frame_idx, total_frames);
     only emitted when the integer percentage actually changes, so a
     thousands-of-frames run doesn't queue thousands of cross-thread signal
     emissions for no visible benefit. QThread's built-in `finished` signal

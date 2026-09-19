@@ -248,31 +248,27 @@ def segment_disks_by_color(
     morph_kernel: Tuple[int, int] = (7, 7),
 ) -> List[Dict]:
     """
-    color-thresholding branch: position detection via direct HSV color-range
-    matching instead of background subtraction (segment_disks) or a trained
-    model (detector.detect_disks_yolo). Only viable now that the disks
+    Position detection via direct HSV color-range matching instead of
+    background subtraction (segment_disks). Only viable because the disks
     themselves are painted a large, saturated, matte color (see CLAUDE.md
-    "Marker detection: two schemes" / flipped scheme) -- against the old
-    gray-body disks there was no whole-disk color signal to threshold on.
+    "Marker detection") -- against a gray disk body there'd be no whole-disk
+    color signal to threshold on.
 
     Unlike segment_disks, this doesn't need a background image or care about
     ambient brightness drifting between frames -- it only asks whether a
     pixel's hue/saturation falls in a calibrated color window, so it isn't
     fooled by a glare patch reading as "changed from background" the way
-    background subtraction was (see CLAUDE.md "deepLearning vs. classical
-    OpenCV contour" and ToDo.md section 5 for the measured comparison this
-    was built to replace: 78-92% both-disk recall in-window on real
-    repainted-disk footage vs. YOLO's near-total failure on the same clips).
+    background subtraction is.
 
     Searches each color independently (one HSV mask per entry in
     color_ranges), so a detection's `color` comes directly from which mask
     it was found in -- no separate bulk-color vote needed to know identity,
-    unlike the flipped marker scheme's classify_disk_bulk_color (which still
-    runs separately for the *marker* dimple search, unaffected by this).
+    unlike the marker scheme's classify_disk_bulk_color (which still runs
+    separately for the *marker* dimple search, unaffected by this).
 
     Args:
       color_ranges: dict of name -> (hsv_lower, hsv_upper), e.g.
-        {"green": (FLIPPED_GREEN_LOWER, FLIPPED_GREEN_UPPER), "blue": (...)}
+        {"green": (GREEN_LOWER, GREEN_UPPER), "blue": (...)}
       min_radius/max_radius: plausible disk radius in px (min-enclosing-circle
         based) -- placeholder bounds for this camera's framing, same caveat
         as segment_disks' own min/max_radius: retune per camera setup.
@@ -316,118 +312,6 @@ def segment_disks_by_color(
     return disks
 
 
-def detect_marker_center(
-    frame: np.ndarray,
-    disk_center: Tuple[float, float],
-    disk_radius: float,
-    hsv_lower: np.ndarray,
-    hsv_upper: np.ndarray,
-    pad_factor: float = 2,
-    min_area: float = 10,
-    min_circularity: float = 0.0,
-    max_circularity: float = 1.0,
-    mask_center: Optional[Tuple[float, float]] = None,
-    mask_radius: Optional[float] = None,
-    mask_inner_radius: float = 0.0
-) -> Optional[Tuple[int, int]]:
-    """
-    Crop around `disk_center` ± pad_factor×radius, threshold in HSV between
-    hsv_lower/hsv_upper, clean the mask, and return the (x,y) centroid of
-    the largest blob above `min_area`, or None if none found.
-
-    Args:
-      frame:        Full BGR image.
-      disk_center:  (x,y) in pixels of the disk's centroid.
-      disk_radius:  radius in pixels of the disk.
-      hsv_lower:    lower HSV bound for the mark.
-      hsv_upper:    upper HSV bound for the mark.
-      debug:        If True, show debug windows for ROI/masks.
-      pad_factor:   How much to pad the ROI around the disk.
-      min_area:     Minimum contour area (px²) to accept as the mark.
-      min_circularity: Minimum 4*pi*area/perimeter^2 to accept as the mark.
-        The real paint marker is a compact round dot; a thin rim/shadow
-        sliver (from an HSV floor loose enough to catch edge/glare noise)
-        follows the disk's boundary arc instead and reads as a much less
-        circular blob at comparable area. Default 0.0 keeps old behavior.
-      max_circularity: Reject anything MORE circular than this. Confirmed
-        real markers measured 0.72-0.83; a small (~28px) noise/compression
-        artifact measured 0.943 — more "perfectly" round than real paint
-        under real camera noise ever was. Default 1.0 keeps old behavior
-        (no ceiling).
-      mask_center, mask_radius: geometry used for the "must be inside the
-        disk" restriction (step 3). Defaults to disk_center/disk_radius.
-        Pass these separately when `disk_center` is really a search anchor
-        that isn't guaranteed to sit on the disk (e.g. a keypoint) — without
-        this, an anchor near/past the true edge lets the mask leak into
-        background around the disk, matching whatever's out there instead of
-        being confined to the puck itself.
-      mask_inner_radius: also exclude anything closer than this to
-        mask_center, turning the "inside disk" circle into an annulus. The
-        offset marker sits near the disk's edge by design — excluding the
-        center rejects near-center noise/highlights outright instead of
-        relying on area/circularity alone. Default 0.0 keeps old behavior
-        (filled circle, no inner exclusion).
-
-    Returns:
-      (x,y) pixel coordinates of the mark's centroid in full frame, or None.
-    """
-    if mask_center is None:
-        mask_center = disk_center
-    if mask_radius is None:
-        mask_radius = disk_radius
-    
-    # 1) ROI extraction 
-    x_c, y_c = map(int, disk_center) # convert pixel values to integers
-    pad = int(disk_radius * pad_factor) # compute a reasonable extent for the ROI (padding)
-    h, w = frame.shape[:2] # get frame dimensions
-    
-    
-    x1, y1 = max(x_c - pad, 0), max(y_c - pad, 0) # Clamped to the (0,0) --> position of the upper-left corner
-    x2, y2 = min(x_c + pad, w), min(y_c + pad, h) # Clamped to the (w,h) --> position of the lower-right corner (image restriction)
-    
-    roi = frame[y1:y2, x1:x2] # ROI in-frame image
-
-    # 2) Pre‑smooth the ROI to mitigate motion blur, then convert to HSV
-    roi_blur = cv2.GaussianBlur(roi, (5, 5), 0)
-    hsv = cv2.cvtColor(roi_blur, cv2.COLOR_BGR2HSV)
-    h, s, v = cv2.split(hsv)
-
-    # CLAHE on both Value AND Saturation. Under dimmer lighting, colored
-    # markers lose saturation as well as brightness, and an absolute S
-    # floor (e.g. S>=80) can reject a marker that would otherwise be a
-    # perfectly clear hue match. Equalizing S helps recover that signal
-    # without having to keep loosening the raw hsv_lower/upper bounds.
-    # Tile grid must scale with the ROI: a fixed (8,8) grid on a marker-sized
-    # crop (roughly disk_radius*pad_factor*2 px wide) gives tiles only a few
-    # px across, which is too small a sample for local histogram equalization
-    # — it amplifies sensor noise on the flat gray disk body into fake,
-    # fully-saturated "color" blobs instead of just rescuing a dim real
-    # marker. Keep tiles at least ~16px so equalization has enough signal.
-    roi_h, roi_w = v.shape[:2]
-    tiles_x = max(1, min(8, roi_w // 16))
-    tiles_y = max(1, min(8, roi_h // 16))
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(tiles_x, tiles_y))
-    v = clahe.apply(v)
-    s = clahe.apply(s)
-    hsv = cv2.merge((h, s, v))
-    raw_mask = cv2.inRange(hsv, hsv_lower, hsv_upper)
-
-    # 2b) Fallback: if the strict mask found (almost) nothing, relax the
-    # S/V floors while keeping the hue window fixed. Hue is far more
-    # lighting-invariant than S/V, so this recovers dim-but-correctly-hued
-    # markers instead of silently returning None for the whole clip.
-    if cv2.countNonZero(raw_mask) < min_area:
-        lower_relaxed = hsv_lower.copy()
-        upper_relaxed = hsv_upper.copy()
-        lower_relaxed[1] = max(20, int(hsv_lower[1]) - 50)   # S floor
-        lower_relaxed[2] = max(20, int(hsv_lower[2]) - 50)   # V floor
-        raw_mask = cv2.inRange(hsv, lower_relaxed, upper_relaxed)
-
-    return _select_best_blob(raw_mask, x1, y1, mask_center, mask_radius,
-                              mask_inner_radius, disk_radius,
-                              min_area, min_circularity, max_circularity)
-
-
 def _select_best_blob(raw_mask, x1, y1, mask_center, mask_radius, mask_inner_radius,
                        disk_radius, min_area, min_circularity, max_circularity,
                        max_area=None):
@@ -441,22 +325,21 @@ def _select_best_blob(raw_mask, x1, y1, mask_center, mask_radius, mask_inner_rad
     circularity, while a separate small round blob -- the actual marker --
     sat right next to it in the same mask and was never even considered).
 
-    Split out of detect_marker_center so detect_dark_marker_center (the
-    flipped-scheme dark-blob search) can reuse the exact same
-    geometry-restriction/cleanup/selection logic and only differ in how
-    `raw_mask` itself was built (hue match vs. darkness).
+    Called by detect_dark_marker_center; split out as its own function so
+    the geometry-restriction/cleanup/selection logic is separate from how
+    `raw_mask` itself gets built (darkness threshold).
 
     raw_mask: candidate pixel mask (uint8, 0/255), already in ROI/crop
       coordinates (crop's top-left corner is (x1, y1) in full-frame coords).
     mask_center, mask_radius, mask_inner_radius, disk_radius,
-    min_area, min_circularity, max_circularity: see detect_marker_center.
+    min_area, min_circularity, max_circularity: see detect_dark_marker_center.
     max_area: reject anything LARGER than this too (px^2), default None (no
-      cap) -- keeps detect_marker_center's existing behavior unchanged.
-      detect_dark_marker_center's relaxed retry pass needs this: loosening a
-      relative-darkness threshold risks catching a patch of the disk that got
-      uniformly darker (shadow/exposure dip) rather than the compact marker
-      dimple, and a near-disk-sized dark patch can still be circular enough
-      to pass the shape gate on its own -- only a size cap rules that out.
+      cap). detect_dark_marker_center's relaxed retry pass needs this:
+      loosening a relative-darkness threshold risks catching a patch of the
+      disk that got uniformly darker (shadow/exposure dip) rather than the
+      compact marker dimple, and a near-disk-sized dark patch can still be
+      circular enough to pass the shape gate on its own -- only a size cap
+      rules that out.
     """
     # Restrict to inside the disk (using mask_center/mask_radius, which may
     # differ from the crop's own disk_center/disk_radius anchor), and
@@ -530,30 +413,23 @@ def detect_dark_marker_center(
     relax_frac_delta: float = 0.0,
 ) -> Optional[Tuple[int, int]]:
     """
-    Flipped-scheme marker detection (active when MARKER_SCHEME="flipped" in
-    detector.py -- repainted-disk footage now exists and calibrated the
-    dark_value_frac/area/circularity constants that feed this). Once the disk
-    itself is painted a reliable, saturated color, the marker becomes the
-    disk's *only* dark/desaturated feature (a
-    black-painted dimple) instead of a small saturated blob on a gray disk,
-    so this finds the darkest compact blob within the disk instead of
-    hunting a specific hue. See CLAUDE.md "Design idea... paint the whole
-    disk" for why this direction is structurally more robust to glare: a
-    bright specular highlight now works AGAINST a dark-marker match instead
-    of mimicking a bright saturated one, which is exactly the failure mode
-    that kept corrupting the current small-marker scheme (see Known bugs).
+    Marker detection: the disk itself is painted a reliable, saturated
+    color, and the offset marker is a black-painted dimple -- the marker's
+    *only* distinguishing feature is that it's dark, so this finds the
+    darkest compact blob within the disk instead of hunting a specific hue.
+    A bright specular highlight works AGAINST a dark-marker match instead of
+    mimicking a bright saturated one, which is structurally more robust to
+    glare than hue-matching a small marker would be.
 
-    Shares crop extraction + geometry-restriction + contour selection with
-    detect_marker_center via _select_best_blob; only the candidate-pixel
-    rule differs (relatively dark vs. a fixed hue range).
+    Uses _select_best_blob for the shared crop extraction +
+    geometry-restriction + contour selection; only the candidate-pixel rule
+    is specific to this function (relatively dark, not a fixed hue range).
 
     dark_value_frac: pixels with V below this fraction of the crop's own
       median V (measured only inside the disk mask, so background outside
       the disk can't bias the threshold) count as "dark" -- relative, not
       an absolute cutoff, so it adapts to whatever lighting a given frame
-      actually has, matching detect_marker_center's own CLAHE-based
-      lighting-invariance rationale. Placeholder value; retune once real
-      black-marker samples exist (see MARKER_SCHEME).
+      actually has.
     max_area: forwarded to _select_best_blob -- see its docstring. Required
       for a safe relax_frac_delta > 0 (see below): without a cap, a relaxed
       pass can mistake a patch of the disk that got uniformly darker (motion
@@ -565,13 +441,12 @@ def detect_dark_marker_center(
       median brightness dipped, not because the marker became visible.
     relax_frac_delta: if the strict `dark_value_frac` pass finds no
       shape-gate-passing blob, retries once with
-      `dark_value_frac + relax_frac_delta` before giving up (mirrors
-      detect_marker_center's own single-step S/V relaxation fallback).
+      `dark_value_frac + relax_frac_delta` before giving up.
       0.0 (default) disables this -- opt in explicitly, and always pair with
       a real `max_area` when raising it (see above). Verified on the real
       `Camera Roll/New Disks/` batch with delta=0.10 + max_area capped at
-      12% of the disk's face area (see detector.FLIPPED_MARKER_RELAX_FRAC_DELTA/
-      FLIPPED_MARKER_MAX_AREA_FRAC): recovered several marginally-subtle real
+      12% of the disk's face area (see detector.MARKER_RELAX_FRAC_DELTA/
+      MARKER_MAX_AREA_FRAC): recovered several marginally-subtle real
       dimples with no regressions anywhere in the batch (blue recall jumped
       52-77% -> 95-100% on 3 clips; green stayed 100% where it already was),
       and on `17.mp4`'s frames ~205-212 -- exactly the "whole disk dipped
@@ -641,15 +516,11 @@ def detect_dark_marker_center(
 def classify_disk_bulk_color(frame, disk_center, disk_radius, color_ranges,
                               pad_factor: float = 1.0, min_share: float = 0.15):
     """
-    Flipped-scheme disk identity (active when MARKER_SCHEME="flipped" in
-    detector.py). Classifies which of color_ranges the
-    disk's own BODY matches by majority vote over the disk's circular
-    interior, instead of matching a small offset marker blob. Structurally
-    more robust than the current scheme: this votes over hundreds/thousands
+    Disk identity: classifies which of color_ranges the disk's own BODY
+    matches by majority vote over the disk's circular interior, instead of
+    matching a small offset marker blob. This votes over hundreds/thousands
     of pixels instead of a handful, so isolated noise or a stray highlight
-    can't flip the read the way it repeatedly did for the small marker dot
-    (the 240_15.mp4 stationary-disk test's color-flip finding, this
-    session, was exactly a small-sample-size problem -- see Known bugs).
+    can't flip the read the way it would for a small marker dot.
 
     Args:
       color_ranges: dict of name -> (hsv_lower, hsv_upper), e.g.
