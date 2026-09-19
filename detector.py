@@ -399,6 +399,48 @@ FLIPPED_MARKER_MIN_CIRCULARITY = MARKER_MIN_CIRCULARITY  # measured real p1 ~0.7
 FLIPPED_MARKER_MAX_CIRCULARITY = 0.94  # measured real p99 ~0.91-0.92 -- the inherited 0.90
 # ceiling would have rejected ~1% of real dimples for being "too circular"; raised for margin
 
+# 2026-09-19: real 18-clip batch (`Camera Roll/New Disks/`) diagnosis found the
+# per-frame dimple recall (given the disk itself was found) is already high on
+# most clips (80-100%) with the constants above -- the batch's low overall
+# theta coverage traces mostly to two real, physical causes, not a threshold
+# bug: (a) motion blur during the fast approach/separation around contact
+# smearing the small dimple below any reasonable contrast threshold (visually
+# confirmed on 4.mp4 blue, frames ~123-131), and (b) the marker rotating to a
+# camera-facing arc where it's genuinely foreshortened/self-occluded by the
+# disk's own rim from this side-mounted camera position (visually confirmed on
+# 17.mp4 green: no visible dark dimple at all for ~15 consecutive frames, then
+# a real one at frame 214). Neither is fixable by retuning a threshold -- see
+# Post_process's per-segment theta interpolation for the actual fix (theta vs.
+# frame is linear between collisions on this frictionless table regardless, so
+# filling those gaps by interpolating the segment's own measured neighbors is
+# physically correct, not just a stopgap).
+# What IS a real, measured threshold gap: a handful of frames sit right at the
+# edge of FLIPPED_MARKER_DARK_VALUE_FRAC(_GREEN) with a genuinely darker-than-
+# background but marginally-subtle dimple (measured on 17.mp4 green frame 213,
+# one frame before the strict pass already succeeds at 214). FLIPPED_MARKER_
+# RELAX_FRAC_DELTA gives detect_dark_marker_center one relaxed retry for
+# exactly these marginal misses, gated by FLIPPED_MARKER_MAX_AREA_FRAC so the
+# relaxed pass can't mistake a frame where the WHOLE disk dipped darker
+# (motion blur / passing shadow / exposure) for the marker -- measured on the
+# same clip (frames ~205-212) that relaxing the threshold without a size cap
+# would otherwise catch a >1000px near-disk-sized blob, not the ~100-300px the
+# real dimple actually measures.
+# Net effect on the same 10-clip subset (the rest of `New Disks/` wasn't yet
+# in the repo as of this session -- see CLAUDE.md): blue recall on 3 clips
+# jumped 52-77% -> 95-100% (previously-missed marginal frames, confirmed
+# visually landing on the real dimple through motion blur), green stayed
+# ~85-100% (already fine), and 17/18.mp4's real occlusion-limited stretches
+# picked up one or two more genuine reads each without any new false
+# positives on the frames the max_area gate exists to reject -- no clip
+# regressed.
+FLIPPED_MARKER_RELAX_FRAC_DELTA = 0.10
+FLIPPED_MARKER_MAX_AREA_FRAC = 0.12  # generous margin above FLIPPED_MARKER_MIN_AREA_FRAC's
+# measured real dimple floor (~0.012-0.019) -- no real per-clip max-area survey run yet
+# (only the min side was surveyed, see FLIPPED_MARKER_MIN_AREA_FRAC), but a near-disk-sized
+# false blob measures far larger than this regardless (the 17.mp4 case above filled most of
+# the disk's own face), so this placeholder already does its job of rejecting that case;
+# revisit with a real survey if the relaxed retry ever needs finer tuning
+
 # Identify-by-exclusion net (2026-09-17, user-observed): under direct overhead
 # glare the green paint specifically reads as desaturated grey rather than
 # green, dropping below FLIPPED_GREEN_LOWER's saturation floor -- but since
@@ -454,6 +496,7 @@ def resolve_marker_flipped_scheme(frame, det, scale_mm_per_px=None):
         mask_outer = r * pad_factor
     crop_radius = max(r, mask_outer / pad_factor)
     min_area = FLIPPED_MARKER_MIN_AREA_FRAC * math.pi * r * r
+    max_area = FLIPPED_MARKER_MAX_AREA_FRAC * math.pi * r * r
 
     mark = prp.detect_dark_marker_center(
         frame, (cx, cy), crop_radius,
@@ -468,6 +511,8 @@ def resolve_marker_flipped_scheme(frame, det, scale_mm_per_px=None):
         # margin for green's, so green gets its own retuned constant.
         dark_value_frac=(FLIPPED_MARKER_DARK_VALUE_FRAC_GREEN if color == "green"
                           else FLIPPED_MARKER_DARK_VALUE_FRAC),
+        max_area=max_area,
+        relax_frac_delta=FLIPPED_MARKER_RELAX_FRAC_DELTA,
     )
     return mark, color
 

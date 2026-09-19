@@ -429,7 +429,8 @@ def detect_marker_center(
 
 
 def _select_best_blob(raw_mask, x1, y1, mask_center, mask_radius, mask_inner_radius,
-                       disk_radius, min_area, min_circularity, max_circularity):
+                       disk_radius, min_area, min_circularity, max_circularity,
+                       max_area=None):
     """
     Shared back half of marker detection: restrict a candidate pixel mask to
     inside the disk (annulus if mask_inner_radius given), clean it up, and
@@ -449,8 +450,13 @@ def _select_best_blob(raw_mask, x1, y1, mask_center, mask_radius, mask_inner_rad
       coordinates (crop's top-left corner is (x1, y1) in full-frame coords).
     mask_center, mask_radius, mask_inner_radius, disk_radius,
     min_area, min_circularity, max_circularity: see detect_marker_center.
-
-    Returns (x, y) centroid in full-frame coordinates, or None.
+    max_area: reject anything LARGER than this too (px^2), default None (no
+      cap) -- keeps detect_marker_center's existing behavior unchanged.
+      detect_dark_marker_center's relaxed retry pass needs this: loosening a
+      relative-darkness threshold risks catching a patch of the disk that got
+      uniformly darker (shadow/exposure dip) rather than the compact marker
+      dimple, and a near-disk-sized dark patch can still be circular enough
+      to pass the shape gate on its own -- only a size cap rules that out.
     """
     # Restrict to inside the disk (using mask_center/mask_radius, which may
     # differ from the crop's own disk_center/disk_radius anchor), and
@@ -485,6 +491,8 @@ def _select_best_blob(raw_mask, x1, y1, mask_center, mask_radius, mask_inner_rad
         area = cv2.contourArea(c)
         if area < min_area:
             continue
+        if max_area is not None and area > max_area:
+            continue
         if min_circularity > 0 or max_circularity < 1.0:
             perimeter = cv2.arcLength(c, True)
             circularity = (4 * np.pi * area / (perimeter * perimeter)) if perimeter > 0 else 0.0
@@ -518,6 +526,8 @@ def detect_dark_marker_center(
     mask_radius: Optional[float] = None,
     mask_inner_radius: float = 0.0,
     dark_value_frac: float = 0.55,
+    max_area: Optional[float] = None,
+    relax_frac_delta: float = 0.0,
 ) -> Optional[Tuple[int, int]]:
     """
     Flipped-scheme marker detection (active when MARKER_SCHEME="flipped" in
@@ -544,6 +554,34 @@ def detect_dark_marker_center(
       actually has, matching detect_marker_center's own CLAHE-based
       lighting-invariance rationale. Placeholder value; retune once real
       black-marker samples exist (see MARKER_SCHEME).
+    max_area: forwarded to _select_best_blob -- see its docstring. Required
+      for a safe relax_frac_delta > 0 (see below): without a cap, a relaxed
+      pass can mistake a patch of the disk that got uniformly darker (motion
+      blur, a passing shadow, exposure dip) for the marker, since that patch
+      can still be compact/circular enough to clear the shape gate on its
+      own merit -- measured directly on real footage (`17.mp4`, disk green,
+      frames ~205-213): raising dark_value_frac by ~0.30 over the calibrated
+      value grew the "dark" region from 0px to >1000px as the WHOLE disk's
+      median brightness dipped, not because the marker became visible.
+    relax_frac_delta: if the strict `dark_value_frac` pass finds no
+      shape-gate-passing blob, retries once with
+      `dark_value_frac + relax_frac_delta` before giving up (mirrors
+      detect_marker_center's own single-step S/V relaxation fallback).
+      0.0 (default) disables this -- opt in explicitly, and always pair with
+      a real `max_area` when raising it (see above). Verified on the real
+      `Camera Roll/New Disks/` batch with delta=0.10 + max_area capped at
+      12% of the disk's face area (see detector.FLIPPED_MARKER_RELAX_FRAC_DELTA/
+      FLIPPED_MARKER_MAX_AREA_FRAC): recovered several marginally-subtle real
+      dimples with no regressions anywhere in the batch (blue recall jumped
+      52-77% -> 95-100% on 3 clips; green stayed 100% where it already was),
+      and on `17.mp4`'s frames ~205-212 -- exactly the "whole disk dipped
+      darker" case this cap exists for -- correctly still returned None
+      instead of the near-disk-sized false blob the relaxed threshold alone
+      would have matched there. Not a fix for frames where the marker is
+      truly not visible (motion blur mid-collision, or self-occluded by the
+      disk's own rim from this side camera's angle at that rotation) -- those
+      correctly stay None and get filled by interpolation instead of a guess
+      (see Post_process.py's per-segment theta interpolation).
 
     Returns (x, y) centroid in full-frame coordinates, or None.
     """
@@ -574,12 +612,30 @@ def detect_dark_marker_center(
     disk_pixels_v = v[disk_only > 0]
     if disk_pixels_v.size == 0:
         return None
-    v_thresh = float(np.median(disk_pixels_v)) * dark_value_frac
-    raw_mask = ((v < v_thresh).astype(np.uint8)) * 255
+    median_v = float(np.median(disk_pixels_v))
 
-    return _select_best_blob(raw_mask, x1, y1, mask_center, mask_radius,
+    # Strict pass: no max_area cap here -- this threshold is already
+    # calibrated against real markers (see dark_value_frac docstring) and
+    # shouldn't newly reject a real detection just because a size cap
+    # designed for the relaxed retry below happened to be tighter than some
+    # legitimate marker's measured area.
+    v_thresh = median_v * dark_value_frac
+    raw_mask = ((v < v_thresh).astype(np.uint8)) * 255
+    found = _select_best_blob(raw_mask, x1, y1, mask_center, mask_radius,
+                               mask_inner_radius, disk_radius,
+                               min_area, min_circularity, max_circularity)
+    if found is not None or relax_frac_delta <= 0:
+        return found
+
+    # Single relaxed retry (see relax_frac_delta docstring) -- always paired
+    # with max_area so a frame where the whole disk dipped darker (not just
+    # the marker) can't get mistaken for it.
+    v_thresh_relaxed = median_v * (dark_value_frac + relax_frac_delta)
+    raw_mask_relaxed = ((v < v_thresh_relaxed).astype(np.uint8)) * 255
+    return _select_best_blob(raw_mask_relaxed, x1, y1, mask_center, mask_radius,
                               mask_inner_radius, disk_radius,
-                              min_area, min_circularity, max_circularity)
+                              min_area, min_circularity, max_circularity,
+                              max_area=max_area)
 
 
 def classify_disk_bulk_color(frame, disk_center, disk_radius, color_ranges,

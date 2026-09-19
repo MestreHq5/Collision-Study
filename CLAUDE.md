@@ -392,6 +392,78 @@ batch; both verified by re-running the real pipeline end-to-end, not just unit-l
    headroom blue already has, at which point this constant should be revisited (possibly merged
    back into one shared value).
 
+**2026-09-19 session: diagnosed why theta/rotation coverage was low on real footage, and
+addressed both the detectable and non-detectable parts of it.**
+
+5. **Root cause of low theta coverage, diagnosed against the real `Camera Roll/New Disks/`
+   batch (only 10 of the 18 referenced clips are actually in that folder as of this session:
+   `3,4,5,6,7,8,10,17,18.mp4` + `13 - Trim.mp4`; the other numbered clips referenced in earlier
+   sessions weren't present on disk).** Instrumented `detect_disks_color` +
+   `resolve_marker_flipped_scheme` directly (not just the exported CSV) across all 10 clips.
+   Per-frame dimple recall **given the disk itself was already found** was already high on most
+   clips (80-100%) even before this session's fix — the low *overall* theta coverage traces to
+   two real, physical causes, confirmed visually by inspecting actual disk crops frame-by-frame,
+   not a threshold bug:
+   - **Motion blur during the fast approach/separation around contact** smears the small dimple
+     below any reasonable contrast threshold (visually confirmed on `4.mp4` blue, frames
+     ~123-131 — the dimple is clearly visible for ~7 frames, then vanishes into blur/glare for
+     the next ~9 right as the disk accelerates into the collision).
+   - **The marker rotating to a camera-facing arc where it's genuinely foreshortened/
+     self-occluded by the disk's own rim**, from this side-mounted camera's angle (see "Lab /
+     lighting history" — camera isn't overhead). Visually confirmed on `17.mp4` green: no
+     visible dark dimple at all for ~15 consecutive frames (the disk face looks uniformly
+     colored, not just low-contrast), then a real, visible one reappears at frame 214. This is a
+     genuine geometric limitation of a side camera viewing a marker near the disk's rim, not
+     fixable by any amount of image-processing on the frames where it's true.
+   Neither cause is fixable by retuning a detection threshold — see item 7 below for the actual
+   mitigation (interpolation), which is physically correct for exactly this kind of gap on a
+   frictionless table.
+6. **What WAS a real, fixable threshold gap, fixed:** a handful of frames sit right at the edge
+   of the calibrated `dark_value_frac` with a genuinely darker-than-background but marginally
+   subtle dimple (measured on `17.mp4` green frame 213, one frame before the strict threshold
+   already succeeds at 214 unaided). Added one bounded relaxed retry to
+   `Pre_process.detect_dark_marker_center` (`relax_frac_delta` param;
+   `detector.FLIPPED_MARKER_RELAX_FRAC_DELTA = 0.10`), gated by a new max-area cap
+   (`max_area` param; `detector.FLIPPED_MARKER_MAX_AREA_FRAC = 0.12`, applied **only** to the
+   relaxed retry, never the strict pass) so relaxing the threshold can't mistake a frame where
+   the **whole disk** dipped darker (motion blur / passing shadow / exposure dip — measured
+   directly: `17.mp4` frames ~205-212 grow from 0px "dark" to >1000px, a near-disk-sized blob,
+   under a relaxed threshold with no cap) for the compact marker dimple (~100-300px). Verified
+   on the real 10-clip batch: **blue recall on 3 clips jumped 52-77% → 95-100%** (previously-
+   missed marginal frames, confirmed visually landing on the real dimple through motion blur),
+   green stayed ~85-100% (already fine), occlusion-limited clips (`17`/`18`) picked up one or
+   two more genuine reads each — **no clip regressed**.
+7. **Excel now guarantees a theta value on every row (user requirement).** Added
+   `Post_process._fill_theta_gaps_per_disk`, called from `build_student_excel`: per disk, per
+   rotation segment (before/after the collision frame — never across it, same rule as
+   `fit_rotation_segments`/`fill_rotation_gaps`), linearly interpolates missing `theta_deg`
+   against `frame` from that disk's own nearest measured neighbors. This isn't just a smoothing
+   convenience — on this frictionless table (see "Physics") angular velocity is genuinely
+   constant between collisions, so theta vs. frame really is linear within a segment, meaning
+   interpolation recovers the true intermediate value, not an approximation. A gap at a
+   segment's leading/trailing edge (no earlier/later measurement to interpolate between) holds
+   flat at the nearest available value instead of extrapolating past the last real reading. The
+   single collision-frame row (excluded from both segments, since omega isn't assumed constant
+   during contact) can't be modeled at all — if missing, it's carried from the adjacent segment
+   instead of left blank. Adds a `theta_source` column to the Raw_Data sheet
+   (`measured`/`interpolated`/`collision_nearest`/`None`).
+   **Known remaining limit, not silently papered over**: if an entire before/after segment has
+   *zero* measured theta values (both disks in `17.mp4`/`18.mp4` hit this for several segments —
+   only 5/44 and 1/58 rows measured respectively, a direct consequence of item 5's occlusion/
+   blur causes being severe enough on those two clips to wipe out a whole segment, not just
+   scattered frames), there's nothing to interpolate from and those rows stay NaN/`None`. This
+   is an honest data limit (this session's simple interpolation, not the more complex
+   physics-fit + video-search `detector.fill_rotation_gaps`/`recover_and_fill_rotation`, which
+   is still unwired from this export path — see "Rotation fitting and recovery" — and wouldn't
+   fully fix these two clips either, since its own `MAX_FIT_RESIDUAL_STD_DEG` gate exists
+   precisely to refuse recovery when too little real data exists to trust a fit).
+8. **Separately noted, not addressed this session**: raw disk *position* recall (not just the
+   marker) across each clip's full duration is quite low in this batch (~10-40%, e.g. `18.mp4`
+   blue only 17.6%) — most frames in a clip are before/after the disk is actually in its active
+   throw/collision window, so this isn't necessarily alarming by itself, but it does cap how
+   much data is available for the theta pipeline above regardless of marker-detection quality,
+   and is worth a dedicated look if more of the referenced 18-clip batch becomes available.
+
 ## Reference: local test footage
 
 - `Camera Roll\NL\` — no-glare lighting test clips (NL01/02 = 60fps; NL03-05 = 240fps,

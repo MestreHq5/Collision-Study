@@ -637,6 +637,76 @@ def visualize_trajectories(
     
     return cf
 
+def _fill_theta_gaps_per_disk(tbl: pd.DataFrame, cf: int) -> pd.DataFrame:
+    """
+    Guarantees every row of one disk's student table has a theta_deg value
+    (user requirement: the Excel should always have data for every row) by
+    linearly interpolating gaps from that disk's own nearest measured
+    neighbors -- not the physics-fit/video-search recovery in
+    detector.fill_rotation_gaps (that one needs an open video capture and
+    isn't wired into this export path; see CLAUDE.md Rotation recovery
+    section), just plain interpolation, per the user's own request.
+
+    This is more than a convenience fallback: on a frictionless air table
+    (CLAUDE.md "Physics") the disk's angular velocity is genuinely constant
+    between collisions, so theta vs. frame really IS linear within a
+    before/after segment -- interpolating a gap's endpoints against frame
+    number recovers the true intermediate values, not just a smoothed guess.
+    That assumption stops holding exactly at contact (torque), so segments
+    are split at the collision frame (cf) and never interpolated across it,
+    same rule as detector.fill_rotation_gaps / Post_process.fit_rotation_segments.
+
+    Leading/trailing gaps within a segment (no earlier/later measurement to
+    interpolate between) are held at the nearest available value instead of
+    extrapolated -- a flat hold is a smaller assumption than projecting a
+    two-point slope indefinitely past the last real reading.
+
+    The lone collision-frame row (excluded from both segments, since omega
+    isn't assumed constant during contact) can't be modeled at all; if its
+    own theta is missing, it's carried forward from the "before" segment's
+    last filled value (or back from "after"'s first, if "before" has none)
+    -- still better than a hole, tagged separately
+    (theta_source="collision_nearest") since it isn't backed by the same
+    constant-omega assumption as the segment fill.
+
+    Adds/uses columns: rotation_segment ("before"/"after"/"collision"),
+    theta_source ("measured"/"interpolated"/"collision_nearest"/None -- None
+    only if an entire segment has zero measured theta values, i.e. nothing
+    to interpolate from at all; a real but rare limit, not silently papered
+    over).
+    """
+    tbl = tbl.sort_values("frame").reset_index(drop=True)
+    frame = tbl["frame"].to_numpy()
+    tbl["rotation_segment"] = np.where(frame < cf, "before",
+                              np.where(frame > cf, "after", "collision"))
+    tbl["theta_source"] = np.where(tbl["theta_deg"].notna(), "measured", None)
+
+    for label in ("before", "after"):
+        seg_idx = tbl.index[tbl["rotation_segment"] == label]
+        if len(seg_idx) == 0:
+            continue
+        seg = tbl.loc[seg_idx]
+        if seg["theta_deg"].notna().sum() == 0:
+            continue  # nothing measured in this segment at all -- can't interpolate
+        filled = (seg.set_index("frame")["theta_deg"]
+                     .interpolate(method="index", limit_direction="both"))
+        was_missing = seg["theta_deg"].isna().to_numpy()
+        tbl.loc[seg_idx, "theta_deg"] = filled.to_numpy()
+        fill_positions = seg_idx[was_missing]
+        tbl.loc[fill_positions, "theta_source"] = "interpolated"
+
+    coll_idx = tbl.index[tbl["rotation_segment"] == "collision"]
+    if len(coll_idx) > 0:
+        nearest = (tbl.set_index("frame")["theta_deg"].sort_index()
+                      .ffill().bfill())
+        for i in coll_idx:
+            if pd.isna(tbl.loc[i, "theta_deg"]):
+                tbl.loc[i, "theta_deg"] = nearest.loc[tbl.loc[i, "frame"]]
+                tbl.loc[i, "theta_source"] = "collision_nearest"
+
+    return tbl
+
+
 def build_student_excel(
     csv_path: str,
     output_xlsx_path: str,
@@ -680,7 +750,14 @@ def build_student_excel(
     cols_student = ["time_s","disk_id","frame","cx","cy","theta_deg"]
     tbl0 = df0m.assign(disk_id=0)[cols_student].rename(columns={"cx":"x_m","cy":"y_m"})
     tbl1 = df1m.assign(disk_id=1)[cols_student].rename(columns={"cx":"x_m","cy":"y_m"})
+    # Guarantee theta_deg on every row (user requirement) via per-disk,
+    # per-segment interpolation -- see _fill_theta_gaps_per_disk for why this
+    # is physically correct (constant omega between collisions), not just a
+    # smoothing convenience.
+    tbl0 = _fill_theta_gaps_per_disk(tbl0, cf)
+    tbl1 = _fill_theta_gaps_per_disk(tbl1, cf)
     students_tbl = pd.concat([tbl0, tbl1], ignore_index=True).sort_values(["time_s","disk_id"])
+    students_tbl = students_tbl[["time_s","disk_id","frame","x_m","y_m","theta_deg","theta_source"]]
 
     results_df = None
     if include_metrics:
