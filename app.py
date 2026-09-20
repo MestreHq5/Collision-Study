@@ -1,7 +1,7 @@
 # Default Imports from PySide6 and the Qt framework
 import sys
 from PyQt6 import uic
-from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtCore import Qt, QSize, QTimer
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QStackedWidget, QLineEdit, QProgressBar
 from pathlib import Path
@@ -42,8 +42,25 @@ class MainWindow(QMainWindow):
         # Initialize and Load the GUI
         super().__init__()
         uic.loadUi(str(resource_path("gui.ui")), self)
-        self.resize(self.width(), self.height() + 20)
         self.target_size = QSize(300, 300)
+
+        # Full available height, half the screen's width, docked to the left
+        # edge -- meant to sit side-by-side with a terminal on the right
+        # (user's own workflow), not fill the screen. Still freely resizable
+        # afterwards; this only sets the initial size/position. A floor keeps
+        # it from starting cramped on a small/low-res display.
+        screen = QApplication.primaryScreen()
+        available = screen.availableGeometry() if screen else None
+        if available is not None:
+            target_w = max(int(available.width() * 0.5), 742)
+            target_h = available.height()
+            self.resize(target_w, target_h)
+            self.move(available.x(), available.y())
+        else:
+            self.resize(self.width(), self.height() + 20)
+        self.setMinimumSize(742, 555)  # the .ui's original design size -- below
+        # this, the redesigned pages' layouts get cramped rather than
+        # reflowing usefully.
 
         # Global
         self.stack: QStackedWidget = self.findChild(QStackedWidget, "stack")
@@ -55,7 +72,6 @@ class MainWindow(QMainWindow):
         self.btnStart: QPushButton = self.findChild(QPushButton, "btnStart")
 
         # Page 2
-        self.instructions: QLabel = self.findChild(QLabel, "instructions")
         self.btnNext2: QPushButton = self.findChild(QPushButton, "btnNext2")
 
         # Page 3
@@ -143,6 +159,35 @@ class MainWindow(QMainWindow):
         self._sb = self.statusBar()
         self._sb.showMessage("Ready. Please submit a tracking video.")
 
+    def resizeEvent(self, event):
+        """
+        Re-renders the trajectory preview (if one exists) from its stored
+        full-resolution source at the new size -- otherwise the plot stays
+        pinned at whatever size it happened to be generated at (the .ui's
+        original 742x535-ish default) even once the window grows, defeating
+        the point of the window being resizable to begin with.
+
+        Debounced (QTimer.singleShot, restarted on every event) rather than
+        applied immediately: a live interactive resize (dragging the window
+        edge) fires this dozens of times a second, and doing the pixmap
+        rescale synchronously on every single one of those -- while Qt is
+        itself still mid-resize, reallocating this window's backing store --
+        is a known trigger for "QPainter::...: Painter not active" spam:
+        forcing an immediate repaint of a large pixmap on a widget whose
+        paint device is actively being resized underneath it. Waiting until
+        resize events stop arriving for a short interval means the rescale
+        (and its repaint) only actually runs once, after the drag settles,
+        against a stable widget -- also strictly faster, since it's no
+        longer rescaling a 3600x2400 source image on every intermediate
+        frame of the drag.
+        """
+        super().resizeEvent(event)
+        if not hasattr(self, "_trajectory_resize_timer"):
+            self._trajectory_resize_timer = QTimer(self)
+            self._trajectory_resize_timer.setSingleShot(True)
+            self._trajectory_resize_timer.timeout.connect(lambda: hp.apply_trajectory_pixmap(self))
+        self._trajectory_resize_timer.start(120)
+
     # Thin bound-method wrappers around helper.py's logic, so hp.generate()
     # can connect DetectionWorker's cross-thread signals to genuine QObject
     # methods (required for Qt to correctly queue them onto this, the GUI,
@@ -212,6 +257,17 @@ class MainWindow(QMainWindow):
 
 def main():
     print("[INFO] App Starting")
+    # Must be the explicit API call, and must happen before QApplication()
+    # is constructed -- setting QT_SCALE_FACTOR_ROUNDING_POLICY as an env
+    # var instead (a prior version of this file did, via Post_process.py)
+    # measurably still fires "setHighDpiScaleFactorRoundingPolicy must be
+    # called before creating the QGuiApplication instance" on every launch
+    # in this PyQt6 build -- confirmed by bisection that the env var alone,
+    # with nothing else in the process, reproduces the warning, while this
+    # call does not. QT_ENABLE_HIGHDPI_SCALING/QT_AUTO_SCREEN_SCALE_FACTOR
+    # (also previously set as env vars) are Qt5-era flags with no effect in
+    # Qt6, where high-DPI scaling is already on by default -- dropped.
+    QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     app = QApplication(sys.argv)
     win = MainWindow()
     win.show()

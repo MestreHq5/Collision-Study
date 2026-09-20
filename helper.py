@@ -6,7 +6,7 @@ import cv2
 import detector as dtc
 import Post_process as ptp
 from PyQt6.QtGui import QPixmap
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtCore import Qt, QSize, QThread, pyqtSignal
 from PyQt6.QtWidgets import QFileDialog
 
 
@@ -177,16 +177,93 @@ def _generation_failed(self, message):
     print(f"[ERROR] Detection failed: {message}")
 
 
+def _trajectory_figsize_for_label(self):
+    """
+    Figure (width, height) in inches matching detectionLabel's current
+    aspect ratio, at the same total area as visualize_trajectories' 12x8
+    default (96 sq. in.) so overall detail/DPI-per-area stays comparable --
+    only the width:height split changes. Returns None if the label has no
+    usable size yet.
+
+    Why this matters: Qt's KeepAspectRatio scaling (used to display the
+    saved plot in detectionLabel) letterboxes -- blank bars, not lower pixel
+    density -- whenever the source image's aspect ratio doesn't match the
+    label's. This app's default window is now full-height/half-width (tall,
+    narrow), a bad mismatch against a fixed 12x8 *landscape* plot, and that
+    letterboxing is what actually made the displayed plot look small/
+    "low-resolution" -- the saved PNG's own pixel density was never the
+    problem (measured: 3600x2400 @ 300dpi, axes already filling nearly the
+    whole canvas). Matching the figure's shape to the label's directly fixes
+    the display size instead of just pushing more unneeded pixels into an
+    unchanged small letterboxed area.
+    """
+    label_w, label_h = self.detectionLabel.width(), self.detectionLabel.height()
+    if label_w <= 0 or label_h <= 0:
+        return None
+    area = 12.0 * 8.0
+    aspect = label_w / label_h
+    fig_h = (area / aspect) ** 0.5
+    fig_w = area / fig_h
+    return (fig_w, fig_h)
+
+
 def preview(self):
-    csv_path = self.parent_path / "disk_tracks.csv" 
+    csv_path = self.parent_path / "disk_tracks.csv"
     output_path = self.parent_path / "trajectories.png"
-    fps = self.fps_eff
-    
-    ptp.visualize_trajectories(csv_path, output_path, fps, show_equal_aspect=True)
-    
+    figsize = _trajectory_figsize_for_label(self) or (12, 8)
+    ptp.visualize_trajectories(csv_path, output_path, self.fps_eff, show_equal_aspect=True, figsize=figsize)
+
     self.detectionLabel.setScaledContents(False)
-    pixmap = QPixmap(str(output_path))
-    scaled = pixmap.scaled(self.detectionLabel.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+    # Keep the full-resolution (300 dpi, see Post_process.py) render around so
+    # apply_trajectory_pixmap can display straight from this source. Also
+    # keep the CSV path around implicitly via self.parent_path so a later
+    # window resize (MainWindow.resizeEvent -> apply_trajectory_pixmap) can
+    # regenerate the plot at the new aspect ratio, not just rescale this one.
+    self._trajectory_pixmap_orig = QPixmap(str(output_path))
+    apply_trajectory_pixmap(self)
+
+
+def apply_trajectory_pixmap(self):
+    """
+    Refreshes detectionLabel's trajectory plot for its current size. Called
+    once right after generating the plot (preview()) and again (debounced)
+    on every window resize (MainWindow.resizeEvent) so the plot keeps
+    filling the available space as the user resizes instead of sitting at
+    its first-render shape/size. No-op if nothing's been generated yet.
+
+    Prefers regenerating the actual matplotlib figure at the new aspect
+    ratio (via _trajectory_figsize_for_label) over merely rescaling the
+    existing bitmap -- a resize that changes the label's aspect ratio would
+    otherwise reintroduce the same letterboxing preview() avoids at first
+    render (see _trajectory_figsize_for_label's docstring). Only falls back
+    to a plain rescale of the stored bitmap if the source CSV isn't
+    available any more for some reason (e.g. the workspace was cleared) --
+    still device-pixel-ratio aware either way so the result stays sharp on
+    HiDPI displays instead of Qt stretching a logical-pixel-sized image up
+    to the physical pixel grid.
+    """
+    if getattr(self, "_trajectory_pixmap_orig", None) is None:
+        return
+
+    parent_path = getattr(self, "parent_path", None)
+    csv_path = parent_path / "disk_tracks.csv" if parent_path is not None else None
+    figsize = _trajectory_figsize_for_label(self)
+    if csv_path is not None and csv_path.exists() and figsize is not None:
+        output_path = parent_path / "trajectories.png"
+        ptp.visualize_trajectories(csv_path, output_path, self.fps_eff,
+                                    show_equal_aspect=True, figsize=figsize)
+        self._trajectory_pixmap_orig = QPixmap(str(output_path))
+
+    pixmap = self._trajectory_pixmap_orig
+    if pixmap is None or pixmap.isNull():
+        return
+    dpr = self.devicePixelRatioF()
+    target = self.detectionLabel.size()
+    if target.width() <= 0 or target.height() <= 0:
+        return
+    device_size = QSize(max(1, int(target.width() * dpr)), max(1, int(target.height() * dpr)))
+    scaled = pixmap.scaled(device_size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+    scaled.setDevicePixelRatio(dpr)
     self.detectionLabel.setPixmap(scaled)
 
 
@@ -220,6 +297,7 @@ def analisysPage(self):
     self.progressGen.setValue(0)
 
     self.detectionLabel.clear()
+    self._trajectory_pixmap_orig = None
     # Old page index 4 is now index 3 because we deleted the recording page
     self.stack.setCurrentIndex(3)
 

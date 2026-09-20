@@ -101,21 +101,60 @@ class Ui_MainWindow(object):
         self.stack.addWidget(self.Page_1)
         self.Page_2 = QWidget()
         self.Page_2.setObjectName(u"Page_2")
-        sizePolicy1 = QSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Expanding)
-        sizePolicy1.setHorizontalStretch(0)
-        sizePolicy1.setVerticalStretch(0)
-        sizePolicy1.setHeightForWidth(self.Page_2.sizePolicy().hasHeightForWidth())
-        self.Page_2.setSizePolicy(sizePolicy1)
+        sizePolicy.setHeightForWidth(self.Page_2.sizePolicy().hasHeightForWidth())
+        self.Page_2.setSizePolicy(sizePolicy)
         self.verticalLayout_4 = QVBoxLayout(self.Page_2)
         self.verticalLayout_4.setObjectName(u"verticalLayout_4")
+        self.instructionsTopSpacer = QSpacerItem(20, 20, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
+
+        self.verticalLayout_4.addItem(self.instructionsTopSpacer)
+
         self.verticalLayout = QVBoxLayout()
         self.verticalLayout.setObjectName(u"verticalLayout")
-        self.instructions = QLabel(self.Page_2)
-        self.instructions.setObjectName(u"instructions")
-        self.instructions.setStyleSheet(u"color: black;\n"
+        self.instructionsTitle = QLabel(self.Page_2)
+        self.instructionsTitle.setObjectName(u"instructionsTitle")
+        sizePolicy1 = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        sizePolicy1.setHorizontalStretch(0)
+        sizePolicy1.setVerticalStretch(0)
+        sizePolicy1.setHeightForWidth(self.instructionsTitle.sizePolicy().hasHeightForWidth())
+        self.instructionsTitle.setSizePolicy(sizePolicy1)
+        self.instructionsTitle.setAlignment(Qt.AlignmentFlag.AlignHCenter|Qt.AlignmentFlag.AlignTop)
+        self.instructionsTitle.setStyleSheet(u"color: black;\n"
 "                                                        background-color: white;")
 
-        self.verticalLayout.addWidget(self.instructions)
+        self.verticalLayout.addWidget(self.instructionsTitle)
+
+        self.instructionsMidSpacer = QSpacerItem(20, 24, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
+
+        self.verticalLayout.addItem(self.instructionsMidSpacer)
+
+        self.instructionsBefore = QLabel(self.Page_2)
+        self.instructionsBefore.setObjectName(u"instructionsBefore")
+        sizePolicy1.setHeightForWidth(self.instructionsBefore.sizePolicy().hasHeightForWidth())
+        self.instructionsBefore.setSizePolicy(sizePolicy1)
+        self.instructionsBefore.setAlignment(Qt.AlignmentFlag.AlignHCenter|Qt.AlignmentFlag.AlignTop)
+        self.instructionsBefore.setStyleSheet(u"color: black;\n"
+"                                                        background-color: white;")
+
+        self.verticalLayout.addWidget(self.instructionsBefore)
+
+        self.instructionsMidSpacer2 = QSpacerItem(20, 24, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
+
+        self.verticalLayout.addItem(self.instructionsMidSpacer2)
+
+        self.instructionsDuring = QLabel(self.Page_2)
+        self.instructionsDuring.setObjectName(u"instructionsDuring")
+        sizePolicy1.setHeightForWidth(self.instructionsDuring.sizePolicy().hasHeightForWidth())
+        self.instructionsDuring.setSizePolicy(sizePolicy1)
+        self.instructionsDuring.setAlignment(Qt.AlignmentFlag.AlignHCenter|Qt.AlignmentFlag.AlignTop)
+        self.instructionsDuring.setStyleSheet(u"color: black;\n"
+"                                                        background-color: white;")
+
+        self.verticalLayout.addWidget(self.instructionsDuring)
+
+        self.instructionsMidSpacer3 = QSpacerItem(20, 24, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
+
+        self.verticalLayout.addItem(self.instructionsMidSpacer3)
 
         self.btnNext2 = QPushButton(self.Page_2)
         self.btnNext2.setObjectName(u"btnNext2")
@@ -123,7 +162,8 @@ class Ui_MainWindow(object):
 "                                                        color: white;\n"
 "                                                        background-color: #009de0;\n"
 "                                                        border-radius: 10px;\n"
-"                                                        padding: 6px 12px;\n"
+"                                                        padding: 10px 22px;\n"
+"                                                        font-size: 15px;\n"
 "                                                        font-weight: bold;\n"
 "                                                        }\n"
 "\n"
@@ -134,8 +174,8 @@ class Ui_MainWindow(object):
 "\n"
 "                                                        QPushButton:pressed {\n"
 "                                                        color: white;\n"
-"                                                        background-color: #0"
-                        "05f87;\n"
+""
+                        "                                                        background-color: #005f87;\n"
 "                                                        }\n"
 "\n"
 "                                                        QPushButton:disabled {\n"
@@ -147,6 +187,10 @@ class Ui_MainWindow(object):
 
 
         self.verticalLayout_4.addLayout(self.verticalLayout)
+
+        self.instructionsBottomSpacer = QSpacerItem(20, 20, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
+
+        self.verticalLayout_4.addItem(self.instructionsBottomSpacer)
 
         self.stack.addWidget(self.Page_2)
         self.Page_3 = QWidget()
@@ -571,11 +615,8 @@ class Ui_MainWindow(object):
 
         self.istlogo6 = QLabel(self.Page_6)
         self.istlogo6.setObjectName(u"istlogo6")
-        sizePolicy3 = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        sizePolicy3.setHorizontalStretch(0)
-        sizePolicy3.setVerticalStretch(0)
-        sizePolicy3.setHeightForWidth(self.istlogo6.sizePolicy().hasHeightForWidth())
-        self.istlogo6.setSizePolicy(sizePolicy3)
+        sizePolicy1.setHeightForWidth(self.istlogo6.sizePolicy().hasHeightForWidth())
+        self.istlogo6.setSizePolicy(sizePolicy1)
         self.istlogo6.setStyleSheet(u"padding-bottom: 30px;")
         self.istlogo6.setPixmap(QPixmap(u":/img/logoIST.png"))
         self.istlogo6.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -584,11 +625,11 @@ class Ui_MainWindow(object):
 
         self.credits = QLabel(self.Page_6)
         self.credits.setObjectName(u"credits")
-        sizePolicy4 = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
-        sizePolicy4.setHorizontalStretch(0)
-        sizePolicy4.setVerticalStretch(0)
-        sizePolicy4.setHeightForWidth(self.credits.sizePolicy().hasHeightForWidth())
-        self.credits.setSizePolicy(sizePolicy4)
+        sizePolicy3 = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
+        sizePolicy3.setHorizontalStretch(0)
+        sizePolicy3.setVerticalStretch(0)
+        sizePolicy3.setHeightForWidth(self.credits.sizePolicy().hasHeightForWidth())
+        self.credits.setSizePolicy(sizePolicy3)
 
         self.verticalLayout_7.addWidget(self.credits)
 
@@ -627,57 +668,33 @@ class Ui_MainWindow(object):
 "                                                        Python</span></p></body></html>", None))
         self.istlogo1.setText(QCoreApplication.translate("MainWindow", u"TextLabel", None))
         self.btnStart.setText(QCoreApplication.translate("MainWindow", u"START", None))
-        self.instructions.setText(QCoreApplication.translate("MainWindow", u"\n"
-"                                                        <html><head/><body><p><span\n"
-"                                                        style=\" font-size:16pt;\">Before\n"
-"                                                        Experiment:\n"
-"                                                        </span></p><p><span\n"
-"                                                        style=\"\n"
-"                                                        font-size:16pt;\">---&gt; Read\n"
-"                                                        the\n"
-"                                                        Guide;</span></p><p><span\n"
-"                                                        style=\"\n"
-"                                                        font-size:16pt;\">---&gt; Get\n"
-"                                                        disk masses\n"
-"                                                        (g);</span></p><p><span\n"
-"                                                        style"
-                        "=\"\n"
-"                                                        font-size:16pt;\">---&gt; Measure\n"
-"                                                        Disks Radius\n"
-"                                                        (mm);</span></p><p><span\n"
-"                                                        style=\"\n"
-"                                                        font-size:16pt;\"><br/></span></p><p><span\n"
-"                                                        style=\" font-size:16pt;\">During\n"
-"                                                        the Experiment:\n"
-"                                                        </span></p><p><span\n"
-"                                                        style=\"\n"
-"                                                        font-size:16pt;\">---&gt; Let 2\n"
-"                                                        clean seconds after the start of the\n"
-"                                                        recording;</span></p><p><span"
-                        "\n"
-"                                                        style=\"\n"
-"                                                        font-size:16pt;\">---&gt; Throw\n"
-"                                                        the disks and verify if the collision\n"
-"                                                        occours;<br/>---&gt; Don't let the\n"
-"                                                        disk to reenter the filming\n"
-"                                                        area;</span></p><p><span\n"
-"                                                        style=\"\n"
-"                                                        font-size:16pt;\">---&gt; Verify\n"
-"                                                        detection and repeat if\n"
-"                                                        necessary.<br/></span></p></body></html>", None))
+        self.instructionsTitle.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\"><span style=\" font-size:28pt; font-weight:700; color:#009de0;\">Before You Begin</span></p></body></html>", None))
+        self.instructionsBefore.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body>\n"
+"<p align=\"center\"><span style=\" font-size:19pt; font-weight:700; color:#009de0;\">Before the Experiment</span></p>\n"
+"<p align=\"center\"><span style=\" font-size:16pt;\">Read the guide</span></p>\n"
+"<p align=\"center\"><span style=\" font-size:16pt;\">Get the disk masses (g)</span></p>\n"
+"<p align=\"center\"><span style=\" font-size:16pt;\">Measure the disk radius (mm)</span></p>\n"
+"</body></html>", None))
+        self.instructionsDuring.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body>\n"
+"<p align=\"center\"><span style=\" font-size:19pt; font-weight:700; color:#009de0;\">During the Experiment</span></p>\n"
+"<p align=\"center\"><span style=\" font-size:16pt;\">Let 2 clean seconds pass after starting the recording</span></p>\n"
+"<p align=\"center\"><span style=\" font-size:16pt;\">Throw the disks and verify the collision occurs</span></p>\n"
+"<p align=\"center\"><span style=\" font-size:16pt;\">Do not let a disk re-enter the filming area</span></p>\n"
+"<p align=\"center\"><span style=\" font-size:16pt;\">Verify detection and repeat if necessary</span></p>\n"
+"</body></html>", None))
         self.btnNext2.setText(QCoreApplication.translate("MainWindow", u"NEXT", None))
         self.disk_r_g.setText(QCoreApplication.translate("MainWindow", u"\n"
 "                                                        <html><head/><body><p><span\n"
 "                                                        style=\" font-size:20pt;\">Green\n"
 "                                                        Disk Radius\n"
 "                                                        (mm):</span></p></body></html>", None))
-        self.group_val.setPlaceholderText(QCoreApplication.translate("MainWindow", u"---> Ex: 01", None))
+        self.group_val.setPlaceholderText(QCoreApplication.translate("MainWindow", u"Ex: 01", None))
         self.disk_m_b.setText(QCoreApplication.translate("MainWindow", u"\n"
 "                                                        <html><head/><body><p><span\n"
 "                                                        style=\" font-size:20pt;\">Blue\n"
 "                                                        Disk Mass\n"
 "                                                        (g):</span></p></body></html>", None))
-        self.disk_m_b_val.setPlaceholderText(QCoreApplication.translate("MainWindow", u"---> Ex: 11.8", None))
+        self.disk_m_b_val.setPlaceholderText(QCoreApplication.translate("MainWindow", u"Ex: 11.8", None))
         self.group.setText(QCoreApplication.translate("MainWindow", u"\n"
 "                                                        <html><head/><body><p><span\n"
 "                                                        style=\" font-size:20pt;\">Group\n"
@@ -692,9 +709,9 @@ class Ui_MainWindow(object):
 "                                                        style=\" font-size:20pt;\">Blue\n"
 "                                                        Disk Radius\n"
 "                                                        (mm):</span></p></body></html>", None))
-        self.disk_m_g_val.setPlaceholderText(QCoreApplication.translate("MainWindow", u"---> Ex: 11.8", None))
-        self.disk_r_b_val.setPlaceholderText(QCoreApplication.translate("MainWindow", u"---> Ex: 40", None))
-        self.disk_r_g_val.setPlaceholderText(QCoreApplication.translate("MainWindow", u"--> Ex: 40", None))
+        self.disk_m_g_val.setPlaceholderText(QCoreApplication.translate("MainWindow", u"Ex: 11.8", None))
+        self.disk_r_b_val.setPlaceholderText(QCoreApplication.translate("MainWindow", u"Ex: 40", None))
+        self.disk_r_g_val.setPlaceholderText(QCoreApplication.translate("MainWindow", u"Ex: 40", None))
         self.validate.setText(QCoreApplication.translate("MainWindow", u"VALIDATE", None))
         self.warning.setText("")
         self.title4.setText(QCoreApplication.translate("MainWindow", u"\n"

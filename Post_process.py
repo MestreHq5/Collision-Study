@@ -5,27 +5,28 @@ import warnings
 from pathlib import Path
 import numpy as np
 import pandas as pd
+import matplotlib
+# This module never calls plt.show() -- every plot is rendered straight to a
+# PNG file (visualize_trajectories) that the GUI then loads as a QPixmap.
+# Force the non-interactive Agg backend explicitly instead of letting
+# matplotlib auto-select an interactive one: since PyQt6 is already loaded in
+# the process by the time this module gets imported (app.py imports it),
+# matplotlib would otherwise pick "QtAgg" and construct a real QWidget-based
+# FigureCanvas for every figure -- a hidden Qt widget that's never shown or
+# sized, which is a real, avoidable source of stray Qt paint-related console
+# warnings, not just unnecessary overhead. Must be set before importing
+# pyplot.
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import os
 
 # CSV and Excel Collums
 REQ_COLS = ["frame","disk_id","cx_mm","cy_mm","mx_mm","my_mm","r_px"]
 
-
-
-# --- 1. Force Qt to render High-DPI properly (MUST BE BEFORE MATPLOTLIB IMPORTS) ---
-os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
-os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
-os.environ["QT_SCALE_FACTOR_ROUNDING_POLICY"] = "PassThrough"
-
-# --- 2. Imports ---
-from pathlib import Path
-import math
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-
-# --- 3. Default Matplotlib Resolution ---
+# Default Matplotlib resolution -- see build_student_excel/visualize_trajectories.
+# High-DPI Qt setup lives in app.py (the actual Qt entry point), not here --
+# see app.py's comment for why it has to be an explicit API call, not an env
+# var, and why it has to happen before this module (or anything else that
+# might import PyQt) gets imported.
 plt.rcParams['figure.dpi'] = 150         # Screen DPI for popup window
 plt.rcParams['savefig.dpi'] = 300        # Saved image DPI
 
@@ -584,7 +585,24 @@ def visualize_trajectories(
     fps: float = 30.0,
     show_equal_aspect: bool = True,
     show_title: bool = True,
+    figsize: tuple = (12, 8),
 ) -> int:
+    """
+    figsize: (width, height) in inches for the saved figure. Callers that
+    display the result scaled (KeepAspectRatio) into a widget of a very
+    different shape than the default 12x8 landscape -- e.g. this app's own
+    now-tall/narrow default window -- should pass a figsize matching their
+    own target widget's aspect ratio instead of accepting the default.
+    Qt's KeepAspectRatio scaling letterboxes (blank bars, not lower pixel
+    density) whenever the source image's aspect ratio doesn't match the
+    destination widget's, and that letterboxing is what actually made the
+    displayed plot look small/"low-resolution" in a tall widget with the
+    fixed 12x8 default -- the saved PNG's own pixel density was never the
+    problem (measured: 3600x2400 @ 300dpi, the axes already fill nearly the
+    whole canvas). Matching figsize to the destination shape directly fixes
+    the display size instead of just pushing more (unneeded) pixels at an
+    unchanged small letterboxed area.
+    """
     csvp = Path(csv_path)
     if not csvp.exists():
         raise FileNotFoundError(csvp.resolve())
@@ -604,8 +622,9 @@ def visualize_trajectories(
     p0 = df0m.loc[df0m["frame"] == cf, ["cx", "cy"]].head(1)
     p1 = df1m.loc[df1m["frame"] == cf, ["cx", "cy"]].head(1)
 
-    # Creating a large canvas (12x8 inches @ 150 DPI = 1800x1200 real screen pixels)
-    fig, ax = plt.subplots(figsize=(12, 8), dpi=150)
+    # Creating a large canvas (default 12x8 inches @ 150 DPI = 1800x1200 real
+    # screen pixels; see figsize's docstring for why callers may override this)
+    fig, ax = plt.subplots(figsize=figsize, dpi=150)
 
     ax.plot(df0m["cx"], df0m["cy"], label="Disk 0 trajectory", linewidth=2)
     ax.plot(df1m["cx"], df1m["cy"], label="Disk 1 trajectory", linewidth=2)
@@ -631,21 +650,49 @@ def visualize_trajectories(
 
     outp = Path(output_image_path)
     outp.parent.mkdir(parents=True, exist_ok=True)
-    
+
     fig.tight_layout()
     fig.savefig(outp, dpi=300)
-    
+    plt.close(fig)  # each "Preview" click creates a new figure -- never closing it
+    # leaked one Figure (and its Agg render buffer) per click for the life of the
+    # process, and matplotlib warns once more than 20 accumulate.
+
     return cf
+
+def _drop_fallback_rows(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Excludes rows sourced from the background-subtraction fallback
+    (`detector.fallback_contour_disks`, `source == "contour_fallback"` in the
+    exported CSV) before any velocity/rotation/energy calculation. That path
+    only ever runs when the primary color detector didn't find the disk at
+    all that frame -- its position is a coarser background-diff blob
+    centroid, not a calibrated color-contour fit, and its marker/dimple
+    search on that same lower-quality crop routinely comes back empty or
+    wrong too (user-observed). Splicing one of these into a frame-to-frame
+    finite-difference velocity/omega fit can turn an otherwise-clean segment
+    into a NaN or a wildly-wrong outlier even though every other frame in
+    that segment is good data -- dropping the row entirely (treating that
+    frame as an ordinary tracking gap, same as a frame with no detection at
+    all) is strictly better than keeping a low-confidence sample. Only
+    affects the energy/momentum/restitution calculation -- the raw position/
+    theta table (`students_tbl` in build_student_excel) keeps every
+    measured row regardless of source.
+
+    Falls back to using every row unfiltered for CSVs exported before the
+    "source" column existed (no way to tell them apart, so nothing to drop).
+    """
+    if "source" not in df.columns:
+        return df
+    return df[df["source"] != "contour_fallback"].copy()
+
 
 def _fill_theta_gaps_per_disk(tbl: pd.DataFrame, cf: int) -> pd.DataFrame:
     """
     Guarantees every row of one disk's student table has a theta_deg value
     (user requirement: the Excel should always have data for every row) by
     linearly interpolating gaps from that disk's own nearest measured
-    neighbors -- not the physics-fit/video-search recovery in
-    detector.fill_rotation_gaps (that one needs an open video capture and
-    isn't wired into this export path; see CLAUDE.md Rotation recovery
-    section), just plain interpolation, per the user's own request.
+    neighbors -- plain interpolation, per the user's own request, not a
+    physics-fit/video-search recovery.
 
     This is more than a convenience fallback: on a frictionless air table
     (CLAUDE.md "Physics") the disk's angular velocity is genuinely constant
@@ -654,7 +701,7 @@ def _fill_theta_gaps_per_disk(tbl: pd.DataFrame, cf: int) -> pd.DataFrame:
     number recovers the true intermediate values, not just a smoothed guess.
     That assumption stops holding exactly at contact (torque), so segments
     are split at the collision frame (cf) and never interpolated across it,
-    same rule as detector.fill_rotation_gaps / Post_process.fit_rotation_segments.
+    same rule as fit_rotation_segments.
 
     Leading/trailing gaps within a segment (no earlier/later measurement to
     interpolate between) are held at the nearest available value instead of
@@ -761,8 +808,10 @@ def build_student_excel(
 
     results_df = None
     if include_metrics:
-        df0m_vel = _compute_vels(df0m, fps=fps)
-        df1m_vel = _compute_vels(df1m, fps=fps)
+        df0m_energy = _drop_fallback_rows(df0m)
+        df1m_energy = _drop_fallback_rows(df1m)
+        df0m_vel = _compute_vels(df0m_energy, fps=fps)
+        df1m_vel = _compute_vels(df1m_energy, fps=fps)
         metrics = _compute_metrics(df0m_vel, df1m_vel, masses, radius, fps=fps)
         results_df = pd.DataFrame(
             [

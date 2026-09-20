@@ -728,7 +728,8 @@ def main(video_path, bg_path, dtc_path, csv_path, fps_eff, progress_callback=Non
                 "center": (float(cx_px), float(cy_px)),
                 "radius": r_px,
                 "marker_center": None if mark is None else (float(mark[0]), float(mark[1])),
-                "marker_color": marker_color
+                "marker_color": marker_color,
+                "source": d.get("source", "color"),
             })
 
         # Assign stable IDs (0/1) for this frame
@@ -755,7 +756,8 @@ def main(video_path, bg_path, dtc_path, csv_path, fps_eff, progress_callback=Non
                 cx_mm, cy_mm,
                 mx_mm, my_mm,
                 r_px,
-                det["marker_color"]
+                det["marker_color"],
+                det["source"],
             ])
 
         # 10) Write the frame down
@@ -776,7 +778,7 @@ def main(video_path, bg_path, dtc_path, csv_path, fps_eff, progress_callback=Non
             "frame", "disk_id",
             "cx_mm", "cy_mm",
             "mx_mm", "my_mm",
-            "r_px", "marker_color"
+            "r_px", "marker_color", "source"
         ])
         writer.writerows(all_detections)
 
