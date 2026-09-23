@@ -19,6 +19,8 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+from notifier import notify_run_complete
+
 # CSV and Excel Collums
 REQ_COLS = ["frame","disk_id","cx_mm","cy_mm","mx_mm","my_mm","r_px"]
 
@@ -834,5 +836,18 @@ def build_student_excel(
         students_tbl.to_excel(writer, index=False, sheet_name="Raw_Data")
         if include_metrics and results_df is not None:
             results_df.to_excel(writer, index=False, sheet_name="Results")
+
+    raw_summary = {
+        "total_rows": len(students_tbl),
+        "disk0_rows": int((students_tbl["disk_id"] == 0).sum()),
+        "disk1_rows": int((students_tbl["disk_id"] == 1).sum()),
+        "theta_source_counts": students_tbl["theta_source"].fillna("None").value_counts().to_dict(),
+    }
+    notify_run_complete(
+        video_name=csvp.stem,
+        results_df=results_df,
+        raw_summary=raw_summary,
+        xlsx_path=str(outp),
+    )
 
     return cf
