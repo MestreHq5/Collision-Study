@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 import sys
 import os
 import shutil
@@ -6,8 +7,47 @@ import cv2
 import detector as dtc
 import Post_process as ptp
 from PyQt6.QtGui import QPixmap
-from PyQt6.QtCore import Qt, QSize, QThread, pyqtSignal
+from PyQt6.QtCore import Qt, QObject, QSize, QThread, pyqtSignal
 from PyQt6.QtWidgets import QFileDialog
+
+_BRACKET_TAG_RE = re.compile(r"^\[[A-Za-z]+\]")
+
+
+class PrintTee(QObject):
+    """
+    Tees stdout so the [INFO]/[WARN]/[ERROR]-tagged prints this codebase adds
+    deliberately (app.py, helper.py, detector.py's info()) also reach the
+    GUI's genLog box on Page 5, without losing the original console output.
+    Everything else (matplotlib/Qt/cv2 noise, ad hoc debug prints in
+    Pre_process.py) has no bracket tag and stays console-only -- see the
+    USER LIST request this answers: "only the ones manually added."
+
+    Buffers by line since print() issues separate write() calls for the
+    message and the trailing newline. A QObject (not a plain wrapper) so
+    line_ready can be emitted safely from detector.main()'s background
+    QThread (DetectionWorker) and queued onto the GUI thread by Qt, the same
+    pattern DetectionWorker.progress already uses.
+    """
+    line_ready = pyqtSignal(str)
+
+    def __init__(self, real_stream):
+        super().__init__()
+        self._real = real_stream
+        self._buf = ""
+
+    def write(self, text):
+        self._real.write(text)
+        self._buf += text
+        while "\n" in self._buf:
+            line, self._buf = self._buf.split("\n", 1)
+            if _BRACKET_TAG_RE.match(line):
+                self.line_ready.emit(line)
+
+    def flush(self):
+        self._real.flush()
+
+    def isatty(self):
+        return False
 
 
 def resource_path(*parts) -> Path:
@@ -142,6 +182,10 @@ def generate(self):
     self.progressGen.setRange(0, 100)
     self.progressGen.setValue(0)
     self.progressGen.setFormat("Processing... %p%")
+
+    if self.genLog:
+        self.genLog.clear()
+        self.genLog.setVisible(True)
 
     # Kept on self so the QThread object isn't garbage-collected mid-run.
     self._detectionWorker = DetectionWorker(video_path, bg_path, detection_video_path, csv_path, self.fps_eff)
@@ -298,6 +342,10 @@ def analisysPage(self):
 
     self.progressGen.setVisible(False)
     self.progressGen.setValue(0)
+
+    if self.genLog:
+        self.genLog.clear()
+        self.genLog.setVisible(False)
 
     self.detectionLabel.clear()
     self._trajectory_pixmap_orig = None

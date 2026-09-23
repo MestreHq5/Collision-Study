@@ -3,7 +3,7 @@ import sys
 from PyQt6 import uic
 from PyQt6.QtCore import Qt, QSize, QTimer
 from PyQt6.QtGui import QPixmap
-from PyQt6.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QStackedWidget, QLineEdit, QProgressBar
+from PyQt6.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QStackedWidget, QLineEdit, QProgressBar, QPlainTextEdit
 from pathlib import Path
 
 # Imports of OpenCV and Operating System 
@@ -43,6 +43,14 @@ class MainWindow(QMainWindow):
         super().__init__()
         uic.loadUi(str(resource_path("gui.ui")), self)
         self.target_size = QSize(300, 300)
+
+        # Tee stdout so the deliberately-tagged [INFO]/[WARN]/[ERROR] prints
+        # also reach Page 5's genLog box -- see helper.PrintTee. Kept on
+        # self so it isn't garbage-collected; installed here (not main())
+        # so line_ready has somewhere to connect to as soon as it exists.
+        self._print_tee = hp.PrintTee(sys.stdout)
+        sys.stdout = self._print_tee
+        self._print_tee.line_ready.connect(self._on_log_line)
 
         # Full available height, half the screen's width, docked to the left
         # edge -- meant to sit side-by-side with a terminal on the right
@@ -101,6 +109,7 @@ class MainWindow(QMainWindow):
         # Page 5
         self.detectionLabel: QLabel = self.findChild(QLabel, "detectionLabel")
         self.progressGen: QProgressBar = self.findChild(QProgressBar, "progressGen")
+        self.genLog: QPlainTextEdit = self.findChild(QPlainTextEdit, "genLog")
         self.btnGen: QPushButton = self.findChild(QPushButton, "btnGen")
         self.btnPreview: QPushButton = self.findChild(QPushButton, "btnPreview")
         self.btnRedo: QPushButton = self.findChild(QPushButton, "btnRedo") 
@@ -200,6 +209,10 @@ class MainWindow(QMainWindow):
 
     def _on_gen_failed(self, message):
         hp._generation_failed(self, message)
+
+    def _on_log_line(self, line):
+        if self.genLog:
+            self.genLog.appendPlainText(line)
 
     def select_video_file(self):
             """Opens file explorer, copies the video to workspace, and reads properties."""

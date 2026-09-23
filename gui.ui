@@ -792,6 +792,28 @@
                                             </widget>
                                         </item>
                                         <item>
+                                            <widget class="QPlainTextEdit" name="genLog">
+                                                <property name="visible">
+                                                    <bool>false</bool>
+                                                </property>
+                                                <property name="maximumSize">
+                                                    <size>
+                                                        <width>16777215</width>
+                                                        <height>110</height>
+                                                    </size>
+                                                </property>
+                                                <property name="readOnly">
+                                                    <bool>true</bool>
+                                                </property>
+                                                <property name="font">
+                                                    <font>
+                                                        <family>Consolas</family>
+                                                        <pointsize>9</pointsize>
+                                                    </font>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                        <item>
                                             <layout class="QHBoxLayout" name="horizontalLayout_2">
                                                 <item>
                                                     <widget class="QPushButton" name="btnGen">
