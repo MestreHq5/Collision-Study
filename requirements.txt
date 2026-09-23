@@ -1,0 +1,15 @@
+# Runtime dependencies for Collision-Study.
+#
+# A "dependency manifest" just pins down what `pip install -r
+# requirements.txt` needs to reproduce this environment on a new machine
+# or CI runner, instead of relying on whatever happens to already be
+# installed. No version pins (yet) since this hasn't been an issue in
+# practice -- add them if a future PyQt6/opencv release ever breaks
+# something and you need to hold back a version.
+PyQt6
+opencv-python
+pandas
+openpyxl
+matplotlib
+requests
+python-dotenv
