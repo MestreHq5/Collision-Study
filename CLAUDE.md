@@ -269,15 +269,7 @@ there) and robustly fits angular velocity per segment:
 
 1. Raw disk *position* recall across a clip's full duration — see "Standing objective" above,
    stale numbers, needs re-measurement.
-2. **At 56-60fps, some "collisions" may not be real ones at all.** The frame rate isn't always
-   enough to actually resolve contact, so a clip that looks like a near-miss/graze to the
-   detector might genuinely not have a collision in it. `collision_gap_mm`
-   (`_compute_metrics`'s diagnostic, recorded minimum center-to-center distance minus expected
-   contact distance) is a first automatable flag for this — a large gap means either bad
-   sampling around a real collision, or no real collision at all, and today nothing
-   distinguishes those two cases. Worth a threshold/policy once more data exists on what a
-   "real but undersampled" gap typically looks like vs. "no collision happened."
-3. **Idea, not designed yet**: some kind of lightweight server/notification setup so results
+2. **Idea, not designed yet**: some kind of lightweight server/notification setup so results
    (e, momentum error, energy drop, collision_gap_mm) can be checked from a phone shortly after
    a trial run, so a bad run can be flagged for the student to redo on the spot rather than
    discovered later. Since built as `notifier.py` — see "Notifier" section below for its actual
@@ -293,6 +285,12 @@ there) and robustly fits angular velocity per segment:
 - **`Other_Side`-style clips requiring manual trimming.** Moot as of 2026-09-23 (user): that
   camera position is no longer used for filming going forward (see "Lab / lighting history" #4)
   — nothing to trim if nothing's shot there.
+- **56-60fps undersampled/missed collisions had no automated flag.** `collision_gap_mm`
+  (`_compute_metrics`'s diagnostic) existed but nothing acted on it. Policy set 2026-09-23
+  (user): a `collision_gap_mm` greater than one disk radius prints a `[WARN]` and sets
+  `collision_gap_warning=True` in the metrics dict (also a row in the Results sheet) — still
+  doesn't distinguish "real but undersampled" from "no collision happened," just surfaces the
+  clips worth a second look instead of silently trusting every fitted `e`/momentum value.
 - **`collision_gap_mm` unit-mismatch bug.** `_compute_metrics` (`Post_process.py`) received
   `radius` in mm (the GUI field is labeled mm) but treated it as meters in two places: the
   `collision_gap_mm` diagnostic subtracted the raw mm sum from a meter-scale recorded distance

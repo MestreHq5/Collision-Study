@@ -423,6 +423,7 @@ def _compute_metrics(df0m: pd.DataFrame, df1m: pd.DataFrame, masses: tuple, radi
         - momentum_error_rel (full-data means)
         - energy_drop_rel_COM (medians with COM de-jitter, includes rotation)
         - collision_gap_mm (diagnostic -- see below)
+        - collision_gap_warning (True if collision_gap_mm exceeds one disk radius -- see below)
     """
     # `radius` arrives in mm (GUI field is labeled mm, see app.py/gui.ui disk_r_g/disk_r_b),
     # but every position column here (cx/cy, from _add_meter_cols) is in meters -- bug found
@@ -500,6 +501,19 @@ def _compute_metrics(df0m: pd.DataFrame, df1m: pd.DataFrame, masses: tuple, radi
 
     # ---- Momentum error (relative; full-data means) ----
     RADIUS_M = (radius_m[0] + radius_m[1]) / 2
+
+    # Policy (user, 2026-09-23): a collision_gap_mm bigger than one disk
+    # radius means the recorded frames plausibly missed the true contact
+    # instant by a wide margin (or there was no real collision at all) --
+    # worth flagging, not yet worth blocking the run over.
+    collision_gap_warning = bool(np.isfinite(collision_gap_mm) and collision_gap_mm > RADIUS_M * 1000.0)
+    if collision_gap_warning:
+        print(
+            f"[WARN] collision_gap_mm={collision_gap_mm:.1f}mm exceeds one disk radius "
+            f"({RADIUS_M * 1000.0:.1f}mm) -- recorded frames may not have captured the true "
+            f"contact instant, or this clip may not have a real collision at all."
+        )
+
     MASS = {0: masses[0], 1: masses[1]}
     p_before = np.array([MASS[0]*v0b[0] + MASS[1]*v1b[0],
                          MASS[0]*v0b[1] + MASS[1]*v1b[1]])
@@ -576,6 +590,7 @@ def _compute_metrics(df0m: pd.DataFrame, df1m: pd.DataFrame, masses: tuple, radi
         "momentum_error_rel": p_err,
         "energy_drop_rel_COM": K_drop_COM,
         "collision_gap_mm": collision_gap_mm,
+        "collision_gap_warning": collision_gap_warning,
     }
 
 # --------------------------------------------------------------------------------------------------
@@ -826,6 +841,8 @@ def build_student_excel(
                  f'{metrics["energy_drop_rel_COM"]:.6g}' if np.isfinite(metrics["energy_drop_rel_COM"]) else str(metrics["energy_drop_rel_COM"])),
                 ("Collision gap (mm, recorded-min minus expected contact dist.)",
                  f'{metrics["collision_gap_mm"]:.6g}' if np.isfinite(metrics["collision_gap_mm"]) else str(metrics["collision_gap_mm"])),
+                ("Collision gap warning (gap > one disk radius)",
+                 str(metrics["collision_gap_warning"])),
             ],
             columns=["Quantity","Value"]
         )
