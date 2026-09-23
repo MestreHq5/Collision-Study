@@ -31,7 +31,10 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    # PySide6 is installed globally alongside PyQt6 (unrelated to this
+    # project) -- PyInstaller aborts rather than guess which Qt binding to
+    # bundle when both are importable, so it must be excluded explicitly.
+    excludes=["PySide6"],
     noarchive=False,
 )
 pyz = PYZ(a.pure)
