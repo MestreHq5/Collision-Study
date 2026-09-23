@@ -1,0 +1,23 @@
+[INFO] App Starting
+[INFO] Video Selected: C:/Users/Admin/Pictures/Camera Roll/1.mp4
+[INFO] Video Native FPS: 56.59935810376131
+[ERROR] Detection failed: OpenCV(4.6.0) :-1: error: (-5:Bad argument) in function 'VideoCapture'
+> Overload resolution failed:
+>  - Can't convert object to 'str' for 'filename'
+>  - VideoCapture() missing required argument 'apiPreference' (pos 2)
+>  - Argument 'index' is required to be an integer
+>  - VideoCapture() missing required argument 'apiPreference' (pos 2)
+
+[ERROR] Detection failed: OpenCV(4.6.0) :-1: error: (-5:Bad argument) in function 'VideoCapture'
+> Overload resolution failed:
+>  - Can't convert object to 'str' for 'filename'
+>  - VideoCapture() missing required argument 'apiPreference' (pos 2)
+>  - Argument 'index' is required to be an integer
+>  - VideoCapture() missing required argument 'apiPreference' (pos 2)
+
+Traceback (most recent call last):
+  File "c:\Users\Admin\Desktop\Collision-Study\initializer.py", line 19, in <module>
+    app.main()
+  File "c:\Users\Admin\Desktop\Collision-Study\app.py", line 318, in main
+    sys.exit(app.exec())
+             ^^^^^^^^^^
