@@ -8,6 +8,9 @@ dist/
 # Local environment overrides (see .env.example)
 .env
 
+# Other
+CLAUDE.md
+
 # Per-run workspace artifacts (Desktop/Collision_Study/<group>/...) never
 # live in the repo -- nothing here to ignore for those, they're outside the
 # working tree by construction (see helper.file_manager).
