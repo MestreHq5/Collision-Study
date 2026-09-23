@@ -66,17 +66,21 @@ an originally-referenced 18 clips are actually present: `3,4,5,6,7,8,10,17,18.mp
   see "Rotation fitting and recovery" below) via per-segment interpolation — the one honest
   exception is a segment with *zero* measured detections at all (nothing to interpolate from),
   which stays blank rather than fabricated.
-- **Open, not yet root-caused**: raw disk *position* recall across a clip's full duration is
-  often only ~10-40% in the `New Disks` batch — most of a clip is before/after the disk is
-  actually in its active throw/collision window, so this isn't necessarily alarming by itself,
-  but it caps how much data exists for the theta pipeline regardless of marker-detection
-  quality. Worth a dedicated look if more of the batch becomes available.
-- **Also open**: sparse both-disk coverage specifically *around the collision moment* on some
-  clips (few simultaneous detections right when it matters → noisy velocity fit → unreliable
-  e/momentum). Traced (frame-by-frame `IDAssigner` replay) to real fast motion between frames,
-  not ID swaps or a tracking bug — position-lock, gated velocity prediction, and the
-  color-first fallback are all working as designed. Root cause of the density drop itself
-  (motion blur at contact? shape gates too strict under partial occlusion?) is still open.
+- **Stale, needs re-measurement**: raw disk *position* recall across a clip's full duration was
+  measured at only ~10-40% in the `New Disks` batch as of the 2026-09-19 session (most of a
+  clip is before/after the disk is actually in its active throw/collision window). Flagged
+  2026-09-23 (user) as no longer trustworthy as a current number — don't cite the 10-40% figure
+  as today's state. Decision (2026-09-23, user): re-measure once the app itself is finalized,
+  not before — no dedicated regression/recall re-run planned until then.
+- **Accepted limitation, not being chased further at 60fps**: sparse both-disk coverage
+  specifically *around the collision moment* on some clips (few simultaneous detections right
+  when it matters → noisy velocity fit → unreliable e/momentum on those clips). Traced
+  (frame-by-frame `IDAssigner` replay) to real fast motion between frames, not ID swaps or a
+  tracking bug — position-lock, gated velocity prediction, and the color-first fallback are all
+  working as designed. Decision (2026-09-23, user): the pipeline works well enough at current
+  60fps for now; a later study phase is expected to move to 120/240fps capture specifically to
+  resolve this at the source (more frames across the same fast contact window), rather than
+  further tuning shape/color gates under partial occlusion at 60fps.
 
 ## Architecture
 
@@ -152,10 +156,12 @@ Both share crop/geometry/contour-selection logic via `Pre_process._select_best_b
   overall than blue's — the same relative threshold that reliably isolates blue's dimple
   (ratio ~0.36-0.48) almost never triggers on darker green (ratio ~0.6-0.65). Green gets its
   own retuned constant, chosen via a real-footage sweep (0.55→14%, 0.65→50%, 0.70→93%,
-  0.72→100% green-marker recall) and visually confirmed landing on the real dimple. **This is a
-  software mitigation, not the real fix** — the real fix is a brighter/lighter green paint so
-  green gets the same V headroom blue already has; revisit (and consider merging back into one
-  shared value) once that repaint happens.
+  0.72→100% green-marker recall) and visually confirmed landing on the real dimple. Originally
+  flagged as a software mitigation pending a brighter/lighter green repaint — confirmed
+  2026-09-23 (user) that the current green paint is final and no repaint is planned, so this
+  constant is the permanent fix, not a stopgap. Left as a separate constant from
+  `MARKER_DARK_VALUE_FRAC` rather than merged, since the two paints' V-headroom genuinely
+  differs.
 - `MARKER_RELAX_FRAC_DELTA` (0.10) / `MARKER_MAX_AREA_FRAC` (0.12): a handful of frames sit
   right at the edge of the calibrated dark-value threshold with a genuinely darker-than-
   background but marginally-subtle dimple. `detect_dark_marker_center` gets one bounded
@@ -248,7 +254,8 @@ there) and robustly fits angular velocity per segment:
    `Previous_Side_Light` (25 / 49) or `Previous_Side_No_Light` (0 / 51) — but this is **not a
    controlled comparison** (each clip is a different throw/trajectory, so more time on-camera
    confounds the count) and shouldn't be read as "shadow beats glare" without a same-trajectory
-   repeat.
+   repeat. **Decision (2026-09-23, user): discontinued.** Filming stays on the regular side
+   documented throughout the rest of this file — `Other_Side` is not an option going forward.
 5. **4K resolution**: would help marker precision in principle, but **moot — superseded by
    #6**, the deployment camera is a 1080p webcam with no 4K mode.
 6. **Hardware decision: webcam-only, no external hardware.** Professor requires the project not
@@ -260,17 +267,9 @@ there) and robustly fits angular velocity per segment:
 
 ## Known bugs / open issues
 
-1. `estimate_background_median` only masks pixels a puck was *detected* covering during the
-   sample window — if a puck sits somewhere the detector doesn't detect it at all during that
-   window, that spot still isn't protected. Edge case, not hit in testing so far.
-2. Raw disk *position* recall across a clip's full duration and sparse both-disk coverage
-   around the collision moment — see "Standing objective" above, both still open.
-3. **Manually clip `Other_Side`-style videos before detection.** That side of the table is
-   cramped enough that disks bounce off the boundary and come back — the pipeline expects one
-   clean approach/contact/separation per video (see "Filming pattern"), so any clip shot on
-   that side needs the post-bounce tail (and any pre-bounce noise) trimmed out by hand first.
-   Not an issue for the regular side's normal throws.
-4. **At 56-60fps, some "collisions" may not be real ones at all.** The frame rate isn't always
+1. Raw disk *position* recall across a clip's full duration — see "Standing objective" above,
+   stale numbers, needs re-measurement.
+2. **At 56-60fps, some "collisions" may not be real ones at all.** The frame rate isn't always
    enough to actually resolve contact, so a clip that looks like a near-miss/graze to the
    detector might genuinely not have a collision in it. `collision_gap_mm`
    (`_compute_metrics`'s diagnostic, recorded minimum center-to-center distance minus expected
@@ -278,14 +277,22 @@ there) and robustly fits angular velocity per segment:
    sampling around a real collision, or no real collision at all, and today nothing
    distinguishes those two cases. Worth a threshold/policy once more data exists on what a
    "real but undersampled" gap typically looks like vs. "no collision happened."
-5. **Idea, not designed yet**: some kind of lightweight server/notification setup so results
+3. **Idea, not designed yet**: some kind of lightweight server/notification setup so results
    (e, momentum error, energy drop, collision_gap_mm) can be checked from a phone shortly after
    a trial run, so a bad run can be flagged for the student to redo on the spot rather than
-   discovered later. No requirements gathered yet (push vs. pull, hosting, who else needs
-   access) — don't start designing until asked.
+   discovered later. Since built as `notifier.py` — see "Notifier" section below for its actual
+   scope and remaining gaps.
 
 **Resolved:**
 
+- **`estimate_background_median`'s puck mask only protects detected-puck pixels.** A puck
+  sitting somewhere the detector doesn't detect at all during the sample window wouldn't be
+  excluded from the background median. Closed as a non-issue (2026-09-23, user): in practice
+  disks only enter frame 2-3 seconds in, well after `CLEAN_SECONDS` sampling completes, so this
+  edge case doesn't occur with the current filming setup.
+- **`Other_Side`-style clips requiring manual trimming.** Moot as of 2026-09-23 (user): that
+  camera position is no longer used for filming going forward (see "Lab / lighting history" #4)
+  — nothing to trim if nothing's shot there.
 - **`collision_gap_mm` unit-mismatch bug.** `_compute_metrics` (`Post_process.py`) received
   `radius` in mm (the GUI field is labeled mm) but treated it as meters in two places: the
   `collision_gap_mm` diagnostic subtracted the raw mm sum from a meter-scale recorded distance
