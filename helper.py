@@ -16,7 +16,10 @@ def resource_path(*parts) -> Path:
 
 
 def file_manager(parent_folder: str, child_folder: str) -> Path:
-    desktop = Path(os.path.expanduser("~")) / "Desktop"
+    # DEM_WORKSPACE_ROOT (see .env.example) overrides the default
+    # Desktop/<parent_folder> location -- unset behaves exactly as before.
+    root = os.environ.get("DEM_WORKSPACE_ROOT")
+    desktop = Path(root) if root else Path(os.path.expanduser("~")) / "Desktop"
     base = desktop / parent_folder
     base.mkdir(parents=True, exist_ok=True)
     sub = base / str(child_folder)
