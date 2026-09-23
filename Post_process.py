@@ -25,6 +25,10 @@ from notifier import notify_run_complete
 # CSV and Excel Collums
 REQ_COLS = ["frame","disk_id","cx_mm","cy_mm","mx_mm","my_mm","r_px"]
 
+# Disk 0 = Green, Disk 1 = Blue (see CLAUDE.md) -- used to display the true
+# color instead of the internal numeric ID in the exported Raw_Data sheet.
+DISK_COLOR_NAMES = {0: "Green", 1: "Blue"}
+
 # See .env.example / build_student_excel's SHOW_RESULTS_SHEET usage below.
 SHOW_RESULTS_SHEET = os.environ.get("DEM_SHOW_RESULTS_SHEET", "0") == "1"
 
@@ -839,6 +843,12 @@ def build_student_excel(
         100.0 * raw_summary["theta_source_counts"].get("interpolated", 0) / raw_summary["total_rows"]
         if raw_summary["total_rows"] > 0 else float("nan")
     )
+
+    # Students recall "Green"/"Blue" far more easily than disk_id 0/1 (user,
+    # 2026-09-23) -- remap for display only, after every numeric-keyed step
+    # above (sorting, raw_summary counts) is done with it.
+    students_tbl = students_tbl.copy()
+    students_tbl["disk_id"] = students_tbl["disk_id"].map(DISK_COLOR_NAMES)
 
     # Metrics are always computed when requested (the notifier and the
     # interpolation-% figure above both need them regardless of whether the

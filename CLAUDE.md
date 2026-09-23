@@ -239,6 +239,10 @@ there) and robustly fits angular velocity per segment:
   `None` — `None` only when an entire segment has zero measured theta values at all, i.e.
   nothing to interpolate from; a real but rare limit on badly-occluded footage, not silently
   papered over).
+- **Raw_Data's `disk_id` column shows "Green"/"Blue"** (`DISK_COLOR_NAMES`), not the internal
+  `0`/`1` — students recall the true color far more easily (user, 2026-09-23). The remap happens
+  last, after every numeric-keyed step (sorting, `raw_summary` row counts) is done with the
+  original int.
 
 ### Notifier (`notifier.py`)
 
