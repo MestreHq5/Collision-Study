@@ -101,6 +101,13 @@ and `DEM_SHOW_RESULTS_SHEET` — loaded by `initializer.py` before anything else
 No trained model, no training data, no training scripts — position and marker detection are
 both classical HSV/contour CV. See "Branch note" above if that ever needs to change.
 
+`MainWindow.__init__` sizes/positions itself to the left half of the screen (full available
+height) by design — meant to sit side-by-side with a terminal on the right, the user's own
+workflow. In a built executable (`CollisionStudy.spec`, `--console`) it also moves the
+auto-spawned console window into the right half (`app._position_console_right`, ctypes
+`GetConsoleWindow`/`MoveWindow`) so that layout happens without manual dragging. No-op in dev
+(`sys.frozen` is unset) and on non-Windows.
+
 ### Detection pipeline (`detector.py`)
 
 - **Disk position**: `detect_disks_color()` / `Pre_process.segment_disks_by_color()` — direct

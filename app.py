@@ -36,6 +36,28 @@ def resource_path(*parts) -> Path:
     return base.joinpath(*parts)
 
 
+def _position_console_right(available, app_width):
+    """
+    Moves the process's own console window (the one Windows spawns for a
+    --console PyInstaller build) to the right of `available`, alongside this
+    window's own left-half placement above. Best-effort and purely cosmetic
+    -- any failure (no console window, e.g. built --windowed instead;
+    ctypes/ Windows API hiccup) is swallowed rather than blocking startup.
+    """
+    try:
+        import ctypes
+        hwnd = ctypes.windll.kernel32.GetConsoleWindow()
+        if not hwnd:
+            return
+        x = available.x() + app_width
+        w = available.width() - app_width
+        if w <= 0:
+            return
+        ctypes.windll.user32.MoveWindow(hwnd, x, available.y(), w, available.height(), True)
+    except Exception:
+        pass
+
+
 class MainWindow(QMainWindow):
     
     def __init__(self):
@@ -64,6 +86,15 @@ class MainWindow(QMainWindow):
             target_h = available.height()
             self.resize(target_w, target_h)
             self.move(available.x(), available.y())
+            # Built executable (CollisionStudy.spec, --console): the console
+            # window is a separate OS window Windows creates automatically --
+            # move it into the other half instead of leaving it wherever
+            # Windows happened to place it, so "app on the left, terminal on
+            # the right" happens without the user dragging anything. No-op
+            # in dev (no console spawned by Python itself to move) and on
+            # non-Windows.
+            if getattr(sys, "frozen", False) and sys.platform == "win32":
+                _position_console_right(available, target_w)
         else:
             self.resize(self.width(), self.height() + 20)
         self.setMinimumSize(742, 555)  # the .ui's original design size -- below
