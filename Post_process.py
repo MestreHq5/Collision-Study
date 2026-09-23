@@ -1,6 +1,7 @@
 # Use for results mix, total and regression
 
 import math
+import os
 import warnings
 from pathlib import Path
 import numpy as np
@@ -23,6 +24,9 @@ from notifier import notify_run_complete
 
 # CSV and Excel Collums
 REQ_COLS = ["frame","disk_id","cx_mm","cy_mm","mx_mm","my_mm","r_px"]
+
+# See .env.example / build_student_excel's SHOW_RESULTS_SHEET usage below.
+SHOW_RESULTS_SHEET = os.environ.get("DEM_SHOW_RESULTS_SHEET", "0") == "1"
 
 # Default Matplotlib resolution -- see build_student_excel/visualize_trajectories.
 # High-DPI Qt setup lives in app.py (the actual Qt entry point), not here --
@@ -786,7 +790,9 @@ def build_student_excel(
         - x_m, y_m (meters, centers)
         - theta_deg (unwrapped; marker-to-center angle)
 
-    If include_metrics=True, adds a "Results" sheet with restitution, momentum error, COM energy drop.
+    If include_metrics=True, computes restitution/momentum/energy/gap metrics for the
+    notifier and the interpolation-% figure; the "Results" sheet itself is only written into
+    the exported file when DEM_SHOW_RESULTS_SHEET=1 (see .env.example, SHOW_RESULTS_SHEET above).
     Returns the collision frame (int).
     """
     csvp = Path(csv_path)
@@ -823,6 +829,21 @@ def build_student_excel(
     students_tbl = pd.concat([tbl0, tbl1], ignore_index=True).sort_values(["time_s","disk_id"])
     students_tbl = students_tbl[["time_s","disk_id","frame","x_m","y_m","theta_deg","theta_source"]]
 
+    raw_summary = {
+        "total_rows": len(students_tbl),
+        "disk0_rows": int((students_tbl["disk_id"] == 0).sum()),
+        "disk1_rows": int((students_tbl["disk_id"] == 1).sum()),
+        "theta_source_counts": students_tbl["theta_source"].fillna("None").value_counts().to_dict(),
+    }
+    interpolated_pct = (
+        100.0 * raw_summary["theta_source_counts"].get("interpolated", 0) / raw_summary["total_rows"]
+        if raw_summary["total_rows"] > 0 else float("nan")
+    )
+
+    # Metrics are always computed when requested (the notifier and the
+    # interpolation-% figure above both need them regardless of whether the
+    # Results sheet itself ends up in the exported file -- see
+    # SHOW_RESULTS_SHEET below).
     results_df = None
     if include_metrics:
         df0m_energy = _drop_fallback_rows(df0m)
@@ -843,6 +864,8 @@ def build_student_excel(
                  f'{metrics["collision_gap_mm"]:.6g}' if np.isfinite(metrics["collision_gap_mm"]) else str(metrics["collision_gap_mm"])),
                 ("Collision gap warning (gap > one disk radius)",
                  str(metrics["collision_gap_warning"])),
+                ("Theta interpolation % (of Raw_Data rows)",
+                 f'{interpolated_pct:.4g}' if np.isfinite(interpolated_pct) else str(interpolated_pct)),
             ],
             columns=["Quantity","Value"]
         )
@@ -851,20 +874,17 @@ def build_student_excel(
     outp.parent.mkdir(parents=True, exist_ok=True)
     with pd.ExcelWriter(outp, engine="openpyxl") as writer:
         students_tbl.to_excel(writer, index=False, sheet_name="Raw_Data")
-        if include_metrics and results_df is not None:
+        # DEM_SHOW_RESULTS_SHEET (see .env.example): the Results sheet is
+        # metrics for the professor's own check, not something students need
+        # in the delivered file by default (user, 2026-09-23) -- set it to
+        # "1" to include it in the actual .xlsx again when you want to.
+        if SHOW_RESULTS_SHEET and results_df is not None:
             results_df.to_excel(writer, index=False, sheet_name="Results")
 
-    raw_summary = {
-        "total_rows": len(students_tbl),
-        "disk0_rows": int((students_tbl["disk_id"] == 0).sum()),
-        "disk1_rows": int((students_tbl["disk_id"] == 1).sum()),
-        "theta_source_counts": students_tbl["theta_source"].fillna("None").value_counts().to_dict(),
-    }
     notify_run_complete(
         video_name=csvp.stem,
         results_df=results_df,
         raw_summary=raw_summary,
-        xlsx_path=str(outp),
     )
 
     return cf
