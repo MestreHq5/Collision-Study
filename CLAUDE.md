@@ -90,9 +90,13 @@ Collision-Study/
 ├── app.py             # PyQt6 GUI (file selectors, FPS inputs, process triggers)
 ├── helper.py          # Bridges GUI calls to backend pipeline
 ├── detector.py        # Core pipeline: video I/O, detection, ID tracking, CSV export
-└── Pre_process.py     # CV utilities (HSV filtering, marker isolation, background estimation)
-└── Post_process.py    # CSV -> kinematics/rotation/Excel + collision metrics
+├── Pre_process.py     # CV utilities (HSV filtering, marker isolation, background estimation)
+├── Post_process.py    # CSV -> kinematics/rotation/Excel + collision metrics
+└── notifier.py        # Best-effort ntfy.sh push notification on run completion
 ```
+
+`.env` (gitignored, see `.env.example`) optionally overrides `DEM_WORKSPACE_ROOT`, `NTFY_TOPIC`,
+and `DEM_SHOW_RESULTS_SHEET` — loaded by `initializer.py` before anything else imports.
 
 No trained model, no training data, no training scripts — position and marker detection are
 both classical HSV/contour CV. See "Branch note" above if that ever needs to change.
@@ -235,6 +239,29 @@ there) and robustly fits angular velocity per segment:
   `None` — `None` only when an entire segment has zero measured theta values at all, i.e.
   nothing to interpolate from; a real but rare limit on badly-occluded footage, not silently
   papered over).
+
+### Notifier (`notifier.py`)
+
+Best-effort ntfy.sh push notification when a run finishes, called from the end of
+`build_student_excel`. Answers the "Idea, not designed yet" item from Known bugs above — the
+professor (user) wants results checkable from a phone right after a run, to catch a bad run and
+have the student redo it on the spot rather than discovering it later; this is mandatory for
+them, not an opt-in feature, so there's deliberately no per-run GUI toggle (only the
+`NTFY_TOPIC` env var gates it, machine-wide).
+
+- **Metrics only, never raw data or the file itself** (user, 2026-09-23): the notification body
+  is the Results-sheet rows (e, momentum error, energy drop, collision_gap_mm/warning, theta
+  interpolation %) plus a small Raw_Data row-count summary — never the per-frame data, never an
+  attached `.xlsx`.
+- **Runs on a background thread**: `notify_run_complete` spins up a daemon `threading.Thread`
+  for the actual `requests.post` instead of calling it inline — `build_student_excel` runs on
+  the GUI thread (via `helper.genData()`), so a synchronous network call there would block the
+  UI. Fire-and-forget is safe here since nothing needs the result and every failure path is
+  already swallowed (no network, ntfy.sh down, etc. must never break the actual analysis run).
+- **`DEM_SHOW_RESULTS_SHEET`** (see `.env.example`): metrics are always computed (needed for the
+  notification regardless), but the Results sheet is only written into the delivered `.xlsx`
+  when this is set to `1` — default is left out, since students don't need it there and the
+  professor already gets the numbers via the notification.
 
 ## Lab / lighting history — conclusions for the next shoot
 
