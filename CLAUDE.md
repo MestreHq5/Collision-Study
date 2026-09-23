@@ -108,6 +108,14 @@ auto-spawned console window into the right half (`app._position_console_right`, 
 `GetConsoleWindow`/`MoveWindow`) so that layout happens without manual dragging. No-op in dev
 (`sys.frozen` is unset) and on non-Windows.
 
+`helper.PrintTee` (a `QObject` wrapping `sys.stdout`, installed in `MainWindow.__init__`) mirrors
+every deliberately bracket-tagged print (`[INFO]`/`[WARN]`/`[ERROR]` — app.py, helper.py,
+`detector.info()`) into Page 5's `genLog` (`QPlainTextEdit`, `gui.ui`) alongside `progressGen`,
+while leaving untagged incidental prints (matplotlib/Qt/cv2 noise, `Pre_process.py`'s ad hoc
+debug prints) console-only. Emits via a `pyqtSignal` rather than touching the widget directly,
+since `detector.main()` prints from `DetectionWorker`'s background thread — same cross-thread
+pattern as `DetectionWorker.progress`.
+
 ### Detection pipeline (`detector.py`)
 
 - **Disk position**: `detect_disks_color()` / `Pre_process.segment_disks_by_color()` — direct
@@ -347,8 +355,8 @@ them, not an opt-in feature, so there's deliberately no per-run GUI toggle (only
 - **Green marker (dimple) detection.** Root cause: the dark-value threshold is relative to that
   disk's own median V, but green's painted body measures far darker overall than blue's, so the
   same relative threshold that reliably isolates blue's dimple almost never triggers on green.
-  Fixed via `MARKER_DARK_VALUE_FRAC_GREEN` (see "Marker detection" above) — not the durable
-  fix (a brighter green paint is), but resolves it for the current paint.
+  Fixed via `MARKER_DARK_VALUE_FRAC_GREEN` (see "Marker detection" above) — confirmed
+  2026-09-23 as the permanent fix, not a stopgap, since no green repaint is planned.
 - **Low theta/rotation coverage on real footage, diagnosed and addressed 2026-09-19** — see
   "Standing objective" and "Marker detection" above for the two physical causes found (motion
   blur, self-occlusion), the one real threshold gap that was fixed (`MARKER_RELAX_FRAC_DELTA`/
@@ -386,6 +394,9 @@ them, not an opt-in feature, so there's deliberately no per-run GUI toggle (only
   (driven from a script, no manual clicking): confirmed non-blocking return, confirmed the
   progress value visibly climbs through every integer percentage rather than jumping, and
   confirmed correct completion state.
+- ~~Surface console prints on the GUI's loading screen too, but only the deliberately-added
+  ones, not incidental Qt/cv2/matplotlib noise.~~ **Done** — see `helper.PrintTee` and Page 5's
+  `genLog` box in "Architecture" above.
 
 ## Working preferences
 
