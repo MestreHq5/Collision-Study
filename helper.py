@@ -181,7 +181,6 @@ def generate(self):
     self.progressGen.setVisible(True)
     self.progressGen.setRange(0, 100)
     self.progressGen.setValue(0)
-    self.progressGen.setFormat("Processing... %p%")
 
     if self.genLog:
         self.genLog.clear()
@@ -213,12 +212,10 @@ def _generation_finished(self):
     # _generation_failed already handled the UI for the other one.
     if self._detectionWorker.succeeded:
         self.progressGen.setValue(100)
-        self.progressGen.setFormat("Done")
         self.btnPreview.setEnabled(True)
 
 
 def _generation_failed(self, message):
-    self.progressGen.setFormat("Failed")
     self.btnGen.setEnabled(True)
     self._sb.showMessage(f"Detection failed: {message}")
     print(f"[ERROR] Detection failed: {message}")

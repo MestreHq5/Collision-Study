@@ -84,21 +84,47 @@
                                         <item>
                                             <layout class="QHBoxLayout" name="logoRow1">
                                                 <property name="spacing">
-                                                    <number>40</number>
+                                                    <number>12</number>
                                                 </property>
-                                                <item alignment="Qt::AlignmentFlag::AlignHCenter|Qt::AlignmentFlag::AlignVCenter">
+                                                <item>
+                                                    <spacer name="logoRow1LeftSpacer">
+                                                        <property name="orientation">
+                                                            <enum>Qt::Orientation::Horizontal</enum>
+                                                        </property>
+                                                        <property name="sizeHint" stdset="0">
+                                                            <size>
+                                                                <width>40</width>
+                                                                <height>20</height>
+                                                            </size>
+                                                        </property>
+                                                    </spacer>
+                                                </item>
+                                                <item alignment="Qt::AlignmentFlag::AlignVCenter">
                                                     <widget class="QLabel" name="istlogo1">
                                                         <property name="text">
                                                             <string>TextLabel</string>
                                                         </property>
                                                     </widget>
                                                 </item>
-                                                <item alignment="Qt::AlignmentFlag::AlignHCenter|Qt::AlignmentFlag::AlignVCenter">
+                                                <item alignment="Qt::AlignmentFlag::AlignVCenter">
                                                     <widget class="QLabel" name="istlogo1b">
                                                         <property name="text">
                                                             <string>TextLabel</string>
                                                         </property>
                                                     </widget>
+                                                </item>
+                                                <item>
+                                                    <spacer name="logoRow1RightSpacer">
+                                                        <property name="orientation">
+                                                            <enum>Qt::Orientation::Horizontal</enum>
+                                                        </property>
+                                                        <property name="sizeHint" stdset="0">
+                                                            <size>
+                                                                <width>40</width>
+                                                                <height>20</height>
+                                                            </size>
+                                                        </property>
+                                                    </spacer>
                                                 </item>
                                             </layout>
                                         </item>
@@ -189,7 +215,7 @@
                                                 background-color: white;</string>
                                         </property>
                                         <property name="text">
-                                            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:34pt; font-weight:700; color:#009de0;&quot;&gt;Experiment Plan&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                                            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:48pt; font-weight:700; color:#009de0;&quot;&gt;Experiment Plan&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                                         </property>
                                     </widget>
                                 </item>
@@ -230,12 +256,10 @@
                                                         </property>
                                                         <property name="text">
                                                             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;
-&lt;p align=&quot;left&quot;&gt;&lt;span style=&quot; font-size:19pt; font-weight:700; color:#009de0;&quot;&gt;Before the Experiment&lt;/span&gt;&lt;/p&gt;
-&lt;ul style=&quot;margin-left:-20px;&quot;&gt;
-&lt;li&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;Read the guide&lt;/span&gt;&lt;/li&gt;
-&lt;li&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;Get the disk masses (g)&lt;/span&gt;&lt;/li&gt;
-&lt;li&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;Measure the disk radius (mm)&lt;/span&gt;&lt;/li&gt;
-&lt;/ul&gt;
+&lt;p align=&quot;left&quot;&gt;&lt;span style=&quot; font-size:30pt; font-weight:700; color:#009de0;&quot;&gt;Before the Experiment&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;margin:8px 0 8px 0;&quot;&gt;&lt;span style=&quot; font-size:24pt;&quot;&gt;&amp;#8226;&amp;nbsp;&amp;nbsp;Read the guide&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;margin:8px 0 8px 0;&quot;&gt;&lt;span style=&quot; font-size:24pt;&quot;&gt;&amp;#8226;&amp;nbsp;&amp;nbsp;Get the disk masses (g)&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;margin:8px 0 8px 0;&quot;&gt;&lt;span style=&quot; font-size:24pt;&quot;&gt;&amp;#8226;&amp;nbsp;&amp;nbsp;Measure the disk radius (mm)&lt;/span&gt;&lt;/p&gt;
 &lt;/body&gt;&lt;/html&gt;</string>
                                                         </property>
                                                     </widget>
@@ -270,13 +294,11 @@
                                                         </property>
                                                         <property name="text">
                                                             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;
-&lt;p align=&quot;left&quot;&gt;&lt;span style=&quot; font-size:19pt; font-weight:700; color:#009de0;&quot;&gt;During the Experiment&lt;/span&gt;&lt;/p&gt;
-&lt;ul style=&quot;margin-left:-20px;&quot;&gt;
-&lt;li&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;Let 2 clean seconds pass after starting the recording&lt;/span&gt;&lt;/li&gt;
-&lt;li&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;Throw the disks and verify the collision occurs&lt;/span&gt;&lt;/li&gt;
-&lt;li&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;Do not let a disk re-enter the filming area&lt;/span&gt;&lt;/li&gt;
-&lt;li&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;Verify detection and repeat if necessary&lt;/span&gt;&lt;/li&gt;
-&lt;/ul&gt;
+&lt;p align=&quot;left&quot;&gt;&lt;span style=&quot; font-size:30pt; font-weight:700; color:#009de0;&quot;&gt;During the Experiment&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;margin:8px 0 8px 0;&quot;&gt;&lt;span style=&quot; font-size:24pt;&quot;&gt;&amp;#8226;&amp;nbsp;&amp;nbsp;Let 2 clean seconds pass after starting the recording&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;margin:8px 0 8px 0;&quot;&gt;&lt;span style=&quot; font-size:24pt;&quot;&gt;&amp;#8226;&amp;nbsp;&amp;nbsp;Throw the disks and verify the collision occurs&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;margin:8px 0 8px 0;&quot;&gt;&lt;span style=&quot; font-size:24pt;&quot;&gt;&amp;#8226;&amp;nbsp;&amp;nbsp;Do not let a disk re-enter the filming area&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;margin:8px 0 8px 0;&quot;&gt;&lt;span style=&quot; font-size:24pt;&quot;&gt;&amp;#8226;&amp;nbsp;&amp;nbsp;Verify detection and repeat if necessary&lt;/span&gt;&lt;/p&gt;
 &lt;/body&gt;&lt;/html&gt;</string>
                                                         </property>
                                                     </widget>
@@ -438,7 +460,7 @@
                                                 </property>
                                                 <property name="sizeHint" stdset="0">
                                                     <size>
-                                                        <width>40</width>
+                                                        <width>100</width>
                                                         <height>20</height>
                                                     </size>
                                                 </property>
@@ -447,12 +469,12 @@
                                         <item>
                                     <layout class="QGridLayout" name="gridLayout">
                                         <property name="horizontalSpacing">
-                                            <number>16</number>
+                                            <number>36</number>
                                         </property>
                                         <property name="verticalSpacing">
-                                            <number>14</number>
+                                            <number>30</number>
                                         </property>
-                                        <item row="2" column="0" alignment="Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignVCenter">
+                                        <item row="2" column="0" alignment="Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter">
                                             <widget class="QLabel" name="disk_r_g">
                                                 <property name="sizePolicy">
                                                     <sizepolicy hsizetype="Preferred"
@@ -470,7 +492,7 @@
                                                 <property name="text">
                                                     <string>
                                                         &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span
-                                                        style=&quot; font-size:20pt;&quot;&gt;Green
+                                                        style=&quot; font-size:34pt;&quot;&gt;Green
                                                         Disk Radius
                                                         (mm):&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                                                 </property>
@@ -488,22 +510,22 @@
                                                 </property>
                                                 <property name="minimumSize">
                                                     <size>
-                                                        <width>220</width>
-                                                        <height>0</height>
+                                                        <width>420</width>
+                                                        <height>80</height>
                                                     </size>
                                                 </property>
                                                 <property name="styleSheet">
                                                     <string notr="true">background-color: white;
                                                         color: black;
-                                                        border: 3px solid #009de0;
-                                                        font-size: 20px;</string>
+                                                        border: 5px solid #009de0;
+                                                        font-size: 32px;</string>
                                                 </property>
                                                 <property name="placeholderText">
                                                     <string>Ex: 01</string>
                                                 </property>
                                             </widget>
                                         </item>
-                                        <item row="3" column="0" alignment="Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignVCenter">
+                                        <item row="3" column="0" alignment="Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter">
                                             <widget class="QLabel" name="disk_m_b">
                                                 <property name="sizePolicy">
                                                     <sizepolicy hsizetype="Preferred"
@@ -521,7 +543,7 @@
                                                 <property name="text">
                                                     <string>
                                                         &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span
-                                                        style=&quot; font-size:20pt;&quot;&gt;Blue
+                                                        style=&quot; font-size:34pt;&quot;&gt;Blue
                                                         Disk Mass
                                                         (g):&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                                                 </property>
@@ -539,22 +561,22 @@
                                                 </property>
                                                 <property name="minimumSize">
                                                     <size>
-                                                        <width>220</width>
-                                                        <height>0</height>
+                                                        <width>420</width>
+                                                        <height>80</height>
                                                     </size>
                                                 </property>
                                                 <property name="styleSheet">
                                                     <string notr="true">background-color: white;
                                                         color: black;
-                                                        border: 3px solid #009de0;
-                                                        font-size: 20px;</string>
+                                                        border: 5px solid #009de0;
+                                                        font-size: 32px;</string>
                                                 </property>
                                                 <property name="placeholderText">
                                                     <string>Ex: 11.8</string>
                                                 </property>
                                             </widget>
                                         </item>
-                                        <item row="0" column="0" alignment="Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignVCenter">
+                                        <item row="0" column="0" alignment="Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter">
                                             <widget class="QLabel" name="group">
                                                 <property name="sizePolicy">
                                                     <sizepolicy hsizetype="Preferred"
@@ -572,12 +594,12 @@
                                                 <property name="text">
                                                     <string>
                                                         &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span
-                                                        style=&quot; font-size:20pt;&quot;&gt;Group
+                                                        style=&quot; font-size:34pt;&quot;&gt;Group
                                                         Number:&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                                                 </property>
                                             </widget>
                                         </item>
-                                        <item row="1" column="0" alignment="Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignVCenter">
+                                        <item row="1" column="0" alignment="Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter">
                                             <widget class="QLabel" name="disk_m_g">
                                                 <property name="sizePolicy">
                                                     <sizepolicy hsizetype="Preferred"
@@ -595,13 +617,13 @@
                                                 <property name="text">
                                                     <string>
                                                         &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span
-                                                        style=&quot; font-size:20pt;&quot;&gt;Green
+                                                        style=&quot; font-size:34pt;&quot;&gt;Green
                                                         Disk Mass
                                                         (g):&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                                                 </property>
                                             </widget>
                                         </item>
-                                        <item row="4" column="0" alignment="Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignVCenter">
+                                        <item row="4" column="0" alignment="Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter">
                                             <widget class="QLabel" name="disk_r_b">
                                                 <property name="sizePolicy">
                                                     <sizepolicy hsizetype="Preferred"
@@ -619,7 +641,7 @@
                                                 <property name="text">
                                                     <string>
                                                         &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span
-                                                        style=&quot; font-size:20pt;&quot;&gt;Blue
+                                                        style=&quot; font-size:34pt;&quot;&gt;Blue
                                                         Disk Radius
                                                         (mm):&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                                                 </property>
@@ -637,15 +659,15 @@
                                                 </property>
                                                 <property name="minimumSize">
                                                     <size>
-                                                        <width>220</width>
-                                                        <height>0</height>
+                                                        <width>420</width>
+                                                        <height>80</height>
                                                     </size>
                                                 </property>
                                                 <property name="styleSheet">
                                                     <string notr="true">background-color: white;
                                                         color: black;
-                                                        border: 3px solid #009de0;
-                                                        font-size: 20px;</string>
+                                                        border: 5px solid #009de0;
+                                                        font-size: 32px;</string>
                                                 </property>
                                                 <property name="placeholderText">
                                                     <string>Ex: 11.8</string>
@@ -664,15 +686,15 @@
                                                 </property>
                                                 <property name="minimumSize">
                                                     <size>
-                                                        <width>220</width>
-                                                        <height>0</height>
+                                                        <width>420</width>
+                                                        <height>80</height>
                                                     </size>
                                                 </property>
                                                 <property name="styleSheet">
                                                     <string notr="true">background-color: white;
                                                         color: black;
-                                                        border: 3px solid #009de0;
-                                                        font-size: 20px;</string>
+                                                        border: 5px solid #009de0;
+                                                        font-size: 32px;</string>
                                                 </property>
                                                 <property name="placeholderText">
                                                     <string>Ex: 40</string>
@@ -691,15 +713,15 @@
                                                 </property>
                                                 <property name="minimumSize">
                                                     <size>
-                                                        <width>220</width>
-                                                        <height>0</height>
+                                                        <width>420</width>
+                                                        <height>80</height>
                                                     </size>
                                                 </property>
                                                 <property name="styleSheet">
                                                     <string notr="true">background-color: white;
                                                         color: black;
-                                                        border: 3px solid #009de0;
-                                                        font-size: 20px;</string>
+                                                        border: 5px solid #009de0;
+                                                        font-size: 32px;</string>
                                                 </property>
                                                 <property name="placeholderText">
                                                     <string>Ex: 40</string>
@@ -712,8 +734,9 @@
                                                     <string notr="true">QPushButton {
                                                         color: white;
                                                         background-color: #009de0;
-                                                        border-radius: 10px;
-                                                        padding: 6px 12px;
+                                                        border-radius: 16px;
+                                                        padding: 20px 40px;
+                                                        font-size: 30px;
                                                         font-weight: bold;
                                                         }
 
@@ -751,7 +774,7 @@
                                                         color: red;
                                                         font-weight: bold;
                                                         padding-left: 20px;
-                                                        font-size: 18px;</string>
+                                                        font-size: 28px;</string>
                                                 </property>
                                                 <property name="text">
                                                     <string />
@@ -973,12 +996,12 @@
                                                 <property name="value">
                                                     <number>0</number>
                                                 </property>
-                                                <property name="format">
-                                                    <string>Processing... %p%</string>
+                                                <property name="textVisible">
+                                                    <bool>false</bool>
                                                 </property>
                                                 <property name="styleSheet">
                                                     <string notr="true">QProgressBar {
-                                                        border: 2px solid #009de0;
+                                                        border: none;
                                                         border-radius: 8px;
                                                         background-color: white;
                                                         color: #005f87;
@@ -998,6 +1021,12 @@
                                                 <property name="visible">
                                                     <bool>false</bool>
                                                 </property>
+                                                <property name="minimumSize">
+                                                    <size>
+                                                        <width>0</width>
+                                                        <height>110</height>
+                                                    </size>
+                                                </property>
                                                 <property name="maximumSize">
                                                     <size>
                                                         <width>16777215</width>
@@ -1006,6 +1035,11 @@
                                                 </property>
                                                 <property name="readOnly">
                                                     <bool>true</bool>
+                                                </property>
+                                                <property name="styleSheet">
+                                                    <string notr="true">background-color: #f2f2f2;
+                                                        color: black;
+                                                        border: 1px solid #999999;</string>
                                                 </property>
                                                 <property name="font">
                                                     <font>

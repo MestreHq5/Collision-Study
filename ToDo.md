@@ -24,12 +24,10 @@
 
 ## USER Requests
 
-- App opens full screen but still windowed. 
+You should append Done once one item here is resolved. 
 
-- First Page: Imagens closer to each other and bigger. 
 
-- Second Page: Bullets points are not aligned with the phrases. Words need to be bigger, you have a full screen so there is margin. 
+- Page 3: Make ENTER button to go to the next input box. Make the Words to align left inside the box you define (whith some margin to the left end of the page). **Done**
 
-- Third Page: Overall good, just increase all the sizes so that fills the page. 
+- Page 5: Right now I see the progress bar but not the table with the logs. It shows as white, no board at all (previously when this worked I saw a grey canvas with the logs, now I don't see the canvas at all). **Done**
 
-- Progress bar should not have border. Remove also the percentage and done indications. INFO and WARNS still don't show below. I am running through initializer.py so that does not depend on build. 

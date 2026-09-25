@@ -42,7 +42,7 @@ class MainWindow(QMainWindow):
         # Initialize and Load the GUI
         super().__init__()
         uic.loadUi(str(resource_path("gui.ui")), self)
-        self.target_size = QSize(340, 340)
+        self.target_size = QSize(480, 480)
 
         # Tee stdout so the deliberately-tagged [INFO]/[WARN]/[ERROR] prints
         # also reach Page 5's genLog box -- see helper.PrintTee. Kept on
@@ -54,9 +54,9 @@ class MainWindow(QMainWindow):
 
         self.setMinimumSize(742, 555)  # the .ui's original design size -- below
         # this, the redesigned pages' layouts get cramped rather than
-        # reflowing usefully. Actual startup size/state is full screen,
-        # applied via showFullScreen() in main() -- this floor only matters
-        # if the user later drops out of full screen.
+        # reflowing usefully. Actual startup size/state is maximized,
+        # applied via showMaximized() in main() -- this floor only matters
+        # if the user later un-maximizes the window.
 
         # Global
         self.stack: QStackedWidget = self.findChild(QStackedWidget, "stack")
@@ -125,7 +125,20 @@ class MainWindow(QMainWindow):
         # Page 3 Validation redirects to Page 4 (index 3)
         if self.btnValidate:
             self.btnValidate.clicked.connect(lambda: hp.validator(self))
-        
+
+        # Page 3: Enter/Return advances to the next field in visual (grid)
+        # order instead of doing nothing, so a student can fill the form
+        # without reaching for the mouse; Enter on the last field submits.
+        page3_field_chain = [
+            self.group_val, self.green_mass_val, self.green_rad_val,
+            self.blue_mass_val, self.blue_rad_val,
+        ]
+        for field, next_field in zip(page3_field_chain, page3_field_chain[1:]):
+            if field and next_field:
+                field.returnPressed.connect(next_field.setFocus)
+        if page3_field_chain[-1] and self.btnValidate:
+            page3_field_chain[-1].returnPressed.connect(self.btnValidate.click)
+
         # Page 4 Upload & File Selection Actions
         if self.btnSelectFile:
             self.btnSelectFile.clicked.connect(self.select_video_file)
@@ -272,5 +285,7 @@ def main():
     QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     app = QApplication(sys.argv)
     win = MainWindow()
-    win.showFullScreen()
+    win.showMaximized()  # maximized, not full screen -- keeps the title bar/
+    # taskbar (normal windowed chrome) while still opening at full usable
+    # screen size, per USER Request in ToDo.md.
     sys.exit(app.exec())
