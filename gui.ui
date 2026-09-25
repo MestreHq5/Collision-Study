@@ -60,7 +60,7 @@
                                                     <string>
                                                         &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p
                                                         align=&quot;center&quot;&gt;&lt;span
-                                                        style=&quot; font-size:44pt;
+                                                        style=&quot; font-size:56pt;
                                                         font-weight:700;
                                                         color:#009de0;&quot;&gt;Collision Study
                                                         Dynamics&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
@@ -74,7 +74,7 @@
                                                     <string>
                                                         &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p
                                                         align=&quot;center&quot;&gt;&lt;span
-                                                        style=&quot; font-size:20pt;
+                                                        style=&quot; font-size:24pt;
                                                         color:#000000;&quot;&gt;Computer Vision App
                                                         with
                                                         Python&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
@@ -82,21 +82,42 @@
                                             </widget>
                                         </item>
                                         <item>
-                                            <widget class="QLabel" name="istlogo1">
-                                                <property name="text">
-                                                    <string>TextLabel</string>
+                                            <layout class="QHBoxLayout" name="logoRow1">
+                                                <property name="spacing">
+                                                    <number>40</number>
                                                 </property>
-                                            </widget>
+                                                <item alignment="Qt::AlignmentFlag::AlignHCenter|Qt::AlignmentFlag::AlignVCenter">
+                                                    <widget class="QLabel" name="istlogo1">
+                                                        <property name="text">
+                                                            <string>TextLabel</string>
+                                                        </property>
+                                                    </widget>
+                                                </item>
+                                                <item alignment="Qt::AlignmentFlag::AlignHCenter|Qt::AlignmentFlag::AlignVCenter">
+                                                    <widget class="QLabel" name="istlogo1b">
+                                                        <property name="text">
+                                                            <string>TextLabel</string>
+                                                        </property>
+                                                    </widget>
+                                                </item>
+                                            </layout>
                                         </item>
                                         <item
                                             alignment="Qt::AlignmentFlag::AlignHCenter|Qt::AlignmentFlag::AlignVCenter">
                                             <widget class="QPushButton" name="btnStart">
+                                                <property name="minimumSize">
+                                                    <size>
+                                                        <width>260</width>
+                                                        <height>70</height>
+                                                    </size>
+                                                </property>
                                                 <property name="styleSheet">
                                                     <string notr="true">QPushButton {
                                                         color: white;
                                                         background-color: #009de0;
-                                                        border-radius: 10px;
-                                                        padding: 6px 12px;
+                                                        border-radius: 16px;
+                                                        padding: 18px 48px;
+                                                        font-size: 26px;
                                                         font-weight: bold;
                                                         }
 
@@ -153,150 +174,224 @@
                                     </spacer>
                                 </item>
                                 <item>
-                                    <layout class="QVBoxLayout" name="verticalLayout">
-                                        <item>
-                                            <widget class="QLabel" name="instructionsTitle">
-                                                <property name="sizePolicy">
-                                                    <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
-                                                        <horstretch>0</horstretch>
-                                                        <verstretch>0</verstretch>
-                                                    </sizepolicy>
-                                                </property>
-                                                <property name="alignment">
-                                                    <set>Qt::AlignmentFlag::AlignHCenter|Qt::AlignmentFlag::AlignTop</set>
-                                                </property>
-                                                <property name="styleSheet">
-                                                    <string notr="true">color: black;
-                                                        background-color: white;</string>
-                                                </property>
-                                                <property name="text">
-                                                    <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:28pt; font-weight:700; color:#009de0;&quot;&gt;Before You Begin&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-                                                </property>
-                                            </widget>
-                                        </item>
-                                        <item>
-                                            <spacer name="instructionsMidSpacer">
-                                                <property name="orientation">
-                                                    <enum>Qt::Orientation::Vertical</enum>
-                                                </property>
-                                                <property name="sizeHint" stdset="0">
-                                                    <size>
-                                                        <width>20</width>
-                                                        <height>24</height>
-                                                    </size>
-                                                </property>
-                                            </spacer>
-                                        </item>
-                                        <item>
-                                            <widget class="QLabel" name="instructionsBefore">
-                                                <property name="sizePolicy">
-                                                    <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
-                                                        <horstretch>0</horstretch>
-                                                        <verstretch>0</verstretch>
-                                                    </sizepolicy>
-                                                </property>
-                                                <property name="alignment">
-                                                    <set>Qt::AlignmentFlag::AlignHCenter|Qt::AlignmentFlag::AlignTop</set>
-                                                </property>
-                                                <property name="styleSheet">
-                                                    <string notr="true">color: black;
-                                                        background-color: white;</string>
-                                                </property>
-                                                <property name="text">
-                                                    <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;
-&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:19pt; font-weight:700; color:#009de0;&quot;&gt;Before the Experiment&lt;/span&gt;&lt;/p&gt;
-&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;Read the guide&lt;/span&gt;&lt;/p&gt;
-&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;Get the disk masses (g)&lt;/span&gt;&lt;/p&gt;
-&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;Measure the disk radius (mm)&lt;/span&gt;&lt;/p&gt;
+                                    <widget class="QLabel" name="instructionsTitle">
+                                        <property name="sizePolicy">
+                                            <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+                                                <horstretch>0</horstretch>
+                                                <verstretch>0</verstretch>
+                                            </sizepolicy>
+                                        </property>
+                                        <property name="alignment">
+                                            <set>Qt::AlignmentFlag::AlignHCenter|Qt::AlignmentFlag::AlignTop</set>
+                                        </property>
+                                        <property name="styleSheet">
+                                            <string notr="true">color: black;
+                                                background-color: white;</string>
+                                        </property>
+                                        <property name="text">
+                                            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:34pt; font-weight:700; color:#009de0;&quot;&gt;Experiment Plan&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                                        </property>
+                                    </widget>
+                                </item>
+                                <item>
+                                    <spacer name="instructionsMidSpacer">
+                                        <property name="orientation">
+                                            <enum>Qt::Orientation::Vertical</enum>
+                                        </property>
+                                        <property name="sizeHint" stdset="0">
+                                            <size>
+                                                <width>20</width>
+                                                <height>24</height>
+                                            </size>
+                                        </property>
+                                    </spacer>
+                                </item>
+                                <item>
+                                    <layout class="QHBoxLayout" name="planContentRow">
+                                        <property name="spacing">
+                                            <number>30</number>
+                                        </property>
+                                        <item stretch="3">
+                                            <layout class="QVBoxLayout" name="planLeftColumn">
+                                                <item>
+                                                    <widget class="QLabel" name="instructionsBefore">
+                                                        <property name="sizePolicy">
+                                                            <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+                                                                <horstretch>0</horstretch>
+                                                                <verstretch>0</verstretch>
+                                                            </sizepolicy>
+                                                        </property>
+                                                        <property name="alignment">
+                                                            <set>Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignTop</set>
+                                                        </property>
+                                                        <property name="styleSheet">
+                                                            <string notr="true">color: black;
+                                                                background-color: white;</string>
+                                                        </property>
+                                                        <property name="text">
+                                                            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;
+&lt;p align=&quot;left&quot;&gt;&lt;span style=&quot; font-size:19pt; font-weight:700; color:#009de0;&quot;&gt;Before the Experiment&lt;/span&gt;&lt;/p&gt;
+&lt;ul style=&quot;margin-left:-20px;&quot;&gt;
+&lt;li&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;Read the guide&lt;/span&gt;&lt;/li&gt;
+&lt;li&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;Get the disk masses (g)&lt;/span&gt;&lt;/li&gt;
+&lt;li&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;Measure the disk radius (mm)&lt;/span&gt;&lt;/li&gt;
+&lt;/ul&gt;
 &lt;/body&gt;&lt;/html&gt;</string>
-                                                </property>
-                                            </widget>
-                                        </item>
-                                        <item>
-                                            <spacer name="instructionsMidSpacer2">
-                                                <property name="orientation">
-                                                    <enum>Qt::Orientation::Vertical</enum>
-                                                </property>
-                                                <property name="sizeHint" stdset="0">
-                                                    <size>
-                                                        <width>20</width>
-                                                        <height>24</height>
-                                                    </size>
-                                                </property>
-                                            </spacer>
-                                        </item>
-                                        <item>
-                                            <widget class="QLabel" name="instructionsDuring">
-                                                <property name="sizePolicy">
-                                                    <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
-                                                        <horstretch>0</horstretch>
-                                                        <verstretch>0</verstretch>
-                                                    </sizepolicy>
-                                                </property>
-                                                <property name="alignment">
-                                                    <set>Qt::AlignmentFlag::AlignHCenter|Qt::AlignmentFlag::AlignTop</set>
-                                                </property>
-                                                <property name="styleSheet">
-                                                    <string notr="true">color: black;
-                                                        background-color: white;</string>
-                                                </property>
-                                                <property name="text">
-                                                    <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;
-&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:19pt; font-weight:700; color:#009de0;&quot;&gt;During the Experiment&lt;/span&gt;&lt;/p&gt;
-&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;Let 2 clean seconds pass after starting the recording&lt;/span&gt;&lt;/p&gt;
-&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;Throw the disks and verify the collision occurs&lt;/span&gt;&lt;/p&gt;
-&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;Do not let a disk re-enter the filming area&lt;/span&gt;&lt;/p&gt;
-&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;Verify detection and repeat if necessary&lt;/span&gt;&lt;/p&gt;
+                                                        </property>
+                                                    </widget>
+                                                </item>
+                                                <item>
+                                                    <spacer name="instructionsMidSpacer2">
+                                                        <property name="orientation">
+                                                            <enum>Qt::Orientation::Vertical</enum>
+                                                        </property>
+                                                        <property name="sizeHint" stdset="0">
+                                                            <size>
+                                                                <width>20</width>
+                                                                <height>24</height>
+                                                            </size>
+                                                        </property>
+                                                    </spacer>
+                                                </item>
+                                                <item>
+                                                    <widget class="QLabel" name="instructionsDuring">
+                                                        <property name="sizePolicy">
+                                                            <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+                                                                <horstretch>0</horstretch>
+                                                                <verstretch>0</verstretch>
+                                                            </sizepolicy>
+                                                        </property>
+                                                        <property name="alignment">
+                                                            <set>Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignTop</set>
+                                                        </property>
+                                                        <property name="styleSheet">
+                                                            <string notr="true">color: black;
+                                                                background-color: white;</string>
+                                                        </property>
+                                                        <property name="text">
+                                                            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;
+&lt;p align=&quot;left&quot;&gt;&lt;span style=&quot; font-size:19pt; font-weight:700; color:#009de0;&quot;&gt;During the Experiment&lt;/span&gt;&lt;/p&gt;
+&lt;ul style=&quot;margin-left:-20px;&quot;&gt;
+&lt;li&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;Let 2 clean seconds pass after starting the recording&lt;/span&gt;&lt;/li&gt;
+&lt;li&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;Throw the disks and verify the collision occurs&lt;/span&gt;&lt;/li&gt;
+&lt;li&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;Do not let a disk re-enter the filming area&lt;/span&gt;&lt;/li&gt;
+&lt;li&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;Verify detection and repeat if necessary&lt;/span&gt;&lt;/li&gt;
+&lt;/ul&gt;
 &lt;/body&gt;&lt;/html&gt;</string>
-                                                </property>
-                                            </widget>
+                                                        </property>
+                                                    </widget>
+                                                </item>
+                                            </layout>
                                         </item>
-                                        <item>
-                                            <spacer name="instructionsMidSpacer3">
-                                                <property name="orientation">
-                                                    <enum>Qt::Orientation::Vertical</enum>
+                                        <item stretch="2">
+                                            <layout class="QVBoxLayout" name="planRightColumn">
+                                                <property name="spacing">
+                                                    <number>20</number>
                                                 </property>
-                                                <property name="sizeHint" stdset="0">
-                                                    <size>
-                                                        <width>20</width>
-                                                        <height>24</height>
-                                                    </size>
-                                                </property>
-                                            </spacer>
-                                        </item>
-                                        <item alignment="Qt::AlignmentFlag::AlignHCenter">
-                                            <widget class="QPushButton" name="btnNext2">
-                                                <property name="styleSheet">
-                                                    <string notr="true">QPushButton {
-                                                        color: white;
-                                                        background-color: #009de0;
-                                                        border-radius: 10px;
-                                                        padding: 10px 22px;
-                                                        font-size: 15px;
-                                                        font-weight: bold;
-                                                        }
-
-                                                        QPushButton:hover {
-                                                        color: white;
-                                                        background-color: #007bb5;
-                                                        }
-
-                                                        QPushButton:pressed {
-                                                        color: white;
-                                                        background-color: #005f87;
-                                                        }
-
-                                                        QPushButton:disabled {
-                                                        color: #aaaaaa;
-                                                        background-color: #cccccc;
-                                                        }</string>
-                                                </property>
-                                                <property name="text">
-                                                    <string>NEXT</string>
-                                                </property>
-                                            </widget>
+                                                <item>
+                                                    <widget class="QLabel" name="planImagePlaceholder1">
+                                                        <property name="sizePolicy">
+                                                            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                                                                <horstretch>0</horstretch>
+                                                                <verstretch>0</verstretch>
+                                                            </sizepolicy>
+                                                        </property>
+                                                        <property name="minimumSize">
+                                                            <size>
+                                                                <width>160</width>
+                                                                <height>120</height>
+                                                            </size>
+                                                        </property>
+                                                        <property name="styleSheet">
+                                                            <string notr="true">background-color: #f2f2f2;
+                                                                border: 2px dashed #009de0;
+                                                                color: #888888;
+                                                                font-size: 13pt;</string>
+                                                        </property>
+                                                        <property name="text">
+                                                            <string>Image Placeholder</string>
+                                                        </property>
+                                                        <property name="alignment">
+                                                            <set>Qt::AlignmentFlag::AlignCenter</set>
+                                                        </property>
+                                                    </widget>
+                                                </item>
+                                                <item>
+                                                    <widget class="QLabel" name="planImagePlaceholder2">
+                                                        <property name="sizePolicy">
+                                                            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                                                                <horstretch>0</horstretch>
+                                                                <verstretch>0</verstretch>
+                                                            </sizepolicy>
+                                                        </property>
+                                                        <property name="minimumSize">
+                                                            <size>
+                                                                <width>160</width>
+                                                                <height>120</height>
+                                                            </size>
+                                                        </property>
+                                                        <property name="styleSheet">
+                                                            <string notr="true">background-color: #f2f2f2;
+                                                                border: 2px dashed #009de0;
+                                                                color: #888888;
+                                                                font-size: 13pt;</string>
+                                                        </property>
+                                                        <property name="text">
+                                                            <string>Image Placeholder</string>
+                                                        </property>
+                                                        <property name="alignment">
+                                                            <set>Qt::AlignmentFlag::AlignCenter</set>
+                                                        </property>
+                                                    </widget>
+                                                </item>
+                                            </layout>
                                         </item>
                                     </layout>
+                                </item>
+                                <item>
+                                    <spacer name="instructionsMidSpacer3">
+                                        <property name="orientation">
+                                            <enum>Qt::Orientation::Vertical</enum>
+                                        </property>
+                                        <property name="sizeHint" stdset="0">
+                                            <size>
+                                                <width>20</width>
+                                                <height>24</height>
+                                            </size>
+                                        </property>
+                                    </spacer>
+                                </item>
+                                <item alignment="Qt::AlignmentFlag::AlignHCenter">
+                                    <widget class="QPushButton" name="btnNext2">
+                                        <property name="styleSheet">
+                                            <string notr="true">QPushButton {
+                                                color: white;
+                                                background-color: #009de0;
+                                                border-radius: 10px;
+                                                padding: 10px 22px;
+                                                font-size: 15px;
+                                                font-weight: bold;
+                                                }
+
+                                                QPushButton:hover {
+                                                color: white;
+                                                background-color: #007bb5;
+                                                }
+
+                                                QPushButton:pressed {
+                                                color: white;
+                                                background-color: #005f87;
+                                                }
+
+                                                QPushButton:disabled {
+                                                color: #aaaaaa;
+                                                background-color: #cccccc;
+                                                }</string>
+                                        </property>
+                                        <property name="text">
+                                            <string>NEXT</string>
+                                        </property>
+                                    </widget>
                                 </item>
                                 <item>
                                     <spacer name="instructionsBottomSpacer">
@@ -322,11 +417,45 @@
                             </property>
                             <layout class="QVBoxLayout" name="verticalLayout_5">
                                 <item>
+                                    <spacer name="page3TopSpacer">
+                                        <property name="orientation">
+                                            <enum>Qt::Orientation::Vertical</enum>
+                                        </property>
+                                        <property name="sizeHint" stdset="0">
+                                            <size>
+                                                <width>20</width>
+                                                <height>20</height>
+                                            </size>
+                                        </property>
+                                    </spacer>
+                                </item>
+                                <item>
+                                    <layout class="QHBoxLayout" name="page3CenterRow">
+                                        <item>
+                                            <spacer name="page3LeftSpacer">
+                                                <property name="orientation">
+                                                    <enum>Qt::Orientation::Horizontal</enum>
+                                                </property>
+                                                <property name="sizeHint" stdset="0">
+                                                    <size>
+                                                        <width>40</width>
+                                                        <height>20</height>
+                                                    </size>
+                                                </property>
+                                            </spacer>
+                                        </item>
+                                        <item>
                                     <layout class="QGridLayout" name="gridLayout">
-                                        <item row="2" column="0">
+                                        <property name="horizontalSpacing">
+                                            <number>16</number>
+                                        </property>
+                                        <property name="verticalSpacing">
+                                            <number>14</number>
+                                        </property>
+                                        <item row="2" column="0" alignment="Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignVCenter">
                                             <widget class="QLabel" name="disk_r_g">
                                                 <property name="sizePolicy">
-                                                    <sizepolicy hsizetype="Expanding"
+                                                    <sizepolicy hsizetype="Preferred"
                                                         vsizetype="Expanding">
                                                         <horstretch>0</horstretch>
                                                         <verstretch>0</verstretch>
@@ -336,7 +465,7 @@
                                                     <string notr="true">background-color: white;
                                                         color: black;
                                                         font-weight: bold;
-                                                        padding-left: 20px;</string>
+                                                        padding-right: 10px;</string>
                                                 </property>
                                                 <property name="text">
                                                     <string>
@@ -351,11 +480,17 @@
                                             alignment="Qt::AlignmentFlag::AlignVCenter">
                                             <widget class="QLineEdit" name="group_val">
                                                 <property name="sizePolicy">
-                                                    <sizepolicy hsizetype="Expanding"
+                                                    <sizepolicy hsizetype="Preferred"
                                                         vsizetype="Expanding">
                                                         <horstretch>0</horstretch>
                                                         <verstretch>0</verstretch>
                                                     </sizepolicy>
+                                                </property>
+                                                <property name="minimumSize">
+                                                    <size>
+                                                        <width>220</width>
+                                                        <height>0</height>
+                                                    </size>
                                                 </property>
                                                 <property name="styleSheet">
                                                     <string notr="true">background-color: white;
@@ -368,10 +503,10 @@
                                                 </property>
                                             </widget>
                                         </item>
-                                        <item row="3" column="0">
+                                        <item row="3" column="0" alignment="Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignVCenter">
                                             <widget class="QLabel" name="disk_m_b">
                                                 <property name="sizePolicy">
-                                                    <sizepolicy hsizetype="Expanding"
+                                                    <sizepolicy hsizetype="Preferred"
                                                         vsizetype="Expanding">
                                                         <horstretch>0</horstretch>
                                                         <verstretch>0</verstretch>
@@ -381,7 +516,7 @@
                                                     <string notr="true">background-color: white;
                                                         color: black;
                                                         font-weight: bold;
-                                                        padding-left: 20px;</string>
+                                                        padding-right: 10px;</string>
                                                 </property>
                                                 <property name="text">
                                                     <string>
@@ -396,11 +531,17 @@
                                             alignment="Qt::AlignmentFlag::AlignVCenter">
                                             <widget class="QLineEdit" name="disk_m_b_val">
                                                 <property name="sizePolicy">
-                                                    <sizepolicy hsizetype="Expanding"
+                                                    <sizepolicy hsizetype="Preferred"
                                                         vsizetype="Expanding">
                                                         <horstretch>0</horstretch>
                                                         <verstretch>0</verstretch>
                                                     </sizepolicy>
+                                                </property>
+                                                <property name="minimumSize">
+                                                    <size>
+                                                        <width>220</width>
+                                                        <height>0</height>
+                                                    </size>
                                                 </property>
                                                 <property name="styleSheet">
                                                     <string notr="true">background-color: white;
@@ -413,10 +554,10 @@
                                                 </property>
                                             </widget>
                                         </item>
-                                        <item row="0" column="0">
+                                        <item row="0" column="0" alignment="Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignVCenter">
                                             <widget class="QLabel" name="group">
                                                 <property name="sizePolicy">
-                                                    <sizepolicy hsizetype="Expanding"
+                                                    <sizepolicy hsizetype="Preferred"
                                                         vsizetype="Expanding">
                                                         <horstretch>0</horstretch>
                                                         <verstretch>0</verstretch>
@@ -426,7 +567,7 @@
                                                     <string notr="true">background-color: white;
                                                         color: black;
                                                         font-weight: bold;
-                                                        padding-left: 20px;</string>
+                                                        padding-right: 10px;</string>
                                                 </property>
                                                 <property name="text">
                                                     <string>
@@ -436,10 +577,10 @@
                                                 </property>
                                             </widget>
                                         </item>
-                                        <item row="1" column="0">
+                                        <item row="1" column="0" alignment="Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignVCenter">
                                             <widget class="QLabel" name="disk_m_g">
                                                 <property name="sizePolicy">
-                                                    <sizepolicy hsizetype="Expanding"
+                                                    <sizepolicy hsizetype="Preferred"
                                                         vsizetype="Expanding">
                                                         <horstretch>0</horstretch>
                                                         <verstretch>0</verstretch>
@@ -449,7 +590,7 @@
                                                     <string notr="true">background-color: white;
                                                         color: black;
                                                         font-weight: bold;
-                                                        padding-left: 20px;</string>
+                                                        padding-right: 10px;</string>
                                                 </property>
                                                 <property name="text">
                                                     <string>
@@ -460,10 +601,10 @@
                                                 </property>
                                             </widget>
                                         </item>
-                                        <item row="4" column="0">
+                                        <item row="4" column="0" alignment="Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignVCenter">
                                             <widget class="QLabel" name="disk_r_b">
                                                 <property name="sizePolicy">
-                                                    <sizepolicy hsizetype="Expanding"
+                                                    <sizepolicy hsizetype="Preferred"
                                                         vsizetype="Expanding">
                                                         <horstretch>0</horstretch>
                                                         <verstretch>0</verstretch>
@@ -473,7 +614,7 @@
                                                     <string notr="true">background-color: white;
                                                         color: black;
                                                         font-weight: bold;
-                                                        padding-left: 20px;</string>
+                                                        padding-right: 10px;</string>
                                                 </property>
                                                 <property name="text">
                                                     <string>
@@ -488,11 +629,17 @@
                                             alignment="Qt::AlignmentFlag::AlignVCenter">
                                             <widget class="QLineEdit" name="disk_m_g_val">
                                                 <property name="sizePolicy">
-                                                    <sizepolicy hsizetype="Expanding"
+                                                    <sizepolicy hsizetype="Preferred"
                                                         vsizetype="Expanding">
                                                         <horstretch>0</horstretch>
                                                         <verstretch>0</verstretch>
                                                     </sizepolicy>
+                                                </property>
+                                                <property name="minimumSize">
+                                                    <size>
+                                                        <width>220</width>
+                                                        <height>0</height>
+                                                    </size>
                                                 </property>
                                                 <property name="styleSheet">
                                                     <string notr="true">background-color: white;
@@ -509,11 +656,17 @@
                                             alignment="Qt::AlignmentFlag::AlignVCenter">
                                             <widget class="QLineEdit" name="disk_r_b_val">
                                                 <property name="sizePolicy">
-                                                    <sizepolicy hsizetype="Expanding"
+                                                    <sizepolicy hsizetype="Preferred"
                                                         vsizetype="Expanding">
                                                         <horstretch>0</horstretch>
                                                         <verstretch>0</verstretch>
                                                     </sizepolicy>
+                                                </property>
+                                                <property name="minimumSize">
+                                                    <size>
+                                                        <width>220</width>
+                                                        <height>0</height>
+                                                    </size>
                                                 </property>
                                                 <property name="styleSheet">
                                                     <string notr="true">background-color: white;
@@ -530,11 +683,17 @@
                                             alignment="Qt::AlignmentFlag::AlignVCenter">
                                             <widget class="QLineEdit" name="disk_r_g_val">
                                                 <property name="sizePolicy">
-                                                    <sizepolicy hsizetype="Expanding"
+                                                    <sizepolicy hsizetype="Preferred"
                                                         vsizetype="Expanding">
                                                         <horstretch>0</horstretch>
                                                         <verstretch>0</verstretch>
                                                     </sizepolicy>
+                                                </property>
+                                                <property name="minimumSize">
+                                                    <size>
+                                                        <width>220</width>
+                                                        <height>0</height>
+                                                    </size>
                                                 </property>
                                                 <property name="styleSheet">
                                                     <string notr="true">background-color: white;
@@ -600,6 +759,34 @@
                                             </widget>
                                         </item>
                                     </layout>
+                                        </item>
+                                        <item>
+                                            <spacer name="page3RightSpacer">
+                                                <property name="orientation">
+                                                    <enum>Qt::Orientation::Horizontal</enum>
+                                                </property>
+                                                <property name="sizeHint" stdset="0">
+                                                    <size>
+                                                        <width>40</width>
+                                                        <height>20</height>
+                                                    </size>
+                                                </property>
+                                            </spacer>
+                                        </item>
+                                    </layout>
+                                </item>
+                                <item>
+                                    <spacer name="page3BottomSpacer">
+                                        <property name="orientation">
+                                            <enum>Qt::Orientation::Vertical</enum>
+                                        </property>
+                                        <property name="sizeHint" stdset="0">
+                                            <size>
+                                                <width>20</width>
+                                                <height>20</height>
+                                            </size>
+                                        </property>
+                                    </spacer>
                                 </item>
                             </layout>
                         </widget>
@@ -788,6 +975,21 @@
                                                 </property>
                                                 <property name="format">
                                                     <string>Processing... %p%</string>
+                                                </property>
+                                                <property name="styleSheet">
+                                                    <string notr="true">QProgressBar {
+                                                        border: 2px solid #009de0;
+                                                        border-radius: 8px;
+                                                        background-color: white;
+                                                        color: #005f87;
+                                                        font-weight: bold;
+                                                        text-align: center;
+                                                        }
+
+                                                        QProgressBar::chunk {
+                                                        background-color: #009de0;
+                                                        border-radius: 6px;
+                                                        }</string>
                                                 </property>
                                             </widget>
                                         </item>

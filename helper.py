@@ -358,14 +358,35 @@ def redo(self):
     self.stack.setCurrentIndex(2)
     
 
+def _load_logo(self, filename):
+    """
+    Renders the logo at the window's actual device pixel ratio (like
+    apply_trajectory_pixmap does for the trajectory preview) instead of just
+    scaling to self.target_size's logical pixels -- otherwise the logo looks
+    soft/low-resolution on HiDPI displays, since Qt would then have to
+    upscale an already-downscaled bitmap to fill the physical pixel grid.
+    """
+    dpr = self.devicePixelRatioF()
+    device_size = QSize(int(self.target_size.width() * dpr), int(self.target_size.height() * dpr))
+    pixmap = QPixmap(str(resource_path("Images", filename)))
+    scaled = pixmap.scaled(device_size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+    scaled.setDevicePixelRatio(dpr)
+    return scaled
+
+
 def scaler(self):
-    logo = QPixmap(str(resource_path("Images", "logoIST.png")))
-    scaled = logo.scaled(self.target_size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-    
-    self.istlogo1.setScaledContents(False) 
+    ist_logo = _load_logo(self, "logoIST.png")
+    dem_logo = _load_logo(self, "logoDEM.png")
+
+    self.istlogo1.setScaledContents(False)
     self.istlogo1.setAlignment(Qt.AlignmentFlag.AlignCenter)
-    self.istlogo1.setPixmap(scaled)
-    
-    self.istlogo6.setScaledContents(False) 
+    self.istlogo1.setPixmap(ist_logo)
+
+    if getattr(self, "istlogo1b", None) is not None:
+        self.istlogo1b.setScaledContents(False)
+        self.istlogo1b.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.istlogo1b.setPixmap(dem_logo)
+
+    self.istlogo6.setScaledContents(False)
     self.istlogo6.setAlignment(Qt.AlignmentFlag.AlignCenter)
-    self.istlogo6.setPixmap(scaled)
+    self.istlogo6.setPixmap(ist_logo)

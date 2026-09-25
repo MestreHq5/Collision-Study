@@ -606,7 +606,7 @@ def main(video_path, bg_path, dtc_path, csv_path, fps_eff, progress_callback=Non
     if background is None:
         raise RuntimeError(f"Failed to load background at {bg_path}") # Error checking --> fatal program will end
 
-    info("Done", "Background Averaged")
+    info("DONE", "Background Averaged")
 
     # 2) Open video
     cap = cv2.VideoCapture(str(video_path))
@@ -626,9 +626,9 @@ def main(video_path, bg_path, dtc_path, csv_path, fps_eff, progress_callback=Non
         # Fallback to estimation only if file metadata tracking fails
         fps = min([30, 60], key=lambda x: abs(x - fps_eff))
 
-    info("Info", f"File Container Native FPS: {fps:.2f}")
+    info("INFO", f"File Container Native FPS: {fps:.2f}")
     dt  = 1.0 / fps if fps > 0 else 1/60  # Precise time elapsed per frame
-    info("Info", f"Per frame time: {dt:.4f}s")
+    info("INFO", f"Per frame time: {dt:.4f}s")
 
     # Variables, list of arrays for detections
     scale_mm_per_px = None
@@ -701,7 +701,7 @@ def main(video_path, bg_path, dtc_path, csv_path, fps_eff, progress_callback=Non
             if len(radius_samples) >= RADIUS_SAMPLE_TARGET:
                 median_rpx = float(np.median(radius_samples))
                 scale_mm_per_px = DISK_DIAMETER_MM / (2.0 * median_rpx)
-                info("Info", f"Computed scale: {scale_mm_per_px:.3f} mm/px "
+                info("INFO", f"Computed scale: {scale_mm_per_px:.3f} mm/px "
                               f"(median of {len(radius_samples)} radius samples)")
 
         # 6) Resolve marker position + disk identity per disk (HSV)
@@ -782,5 +782,5 @@ def main(video_path, bg_path, dtc_path, csv_path, fps_eff, progress_callback=Non
         ])
         writer.writerows(all_detections)
 
-    info("Done", f"Saved {len(all_detections)} detections to disk_tracks.csv")
+    info("DONE", f"Saved {len(all_detections)} detections to disk_tracks.csv")
     return

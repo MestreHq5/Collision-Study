@@ -36,35 +36,13 @@ def resource_path(*parts) -> Path:
     return base.joinpath(*parts)
 
 
-def _position_console_right(available, app_width):
-    """
-    Moves the process's own console window (the one Windows spawns for a
-    --console PyInstaller build) to the right of `available`, alongside this
-    window's own left-half placement above. Best-effort and purely cosmetic
-    -- any failure (no console window, e.g. built --windowed instead;
-    ctypes/ Windows API hiccup) is swallowed rather than blocking startup.
-    """
-    try:
-        import ctypes
-        hwnd = ctypes.windll.kernel32.GetConsoleWindow()
-        if not hwnd:
-            return
-        x = available.x() + app_width
-        w = available.width() - app_width
-        if w <= 0:
-            return
-        ctypes.windll.user32.MoveWindow(hwnd, x, available.y(), w, available.height(), True)
-    except Exception:
-        pass
-
-
 class MainWindow(QMainWindow):
     
     def __init__(self):
         # Initialize and Load the GUI
         super().__init__()
         uic.loadUi(str(resource_path("gui.ui")), self)
-        self.target_size = QSize(300, 300)
+        self.target_size = QSize(340, 340)
 
         # Tee stdout so the deliberately-tagged [INFO]/[WARN]/[ERROR] prints
         # also reach Page 5's genLog box -- see helper.PrintTee. Kept on
@@ -74,32 +52,11 @@ class MainWindow(QMainWindow):
         sys.stdout = self._print_tee
         self._print_tee.line_ready.connect(self._on_log_line)
 
-        # Full available height, half the screen's width, docked to the left
-        # edge -- meant to sit side-by-side with a terminal on the right
-        # (user's own workflow), not fill the screen. Still freely resizable
-        # afterwards; this only sets the initial size/position. A floor keeps
-        # it from starting cramped on a small/low-res display.
-        screen = QApplication.primaryScreen()
-        available = screen.availableGeometry() if screen else None
-        if available is not None:
-            target_w = max(int(available.width() * 0.5), 742)
-            target_h = available.height()
-            self.resize(target_w, target_h)
-            self.move(available.x(), available.y())
-            # Built executable (CollisionStudy.spec, --console): the console
-            # window is a separate OS window Windows creates automatically --
-            # move it into the other half instead of leaving it wherever
-            # Windows happened to place it, so "app on the left, terminal on
-            # the right" happens without the user dragging anything. No-op
-            # in dev (no console spawned by Python itself to move) and on
-            # non-Windows.
-            if getattr(sys, "frozen", False) and sys.platform == "win32":
-                _position_console_right(available, target_w)
-        else:
-            self.resize(self.width(), self.height() + 20)
         self.setMinimumSize(742, 555)  # the .ui's original design size -- below
         # this, the redesigned pages' layouts get cramped rather than
-        # reflowing usefully.
+        # reflowing usefully. Actual startup size/state is full screen,
+        # applied via showFullScreen() in main() -- this floor only matters
+        # if the user later drops out of full screen.
 
         # Global
         self.stack: QStackedWidget = self.findChild(QStackedWidget, "stack")
@@ -108,6 +65,7 @@ class MainWindow(QMainWindow):
         self.title1: QLabel = self.findChild(QLabel, "title1")
         self.subtitle1: QLabel = self.findChild(QLabel, "subtitle1")
         self.istlogo1: QLabel = self.findChild(QLabel, "istlogo1")
+        self.istlogo1b: QLabel = self.findChild(QLabel, "istlogo1b")
         self.btnStart: QPushButton = self.findChild(QPushButton, "btnStart")
 
         # Page 2
@@ -314,5 +272,5 @@ def main():
     QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     app = QApplication(sys.argv)
     win = MainWindow()
-    win.show()
+    win.showFullScreen()
     sys.exit(app.exec())

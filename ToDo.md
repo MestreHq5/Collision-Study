@@ -1,11 +1,15 @@
 # ToDo — pre-ship checklist
 
-Everything from the 2026-09-23 review is resolved on `gr/tweaks` except the
-three items below — each is your own follow-up action (a live test, waiting
-on more footage, or a deferred doc update), not something code can resolve.
 
-- [ ] **Notifier live test.** Built and unit-tested but not live-tested
-      against a real phone/ntfy.sh topic yet — you said you'd do this now.
+- [ ] **Notifier: log success/failure instead of swallowing silently.**
+      A run on another machine finished fine but no ntfy push arrived, with
+      nothing in the console to say why — `notifier.py`'s `_send()` swallows
+      all exceptions and `notify_run_complete()` is a silent no-op when
+      `NTFY_TOPIC` is unset. Add `[INFO]`/`[WARN]` prints (status code on
+      success, exception/reason on failure, "skipped: NTFY_TOPIC unset" on
+      no-op) so a future run reports what actually happened. Also double
+      check that machine's `.env` has `NTFY_TOPIC` set next to the `.exe`/
+      `initializer.py` and matching the phone's subscribed topic.
 
 - [ ] **Re-run the full `New Disks` batch once the app is finalized.**
       Refresh the recall numbers currently quoted (and flagged stale) in
@@ -15,3 +19,17 @@ on more footage, or a deferred doc update), not something code can resolve.
 
 - [ ] **Update `Extras/README.md`** once all work is finished — currently a
       2-line stub, intentionally left untouched per your answer.
+
+
+
+## USER Requests
+
+- App opens full screen but still windowed. 
+
+- First Page: Imagens closer to each other and bigger. 
+
+- Second Page: Bullets points are not aligned with the phrases. Words need to be bigger, you have a full screen so there is margin. 
+
+- Third Page: Overall good, just increase all the sizes so that fills the page. 
+
+- Progress bar should not have border. Remove also the percentage and done indications. INFO and WARNS still don't show below. I am running through initializer.py so that does not depend on build. 
