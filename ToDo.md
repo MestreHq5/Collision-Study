@@ -46,3 +46,58 @@ You should append Done once one item here is resolved.
 - Make a dot where the collision occured. **Done** — `detector.py` now computes the same "recorded nearest approach" collision frame `Post_process._find_collision_frame` uses, then bakes a filled dot (disk identity color, black outline) at each disk's own position on that frame into the detection video, persisting for the rest of the clip (a second re-encode pass over the just-written video, since the collision frame isn't known until the whole clip has been processed). Verified visually on a real clip — dot appears at the trail's bend point and stays visible afterward.
 
 - Logos both at the first and last pages are not the same size (you may need to normalize the logos by editing them). **Done** — root cause was the source PNGs themselves: `Images/logoDEM.png`'s actual logo content only filled ~41% of its canvas height vs. `Images/logoIST.png`'s ~63%, so scaling both into the same bounding box (already identical between pages, see the "Final Page" logo item above) still left the DEM mark looking smaller. Cropped both `Images/logoIST.png` and `Images/logoDEM.png` to their content bounding box plus a uniform 5% padding margin, so both now fill ~91% of their own canvas — verified via an offscreen render that the two shield marks now read as the same size.
+
+
+
+- Style of Notifier POSTs:
+
+Notification title (ntfy `Title` header, not part of the body) = Collision Run Completed: {group name}
+{empty line}
+Raw Data: 
+Total Rows = {value}
+BLUE Rows = {value}
+GREEN Rows = {value} 
+Measured = {value}
+Interpolated = {value}
+Collision Frame = {value}
+{empty line}
+Metrics:
+e = {value}
+Momentum Error = {value %}
+Energy Drop = {value %}
+Collision Gap = {value, mm, .2f}
+Collision Gap Warning = {value either TRUE or FLASE}
+Theta Interpolation = {value %}
+
+  **Done** — `notifier.py` now builds the ntfy message body in exactly this
+  layout/field order (`_build_message`). Also fixed a latent bug found while
+  doing this: the old message's "video_name" identifier was always the fixed
+  string `disk_tracks` (the CSV's hardcoded filename), never actually
+  distinguishing runs — replaced with the real group name (Page 3
+  `group_val`, threaded through `helper.genData` → `build_student_excel` →
+  `notify_run_complete`). BLUE/GREEN rows map to disk_id 1/0 respectively
+  (`DISK_COLOR_NAMES`). Momentum Error/Energy Drop/Theta Interpolation are
+  formatted as percentages to 2 decimals; Collision Gap to 2 decimals + "mm";
+  Collision Gap Warning as `TRUE`/`FALSE` (not the ToDo's typo'd "FLASE").
+  Verified by calling `_build_message` directly with representative values.
+
+  **2026-09-25 fix**: the header line was showing twice in the actual ntfy
+  notification (once from the `Title` header, once from the body's own first
+  line, which duplicated it) — removed the duplicate line from
+  `_build_message`'s body, so `Title` is now the only place that line is
+  rendered. Also removed the `"Tags": "test_tube"` header, which was the
+  source of the 🧪 emoji ntfy prepended to the title (tag names map to emoji
+  automatically); no tags are sent now. Body now starts with a blank line
+  (`_build_message`'s `lines` list) so it doesn't butt straight up against
+  the title in the notification view.
+
+  **2026-09-25 timing fix**: `notify_run_complete` was only ever firing on
+  the user actually clicking Preview (`hp.genData` was wired to
+  `btnPreview.clicked` in `app.py`), not as soon as results existed.
+  `hp.genData` (Excel build + notify) now runs from
+  `helper._generation_finished`, the same point where `btnPreview` gets
+  `setEnabled(True)` — i.e. right when detection succeeds, before any click.
+  `btnPreview`'s click handler now only renders the trajectory plot
+  (`hp.preview`); it no longer disables itself after use, since it's no
+  longer gating the Excel/notify side effect.
+

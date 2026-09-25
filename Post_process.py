@@ -789,6 +789,7 @@ def build_student_excel(
     radius: tuple,
     fps: float = 30.0,
     include_metrics: bool = False,
+    group_name: str = None,
 ) -> int:
     """
     Build an Excel similar to your current one, but with:
@@ -858,6 +859,7 @@ def build_student_excel(
     # Results sheet itself ends up in the exported file -- see
     # SHOW_RESULTS_SHEET below).
     results_df = None
+    metrics = None
     if include_metrics:
         df0m_energy = _drop_fallback_rows(df0m)
         df1m_energy = _drop_fallback_rows(df1m)
@@ -895,9 +897,10 @@ def build_student_excel(
             results_df.to_excel(writer, index=False, sheet_name="Results")
 
     notify_run_complete(
-        video_name=csvp.stem,
-        results_df=results_df,
+        group_name=group_name,
         raw_summary=raw_summary,
+        metrics=metrics,
+        interpolated_pct=interpolated_pct,
     )
 
     return cf

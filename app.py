@@ -65,11 +65,12 @@ class MainWindow(QMainWindow):
         self.title1: QLabel = self.findChild(QLabel, "title1")
         self.subtitle1: QLabel = self.findChild(QLabel, "subtitle1")
         self.istlogo1: QLabel = self.findChild(QLabel, "istlogo1")
-        self.istlogo1b: QLabel = self.findChild(QLabel, "istlogo1b")
         self.btnStart: QPushButton = self.findChild(QPushButton, "btnStart")
 
         # Page 2
         self.btnNext2: QPushButton = self.findChild(QPushButton, "btnNext2")
+        self.planImagePlaceholder1: QLabel = self.findChild(QLabel, "planImagePlaceholder1")
+        self.planImagePlaceholder2: QLabel = self.findChild(QLabel, "planImagePlaceholder2")
 
         # Page 3
         self.group: QLabel = self.findChild(QLabel, "group")
@@ -106,8 +107,7 @@ class MainWindow(QMainWindow):
         
         # Page 6
         self.istlogo6: QLabel = self.findChild(QLabel, "istlogo6")
-        self.istlogo6b: QLabel = self.findChild(QLabel, "istlogo6b")
-        
+
         # Tracking variables
         self.video_path = None
         self.parent_path = None
@@ -115,6 +115,7 @@ class MainWindow(QMainWindow):
 
         # Image Work (Size IST Logo)
         hp.scaler(self)
+        hp.load_plan_images(self)
    
         # Connect navigation
         if self.btnStart and self.stack:
@@ -159,7 +160,11 @@ class MainWindow(QMainWindow):
         if self.btnGen and self.stack:
             self.btnGen.clicked.connect(lambda: (self.btnGen.setEnabled(False), hp.generate(self)))
         if self.btnPreview and self.stack:
-            self.btnPreview.clicked.connect(lambda: (hp.preview(self), hp.genData(self)))
+            # hp.genData (Excel build + notify_run_complete) now runs
+            # automatically in _generation_finished, the same moment this
+            # button becomes enabled -- clicking Preview only needs to
+            # render the trajectory plot at this point.
+            self.btnPreview.clicked.connect(lambda: hp.preview(self))
         if self.btnRedo and self.stack:
             self.btnRedo.clicked.connect(lambda: hp.redo(self)) 
         if self.btnNext5 and self.stack:    

@@ -17,35 +17,70 @@
 import os
 import threading
 
+import numpy as np
 import requests
 
 NTFY_TOPIC = os.environ.get("NTFY_TOPIC")
 NTFY_URL = "https://ntfy.sh"
 
 
-def _send(video_name, results_df, raw_summary):
-    try:
-        lines = []
-        if results_df is not None:
-            for row in results_df.itertuples(index=False):
-                lines.append(f"{row.Quantity}: {row.Value}")
-        else:
-            lines.append("(no Results sheet -- metrics weren't computed)")
+def _fmt_bool(value):
+    return "TRUE" if value else "FALSE"
+
+
+def _fmt_frac_pct(value):
+    """value is a fraction (e.g. 0.05 -> 5.00%)."""
+    return f"{value * 100:.2f}%" if value is not None and np.isfinite(value) else str(value)
+
+
+def _fmt_pct(value):
+    """value is already a percentage (e.g. 5.0 -> 5.00%)."""
+    return f"{value:.2f}%" if value is not None and np.isfinite(value) else str(value)
+
+
+def _build_message(raw_summary, metrics, interpolated_pct):
+    theta_counts = raw_summary["theta_source_counts"]
+    measured = theta_counts.get("measured", 0)
+    interpolated = theta_counts.get("interpolated", 0)
+
+    lines = [
+        "",
+        "Raw Data:",
+        f"Total Rows = {raw_summary['total_rows']}",
+        f"BLUE Rows = {raw_summary['disk1_rows']}",
+        f"GREEN Rows = {raw_summary['disk0_rows']}",
+        f"Measured = {measured}",
+        f"Interpolated = {interpolated}",
+    ]
+
+    if metrics is not None:
+        e = metrics["restitution_e"]
+        gap = metrics["collision_gap_mm"]
+        lines.append(f"Collision Frame = {metrics['collision_frame']}")
         lines.append("")
-        lines.append(
-            f"Raw_Data: {raw_summary['total_rows']} rows "
-            f"(disk0={raw_summary['disk0_rows']}, disk1={raw_summary['disk1_rows']})"
-        )
-        theta_counts = ", ".join(
-            f"{k}={v}" for k, v in raw_summary["theta_source_counts"].items()
-        )
-        lines.append(f"theta_source: {theta_counts}")
-        message = "\n".join(lines)
+        lines.append("Metrics:")
+        lines.append(f"e = {e:.6g}" if np.isfinite(e) else f"e = {e}")
+        lines.append(f"Momentum Error = {_fmt_frac_pct(metrics['momentum_error_rel'])}")
+        lines.append(f"Energy Drop = {_fmt_frac_pct(metrics['energy_drop_rel_COM'])}")
+        lines.append(f"Collision Gap = {gap:.2f} mm" if np.isfinite(gap) else f"Collision Gap = {gap}")
+        lines.append(f"Collision Gap Warning = {_fmt_bool(metrics['collision_gap_warning'])}")
+    else:
+        lines.append("Collision Frame = N/A")
+        lines.append("")
+        lines.append("Metrics: (not computed)")
+
+    lines.append(f"Theta Interpolation = {_fmt_pct(interpolated_pct)}")
+
+    return "\n".join(lines)
+
+
+def _send(group_name, raw_summary, metrics, interpolated_pct):
+    try:
+        message = _build_message(raw_summary, metrics, interpolated_pct)
 
         headers = {
-            "Title": f"DEM run complete: {video_name}",
+            "Title": f"Collision Run Completed: {group_name}",
             "Priority": "default",
-            "Tags": "test_tube",
         }
         requests.post(
             f"{NTFY_URL}/{NTFY_TOPIC}",
@@ -57,20 +92,29 @@ def _send(video_name, results_df, raw_summary):
         pass
 
 
-def notify_run_complete(video_name, results_df, raw_summary):
+def notify_run_complete(group_name, raw_summary, metrics, interpolated_pct):
     """
-    Push a summary of the Results sheet (restitution/momentum/energy/gap/
-    interpolation %) plus a Raw_Data coverage summary to the phone via
-    ntfy.sh -- metrics only (user, 2026-09-23), never the raw per-frame data
-    or the .xlsx file itself.
+    Push a run-complete summary to the phone via ntfy.sh -- metrics only
+    (user, 2026-09-23), never the raw per-frame data or the .xlsx file
+    itself. Message format is fixed to match ToDo.md's "Style of Notifier
+    POSTs" spec exactly -- don't reformat without updating that spec too.
+    The "Collision Run Completed: {group_name}" line lives only in the ntfy
+    `Title` header (_send), not in the body -- ntfy renders both, so
+    duplicating it in the body made it show twice in the notification.
 
-    results_df: the "Quantity"/"Value" DataFrame from build_student_excel's
-        Results sheet, or None if metrics weren't computed.
+    group_name: the student group name (Page 3 `group_val`), used to
+        identify the run -- NOT the video/CSV filename, which is always the
+        fixed "disk_tracks" workspace file and was never a useful identifier.
     raw_summary: dict with total_rows, disk0_rows, disk1_rows,
-        theta_source_counts (see build_student_excel).
+        theta_source_counts (see build_student_excel). disk0=Green,
+        disk1=Blue.
+    metrics: the dict returned by Post_process._compute_metrics, or None if
+        metrics weren't computed (include_metrics=False).
+    interpolated_pct: theta interpolation percentage (0-100) from
+        build_student_excel.
     """
     if not NTFY_TOPIC:
         return
     threading.Thread(
-        target=_send, args=(video_name, results_df, raw_summary), daemon=True
+        target=_send, args=(group_name, raw_summary, metrics, interpolated_pct), daemon=True
     ).start()

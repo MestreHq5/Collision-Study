@@ -212,6 +212,13 @@ def _generation_finished(self):
     if self._detectionWorker.succeeded:
         self.progressGen.setValue(100)
         self.btnPreview.setEnabled(True)
+        # Build the Excel + fire notify_run_complete (see genData/
+        # build_student_excel) right here, as soon as results exist and
+        # Preview becomes clickable -- not gated behind the user actually
+        # clicking Preview. The Excel/metrics only need the CSV detection
+        # just wrote, not the trajectory plot preview() renders, so the two
+        # are independent and this doesn't need to wait for a click.
+        genData(self)
 
 
 def _generation_failed(self, message):
@@ -321,10 +328,10 @@ def genData(self):
     
     masses = (green_mass_val, blue_mass_val)
     radius = (green_rad_val, blue_rad_val)
-    
-    ptp.build_student_excel(csv_path, output_path, masses, radius, fps, include_metrics=True)
-    
-    self.btnPreview.setEnabled(False)
+
+    ptp.build_student_excel(csv_path, output_path, masses, radius, fps, include_metrics=True,
+                             group_name=self.parent_path.name)
+
     self.btnRedo.setEnabled(True)
     self.btnNext5.setEnabled(True)
     
@@ -353,40 +360,55 @@ def redo(self):
     self.stack.setCurrentIndex(2)
     
 
-def _load_logo(self, filename):
+def _load_scaled_image(self, filename, target_size):
     """
-    Renders the logo at the window's actual device pixel ratio (like
-    apply_trajectory_pixmap does for the trajectory preview) instead of just
-    scaling to self.target_size's logical pixels -- otherwise the logo looks
-    soft/low-resolution on HiDPI displays, since Qt would then have to
-    upscale an already-downscaled bitmap to fill the physical pixel grid.
+    Loads Images/<filename> and scales it to target_size at the window's
+    actual device pixel ratio (shared by _load_logo and the Page 2 plan
+    images) instead of just scaling to target_size's logical pixels --
+    otherwise the image looks soft/low-resolution on HiDPI displays, since
+    Qt would then have to upscale an already-downscaled bitmap to fill the
+    physical pixel grid.
     """
     dpr = self.devicePixelRatioF()
-    device_size = QSize(int(self.target_size.width() * dpr), int(self.target_size.height() * dpr))
+    device_size = QSize(int(target_size.width() * dpr), int(target_size.height() * dpr))
     pixmap = QPixmap(str(resource_path("Images", filename)))
     scaled = pixmap.scaled(device_size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
     scaled.setDevicePixelRatio(dpr)
     return scaled
 
 
+# Page 2 plan images (Images/page2_N.png) render at this logical size, then
+# get scaled down (KeepAspectRatio) to whatever their placeholder label ends
+# up sized to by the layout -- raise/lower this to change how large they show.
+PLAN_IMAGE_SIZE = QSize(480, 360)
+
+
+def load_plan_images(self):
+    """
+    Fills the Page 2 image placeholders with their real images. Currently
+    only planImagePlaceholder2 (the bottom one) has an image -- page2_1.png.
+    To add the top one, drop a file in Images/ and add a matching block for
+    planImagePlaceholder1 here.
+    """
+    if getattr(self, "planImagePlaceholder2", None) is not None:
+        pixmap = _load_scaled_image(self, "page2_1.png", PLAN_IMAGE_SIZE)
+        self.planImagePlaceholder2.setScaledContents(False)
+        self.planImagePlaceholder2.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.planImagePlaceholder2.setPixmap(pixmap)
+        self.planImagePlaceholder2.setStyleSheet("")
+        self.planImagePlaceholder2.setText("")
+
+
 def scaler(self):
-    ist_logo = _load_logo(self, "logoIST.png")
-    dem_logo = _load_logo(self, "logoDEM.png")
+    # Each of these defaults to self.target_size (set in app.py). Give
+    # either its own QSize(...) here to resize just that logo independently.
+    istlogo1_size = QSize(400, 200)
+    istlogo6_size = QSize(400, 200)
 
     self.istlogo1.setScaledContents(False)
     self.istlogo1.setAlignment(Qt.AlignmentFlag.AlignCenter)
-    self.istlogo1.setPixmap(ist_logo)
-
-    if getattr(self, "istlogo1b", None) is not None:
-        self.istlogo1b.setScaledContents(False)
-        self.istlogo1b.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.istlogo1b.setPixmap(dem_logo)
+    self.istlogo1.setPixmap(_load_scaled_image(self, "logoIST.png", istlogo1_size))
 
     self.istlogo6.setScaledContents(False)
     self.istlogo6.setAlignment(Qt.AlignmentFlag.AlignCenter)
-    self.istlogo6.setPixmap(ist_logo)
-
-    if getattr(self, "istlogo6b", None) is not None:
-        self.istlogo6b.setScaledContents(False)
-        self.istlogo6b.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.istlogo6b.setPixmap(dem_logo)
+    self.istlogo6.setPixmap(_load_scaled_image(self, "logoIST.png", istlogo6_size))
