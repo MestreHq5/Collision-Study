@@ -609,7 +609,7 @@ def main(video_path, bg_path, dtc_path, csv_path, fps_eff, progress_callback=Non
     info("Done", "Background Averaged")
 
     # 2) Open video
-    cap = cv2.VideoCapture(video_path)
+    cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
         raise IOError(f"Cannot open video {video_path}")  # Error checking --> fatal program will end
 

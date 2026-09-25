@@ -64,7 +64,7 @@ def estimate_background_median(
     """
     
     # 1) Open and validate video
-    cap = cv2.VideoCapture(video_path)
+    cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
         raise IOError(f"Cannot open video: {video_path}")
 
@@ -578,7 +578,7 @@ def calibrate_hsv_range(video_path: str, frame_index: int = 0, box: int = 6) -> 
 
     Controls: click marker -> prints range. Press 'q' to quit.
     """
-    cap = cv2.VideoCapture(video_path)
+    cap = cv2.VideoCapture(str(video_path))
     cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
     ret, frame = cap.read()
     cap.release()
