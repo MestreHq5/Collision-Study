@@ -935,6 +935,38 @@
                                             </widget>
                                         </item>
                                         <item>
+                                            <widget class="QPushButton" name="btnRecordVideo">
+                                                <property name="styleSheet">
+                                                    <string notr="true">QPushButton {
+                                                        color: white;
+                                                        background-color: #009de0;
+                                                        border-radius: 10px;
+                                                        padding: 10px 20px;
+                                                        font-weight: bold;
+                                                        font-size: 14px;
+                                                        }
+
+                                                        QPushButton:hover {
+                                                        color: white;
+                                                        background-color: #007bb5;
+                                                        }
+
+                                                        QPushButton:pressed {
+                                                        color: white;
+                                                        background-color: #005f87;
+                                                        }
+
+                                                        QPushButton:disabled {
+                                                        color: #aaaaaa;
+                                                        background-color: #cccccc;
+                                                        }</string>
+                                                </property>
+                                                <property name="text">
+                                                    <string>RECORD VIDEO</string>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                        <item>
                                             <widget class="QPushButton" name="btnProceed">
                                                 <property name="enabled">
                                                     <bool>false</bool>
@@ -971,6 +1003,293 @@
                                         </item>
                                         <item>
                                             <spacer name="rightSpacer">
+                                                <property name="orientation">
+                                                    <enum>Qt::Orientation::Horizontal</enum>
+                                                </property>
+                                                <property name="sizeHint" stdset="0">
+                                                    <size>
+                                                        <width>40</width>
+                                                        <height>20</height>
+                                                    </size>
+                                                </property>
+                                            </spacer>
+                                        </item>
+                                    </layout>
+                                </item>
+                            </layout>
+                        </widget>
+                        <widget class="QWidget" name="Page_LiveFeed">
+                            <property name="sizePolicy">
+                                <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
+                            </property>
+                            <layout class="QVBoxLayout" name="verticalLayout_LiveFeed">
+                                <property name="spacing">
+                                    <number>15</number>
+                                </property>
+                                <property name="leftMargin">
+                                    <number>30</number>
+                                </property>
+                                <property name="topMargin">
+                                    <number>30</number>
+                                </property>
+                                <property name="rightMargin">
+                                    <number>30</number>
+                                </property>
+                                <property name="bottomMargin">
+                                    <number>30</number>
+                                </property>
+                                <item alignment="Qt::AlignmentFlag::AlignHCenter">
+                                    <widget class="QLabel" name="titleLiveFeed">
+                                        <property name="text">
+                                            <string>
+                                                &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p
+                                                align=&quot;center&quot;&gt;&lt;span style=&quot;
+                                                font-size:36pt; font-weight:700;
+                                                color:#009de0;&quot;&gt;Live
+                                                Feed&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                                        </property>
+                                    </widget>
+                                </item>
+                                <item>
+                                    <layout class="QHBoxLayout" name="horizontalLayout_LiveFeedSettings">
+                                        <property name="spacing">
+                                            <number>15</number>
+                                        </property>
+                                        <item>
+                                            <widget class="QLabel" name="lblCameraSelect">
+                                                <property name="text">
+                                                    <string>Camera:</string>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                        <item>
+                                            <widget class="QComboBox" name="cameraCombo"/>
+                                        </item>
+                                        <item>
+                                            <widget class="QLabel" name="lblResolutionSelect">
+                                                <property name="text">
+                                                    <string>Resolution:</string>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                        <item>
+                                            <widget class="QComboBox" name="resolutionCombo"/>
+                                        </item>
+                                        <item>
+                                            <widget class="QLabel" name="lblFpsSelect">
+                                                <property name="text">
+                                                    <string>Frame rate:</string>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                        <item>
+                                            <widget class="QComboBox" name="fpsCombo"/>
+                                        </item>
+                                        <item>
+                                            <spacer name="liveFeedSettingsSpacer">
+                                                <property name="orientation">
+                                                    <enum>Qt::Orientation::Horizontal</enum>
+                                                </property>
+                                                <property name="sizeHint" stdset="0">
+                                                    <size>
+                                                        <width>40</width>
+                                                        <height>20</height>
+                                                    </size>
+                                                </property>
+                                            </spacer>
+                                        </item>
+                                    </layout>
+                                </item>
+                                <item>
+                                    <widget class="QLabel" name="liveFeedLabel">
+                                        <property name="sizePolicy">
+                                            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                                                <horstretch>0</horstretch>
+                                                <verstretch>0</verstretch>
+                                            </sizepolicy>
+                                        </property>
+                                        <property name="alignment">
+                                            <set>Qt::AlignmentFlag::AlignCenter</set>
+                                        </property>
+                                        <property name="styleSheet">
+                                            <string notr="true">background-color: #111111;</string>
+                                        </property>
+                                        <property name="text">
+                                            <string>Camera preview will appear here.</string>
+                                        </property>
+                                    </widget>
+                                </item>
+                                <item alignment="Qt::AlignmentFlag::AlignHCenter">
+                                    <widget class="QLabel" name="lblLiveFeedStatus">
+                                        <property name="text">
+                                            <string>
+                                                &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p
+                                                align=&quot;center&quot;&gt;&lt;span style=&quot;
+                                                font-size:14pt; color:#555555;&quot;&gt;Ready to
+                                                record.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                                        </property>
+                                    </widget>
+                                </item>
+                                <item>
+                                    <layout class="QHBoxLayout" name="horizontalLayout_LiveFeedButtons">
+                                        <property name="spacing">
+                                            <number>15</number>
+                                        </property>
+                                        <item>
+                                            <spacer name="liveFeedButtonsLeftSpacer">
+                                                <property name="orientation">
+                                                    <enum>Qt::Orientation::Horizontal</enum>
+                                                </property>
+                                                <property name="sizeHint" stdset="0">
+                                                    <size>
+                                                        <width>40</width>
+                                                        <height>20</height>
+                                                    </size>
+                                                </property>
+                                            </spacer>
+                                        </item>
+                                        <item>
+                                            <widget class="QPushButton" name="btnRecord">
+                                                <property name="styleSheet">
+                                                    <string notr="true">QPushButton {
+                                                        color: white;
+                                                        background-color: #009de0;
+                                                        border-radius: 10px;
+                                                        padding: 10px 20px;
+                                                        font-weight: bold;
+                                                        font-size: 14px;
+                                                        }
+
+                                                        QPushButton:hover {
+                                                        color: white;
+                                                        background-color: #007bb5;
+                                                        }
+
+                                                        QPushButton:pressed {
+                                                        color: white;
+                                                        background-color: #005f87;
+                                                        }
+
+                                                        QPushButton:disabled {
+                                                        color: #aaaaaa;
+                                                        background-color: #cccccc;
+                                                        }</string>
+                                                </property>
+                                                <property name="text">
+                                                    <string>RECORD</string>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                        <item>
+                                            <widget class="QPushButton" name="btnStop">
+                                                <property name="enabled">
+                                                    <bool>false</bool>
+                                                </property>
+                                                <property name="styleSheet">
+                                                    <string notr="true">QPushButton {
+                                                        color: white;
+                                                        background-color: #009de0;
+                                                        border-radius: 10px;
+                                                        padding: 10px 20px;
+                                                        font-weight: bold;
+                                                        font-size: 14px;
+                                                        }
+
+                                                        QPushButton:hover {
+                                                        color: white;
+                                                        background-color: #007bb5;
+                                                        }
+
+                                                        QPushButton:pressed {
+                                                        color: white;
+                                                        background-color: #005f87;
+                                                        }
+
+                                                        QPushButton:disabled {
+                                                        color: #aaaaaa;
+                                                        background-color: #cccccc;
+                                                        }</string>
+                                                </property>
+                                                <property name="text">
+                                                    <string>STOP</string>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                        <item>
+                                            <widget class="QPushButton" name="btnRepeatLive">
+                                                <property name="enabled">
+                                                    <bool>false</bool>
+                                                </property>
+                                                <property name="styleSheet">
+                                                    <string notr="true">QPushButton {
+                                                        color: white;
+                                                        background-color: #009de0;
+                                                        border-radius: 10px;
+                                                        padding: 10px 20px;
+                                                        font-weight: bold;
+                                                        font-size: 14px;
+                                                        }
+
+                                                        QPushButton:hover {
+                                                        color: white;
+                                                        background-color: #007bb5;
+                                                        }
+
+                                                        QPushButton:pressed {
+                                                        color: white;
+                                                        background-color: #005f87;
+                                                        }
+
+                                                        QPushButton:disabled {
+                                                        color: #aaaaaa;
+                                                        background-color: #cccccc;
+                                                        }</string>
+                                                </property>
+                                                <property name="text">
+                                                    <string>REPEAT</string>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                        <item>
+                                            <widget class="QPushButton" name="btnNextLive">
+                                                <property name="enabled">
+                                                    <bool>false</bool>
+                                                </property>
+                                                <property name="styleSheet">
+                                                    <string notr="true">QPushButton {
+                                                        color: white;
+                                                        background-color: #009de0;
+                                                        border-radius: 10px;
+                                                        padding: 10px 20px;
+                                                        font-weight: bold;
+                                                        font-size: 14px;
+                                                        }
+
+                                                        QPushButton:hover {
+                                                        color: white;
+                                                        background-color: #007bb5;
+                                                        }
+
+                                                        QPushButton:pressed {
+                                                        color: white;
+                                                        background-color: #005f87;
+                                                        }
+
+                                                        QPushButton:disabled {
+                                                        color: #aaaaaa;
+                                                        background-color: #cccccc;
+                                                        }</string>
+                                                </property>
+                                                <property name="text">
+                                                    <string>NEXT</string>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                        <item>
+                                            <spacer name="liveFeedButtonsRightSpacer">
                                                 <property name="orientation">
                                                     <enum>Qt::Orientation::Horizontal</enum>
                                                 </property>

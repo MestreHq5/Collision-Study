@@ -6,6 +6,7 @@ import shutil
 import cv2
 import detector as dtc
 import Post_process as ptp
+import cameraFeed as camf
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import Qt, QObject, QSize, QThread, pyqtSignal
 from PyQt6.QtWidgets import QFileDialog
@@ -351,14 +352,318 @@ def analisysPage(self):
 
     self.detectionLabel.clear()
     self._trajectory_pixmap_orig = None
-    # Old page index 4 is now index 3 because we deleted the recording page
-    self.stack.setCurrentIndex(3)
+    # Navigation to Page 5 is the caller's job (app.py's btnProceed/
+    # btnNextLive handlers both set the stack index alongside calling this) --
+    # this function only resets Page 5's own widget state for a fresh run.
+    # A prior version set the stack index here too, redundantly and to a
+    # stale literal (both callers used to double-connect around it -- see
+    # app.py's btnProceed wiring comment).
 
     
 def redo(self):
     # Sends user straight back to data input form to upload a new video file
     self.stack.setCurrentIndex(2)
-    
+
+
+# ---------------------------------------------------------------------------
+# Page "Live Feed" -- camera preview, recording and playback. All actual
+# capture/write logic lives in cameraFeed.py (CameraWorker/PlaybackWorker);
+# this section only owns page state and widget wiring, same split as
+# generate()/DetectionWorker above.
+# ---------------------------------------------------------------------------
+
+def _live_feed_status_html(text):
+    return (f'<html><body><p align="center"><span style="font-size:14pt; color:#555555;">'
+            f'{text}</span></p></body></html>')
+
+
+def _refresh_camera_list(self):
+    """
+    Re-probes for cameras and rebuilds cameraCombo from scratch -- unlike
+    resolution/fps (fixed presets, never need re-reading), which camera(s)
+    are actually openable can change between one moment and the next (another
+    app releasing/taking the device, a USB webcam being plugged in), so this
+    is NOT guarded to run once -- called on every liveFeedPageEnter, and again
+    from startRecording as a retry when no camera was available at page-enter
+    time. Signals blocked during the rebuild so the clear()+repopulate cycle
+    doesn't fire on_live_feed_settings_changed for every intermediate state.
+    """
+    if not self.cameraCombo:
+        return
+    self.cameraCombo.blockSignals(True)
+    self.cameraCombo.clear()
+    cameras = camf.list_cameras()
+    self._camera_devices = cameras
+    for idx, name in cameras:
+        self.cameraCombo.addItem(name, idx)
+    if not cameras:
+        self.cameraCombo.addItem("No camera found", -1)
+    self.cameraCombo.blockSignals(False)
+
+
+def _populate_live_feed_combos(self):
+    """
+    Resolution/fps are idempotent (guarded by each combo's own count()) so
+    calling this again on a later page re-entry doesn't duplicate entries or
+    reset the student's already-chosen resolution/fps. The camera list is not
+    -- see _refresh_camera_list. Order matters: resolution and fps are filled
+    before the camera list so that once the camera combo gets its first item
+    (firing currentIndexChanged -> on_live_feed_settings_changed),
+    resolutionCombo/fpsCombo already have valid currentData to read.
+    """
+    if self.resolutionCombo and self.resolutionCombo.count() == 0:
+        for w, h in camf.RESOLUTION_PRESETS:
+            self.resolutionCombo.addItem(f"{w}x{h}", (w, h))
+    if self.fpsCombo and self.fpsCombo.count() == 0:
+        for fps in camf.FPS_PRESETS:
+            self.fpsCombo.addItem(f"{fps} fps", fps)
+    _refresh_camera_list(self)
+
+
+def _stop_camera_worker(self):
+    worker = getattr(self, "_cameraWorker", None)
+    if worker is not None:
+        worker.stop()
+    self._cameraWorker = None
+
+
+def _stop_playback_worker(self):
+    worker = getattr(self, "_playbackWorker", None)
+    if worker is not None:
+        worker.stop()
+    self._playbackWorker = None
+
+
+def _start_camera_preview(self):
+    """(Re)starts the live camera loop with whatever the settings row currently
+    has selected. Safe to call while a previous worker is running -- stops it
+    (synchronously, so the device is actually released) first."""
+    _stop_camera_worker(self)
+
+    device_index = self.cameraCombo.currentData() if self.cameraCombo else None
+    resolution = self.resolutionCombo.currentData() if self.resolutionCombo else None
+    fps = self.fpsCombo.currentData() if self.fpsCombo else None
+    # device_index can legitimately be 0 (the first camera) -- checking
+    # `is None`, not truthiness, matters here.
+    if device_index is None or device_index < 0 or resolution is None or fps is None:
+        # DirectShow only lets one process hold a UVC camera at a time -- the
+        # likeliest real-world cause is another app (Teams/Zoom/the Windows
+        # Camera app/a leftover script) already having it open. Printed (not
+        # just shown in the status label) so it reaches genLog/console like
+        # every other [WARN] in this codebase, instead of failing silently.
+        print("[WARN] Live Feed: no camera could be opened -- check whether "
+              "another application currently has the camera in use.")
+        if self.lblLiveFeedStatus:
+            self.lblLiveFeedStatus.setText(_live_feed_status_html(
+                "No camera available. Close any other app using the camera and retry."
+            ))
+        return
+
+    width, height = resolution
+    dest_path = self.path / "Recording.mp4"
+    worker = camf.CameraWorker(device_index, width, height, fps, dest_path)
+    worker.frame_ready.connect(self._on_camera_frame)
+    worker.error.connect(self._on_camera_error)
+    worker.recording_finished.connect(self._on_recording_finished)
+    self._cameraWorker = worker
+    worker.start()
+
+
+def on_live_feed_settings_changed(self):
+    """Connected to each settings combo's currentIndexChanged in app.py. Guarded
+    by _live_feed_ready so combo population itself (before the page has
+    actually been entered) doesn't trigger a preview start, and skipped
+    entirely mid-recording since changing the camera out from under an
+    active VideoWriter would corrupt the take."""
+    if getattr(self, "_live_feed_ready", False) and not getattr(self, "_is_recording", False):
+        _start_camera_preview(self)
+
+
+def reposition_playback_button(self):
+    """Keeps the playback overlay button pinned to liveFeedLabel's bottom-right
+    corner -- called from MainWindow.resizeEvent and whenever the button's
+    visibility changes, since liveFeedLabel's size isn't stable until the
+    page's layout has actually been applied."""
+    label = getattr(self, "liveFeedLabel", None)
+    btn = getattr(self, "btnPlayback", None)
+    if not label or not btn:
+        return
+    btn.adjustSize()
+    margin = 12
+    btn.move(max(0, label.width() - btn.width() - margin),
+             max(0, label.height() - btn.height() - margin))
+
+
+def liveFeedPageEnter(self):
+    """Called when Page 4's Record Video button navigates to the Live Feed
+    page. Safe to call again on a later re-visit (e.g. after Redo takes the
+    student back through Page 3)."""
+    self._is_recording = False
+    self._has_recording = False
+    if self.btnRecord:
+        self.btnRecord.setEnabled(True)
+    if self.btnStop:
+        self.btnStop.setEnabled(False)
+    if self.btnRepeatLive:
+        self.btnRepeatLive.setEnabled(False)
+    if self.btnNextLive:
+        self.btnNextLive.setEnabled(False)
+    if self.btnPlayback:
+        self.btnPlayback.setText("▶ Play")
+        self.btnPlayback.hide()
+    for combo in (self.cameraCombo, self.resolutionCombo, self.fpsCombo):
+        if combo:
+            combo.setEnabled(True)
+    if self.lblLiveFeedStatus:
+        self.lblLiveFeedStatus.setText(_live_feed_status_html("Ready to record."))
+
+    _populate_live_feed_combos(self)
+    self._live_feed_ready = True
+    _start_camera_preview(self)
+
+
+def liveFeedPageLeave(self):
+    """Releases the camera device and stops any playback loop. Called before
+    navigating forward via Next, and from MainWindow.closeEvent so the app
+    never exits with the camera still open."""
+    self._live_feed_ready = False
+    _stop_camera_worker(self)
+    _stop_playback_worker(self)
+
+
+def startRecording(self):
+    worker = getattr(self, "_cameraWorker", None)
+    if worker is None:
+        # No live camera yet -- most likely it wasn't available when the page
+        # was entered (another app had it open). Live Feed has no "back to
+        # Page 4" button to otherwise retry from, so Record itself retries
+        # detection once instead of silently doing nothing.
+        _refresh_camera_list(self)
+        _start_camera_preview(self)
+        worker = getattr(self, "_cameraWorker", None)
+        if worker is None:
+            return  # status label already explains why (_start_camera_preview)
+    self._is_recording = True
+    worker.start_recording()
+
+    self.btnRecord.setEnabled(False)
+    self.btnStop.setEnabled(True)
+    self.btnRepeatLive.setEnabled(False)
+    self.btnNextLive.setEnabled(False)
+    self.btnPlayback.hide()
+    for combo in (self.cameraCombo, self.resolutionCombo, self.fpsCombo):
+        combo.setEnabled(False)
+    self.lblLiveFeedStatus.setText(_live_feed_status_html("Recording..."))
+
+
+def stopRecording(self):
+    worker = getattr(self, "_cameraWorker", None)
+    if worker is None:
+        return
+    self._is_recording = False
+    self.btnStop.setEnabled(False)
+    worker.stop_recording()  # -> recording_finished signal -> _recording_finished
+
+
+def _recording_finished(self, measured_fps, frame_count):
+    self._has_recording = True
+    if self.btnRepeatLive:
+        self.btnRepeatLive.setEnabled(True)
+    if self.btnNextLive:
+        self.btnNextLive.setEnabled(True)
+    if self.btnPlayback:
+        self.btnPlayback.show()
+        reposition_playback_button(self)
+
+    duration_s = frame_count / measured_fps if measured_fps else 0.0
+    if self.lblLiveFeedStatus:
+        self.lblLiveFeedStatus.setText(_live_feed_status_html(
+            f"Recorded {duration_s:.1f}s &middot; {frame_count} frames &middot; "
+            f"{measured_fps:.1f} fps measured."
+        ))
+
+    # Same properties select_video_file() sets for an uploaded file, at the
+    # same destination path -- generate()/genData() on Page 5 don't need to
+    # know or care which pipeline produced this video.
+    self.video_path = self.path / "Recording.mp4"
+    self.parent_path = self.video_path.parent
+    if measured_fps and measured_fps > 0:
+        self.fps_eff = measured_fps
+
+
+def repeatRecording(self):
+    """Discards the current take and goes back to the pre-Record state,
+    resuming the live camera view."""
+    _stop_playback_worker(self)
+    self._has_recording = False
+    if self.btnRepeatLive:
+        self.btnRepeatLive.setEnabled(False)
+    if self.btnNextLive:
+        self.btnNextLive.setEnabled(False)
+    if self.btnRecord:
+        self.btnRecord.setEnabled(True)
+    if self.btnPlayback:
+        self.btnPlayback.setText("▶ Play")
+        self.btnPlayback.hide()
+    for combo in (self.cameraCombo, self.resolutionCombo, self.fpsCombo):
+        if combo:
+            combo.setEnabled(True)
+    if self.lblLiveFeedStatus:
+        self.lblLiveFeedStatus.setText(_live_feed_status_html("Ready to record."))
+    _start_camera_preview(self)
+
+
+def togglePlayback(self):
+    """The overlay button on top of the video area: plays the just-recorded
+    take back, or stops an in-progress playback early. Never runs at the same
+    time as the live camera loop -- one or the other owns liveFeedLabel."""
+    if getattr(self, "_playbackWorker", None) is not None:
+        _stop_playback_worker(self)
+        self.btnPlayback.setText("▶ Play")
+        _start_camera_preview(self)
+        return
+
+    _stop_camera_worker(self)
+    worker = camf.PlaybackWorker(self.path / "Recording.mp4")
+    worker.frame_ready.connect(self._on_playback_frame)
+    worker.finished_playback.connect(self._on_playback_finished)
+    self._playbackWorker = worker
+    self.btnPlayback.setText("■ Stop")
+    worker.start()
+
+
+def _playback_finished(self):
+    """Fires both when playback runs to the end of the file on its own and
+    when the user clicked Stop -- togglePlayback's explicit-stop path already
+    reset the button/resumed the preview by the time this runs in that case,
+    so this only needs to cover the natural-end path; re-checking
+    _playbackWorker here (still set to the just-finished worker at this
+    point, since togglePlayback's explicit-stop branch clears it first)
+    avoids double-resuming the preview."""
+    if getattr(self, "_playbackWorker", None) is None:
+        return
+    self._playbackWorker = None
+    self.btnPlayback.setText("▶ Play")
+    _start_camera_preview(self)
+
+
+def _camera_error(self, message):
+    print(f"[ERROR] Camera: {message}")
+    if self.lblLiveFeedStatus:
+        self.lblLiveFeedStatus.setText(_live_feed_status_html(f"Camera error: {message}"))
+
+
+def _show_live_frame(self, qimage):
+    """Shared by both the live camera preview and file playback -- both feed
+    liveFeedLabel the same way, just from different worker signals."""
+    if not self.liveFeedLabel:
+        return
+    pixmap = QPixmap.fromImage(qimage)
+    scaled = pixmap.scaled(self.liveFeedLabel.size(), Qt.AspectRatioMode.KeepAspectRatio,
+                            Qt.TransformationMode.SmoothTransformation)
+    self.liveFeedLabel.setPixmap(scaled)
+
+
 
 def _load_scaled_image(self, filename, target_size):
     """

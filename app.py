@@ -2,16 +2,20 @@
 import sys
 from PyQt6 import uic
 from PyQt6.QtCore import Qt, QSize, QTimer, QEvent
-from PyQt6.QtGui import QPixmap
-from PyQt6.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QStackedWidget, QLineEdit, QProgressBar, QPlainTextEdit
+from PyQt6.QtGui import QPixmap, QImage
+from PyQt6.QtWidgets import (
+    QApplication, QMainWindow, QLabel, QPushButton, QStackedWidget, QLineEdit,
+    QProgressBar, QPlainTextEdit, QComboBox,
+)
 from pathlib import Path
 
-# Imports of OpenCV and Operating System 
+# Imports of OpenCV and Operating System
 import cv2
 import os
 
 # Imports of other Modules for Wiring and Navigation
 import helper as hp
+import cameraFeed as camf
 
 
 # Qt6 sets per-monitor-v2 DPI awareness automatically as soon as its platform
@@ -86,14 +90,51 @@ class MainWindow(QMainWindow):
         self.btnValidate: QPushButton = self.findChild(QPushButton, "validate")
         self.warning_Label: QLabel = self.findChild(QLabel, "warning")
 
-        # Page 4 
+        # Page 4
         self.lblUploadStatus: QLabel = self.findChild(QLabel, "lblUploadStatus")
         self.btnSelectFile: QPushButton = self.findChild(QPushButton, "btnSelectFile")
+        self.btnRecordVideo: QPushButton = self.findChild(QPushButton, "btnRecordVideo")
         self.btnProceed: QPushButton = self.findChild(QPushButton, "btnProceed")
-        if self.btnProceed and self.stack:
-            self.btnProceed.clicked.connect(lambda: (
+
+        # Page "Live Feed" -- inserted between Page 4 (Upload) and Page 5
+        # (Analysis/Generate), so every stack index from Page 5 onward is one
+        # higher than it used to be (Page 5: 4->5, Page 6: 5->6).
+        self.cameraCombo: QComboBox = self.findChild(QComboBox, "cameraCombo")
+        self.resolutionCombo: QComboBox = self.findChild(QComboBox, "resolutionCombo")
+        self.fpsCombo: QComboBox = self.findChild(QComboBox, "fpsCombo")
+        self.liveFeedLabel: QLabel = self.findChild(QLabel, "liveFeedLabel")
+        self.lblLiveFeedStatus: QLabel = self.findChild(QLabel, "lblLiveFeedStatus")
+        self.btnRecord: QPushButton = self.findChild(QPushButton, "btnRecord")
+        self.btnStop: QPushButton = self.findChild(QPushButton, "btnStop")
+        self.btnRepeatLive: QPushButton = self.findChild(QPushButton, "btnRepeatLive")
+        self.btnNextLive: QPushButton = self.findChild(QPushButton, "btnNextLive")
+
+        # Playback overlay button ("on top of the video" per USER Request) --
+        # not in gui.ui: Qt Designer layouts don't support one widget sitting
+        # on top of another cleanly (see CLAUDE.md's Qt/uic gotchas), so this
+        # is a plain child of liveFeedLabel itself, positioned in the label's
+        # own coordinate space by hp.reposition_playback_button (called from
+        # resizeEvent and whenever the button's visibility changes).
+        self.btnPlayback = QPushButton("▶ Play", self.liveFeedLabel)
+        self.btnPlayback.setStyleSheet(
+            "QPushButton { color: white; background-color: rgba(0,0,0,150); "
+            "border-radius: 8px; padding: 6px 14px; font-weight: bold; } "
+            "QPushButton:hover { background-color: rgba(0,0,0,200); }"
+        )
+        self.btnPlayback.hide()
+
+        # Changing camera/resolution/fps mid-visit restarts the live preview
+        # with the new settings -- helper.on_live_feed_settings_changed is a
+        # no-op until liveFeedPageEnter has actually run once (guards against
+        # the combos' own initial population firing this).
+        for combo in (self.cameraCombo, self.resolutionCombo, self.fpsCombo):
+            if combo:
+                combo.currentIndexChanged.connect(lambda _=None: hp.on_live_feed_settings_changed(self))
+
+        if self.btnRecordVideo and self.stack:
+            self.btnRecordVideo.clicked.connect(lambda: (
                 self.stack.setCurrentIndex(4),
-                hp.analisysPage(self)  
+                hp.liveFeedPageEnter(self),
             ))
 
         # Page 5
@@ -112,6 +153,15 @@ class MainWindow(QMainWindow):
         self.video_path = None
         self.parent_path = None
         self.fps_eff = 30.0
+
+        # Live Feed page state (cameraFeed.py workers + page-ready guard --
+        # see helper.py's "Page Live Feed" section)
+        self._cameraWorker = None
+        self._playbackWorker = None
+        self._is_recording = False
+        self._has_recording = False
+        self._live_feed_ready = False
+        self._camera_devices = []
 
         # Image Work (Size IST Logo)
         hp.scaler(self)
@@ -154,7 +204,32 @@ class MainWindow(QMainWindow):
         if self.btnSelectFile:
             self.btnSelectFile.clicked.connect(self.select_video_file)
         if self.btnProceed and self.stack:
-            self.btnProceed.clicked.connect(lambda: self.stack.setCurrentIndex(4))
+            # Single connection (a prior version of this line was connected
+            # twice, once here and once earlier in __init__, to two different
+            # lambdas that raced each other over the stack index -- the net
+            # effect happened to land correctly only because of connection
+            # order, see git history). Page 5 (Analysis/Generate) is index 5
+            # now that Page "Live Feed" sits between it and Page 4.
+            self.btnProceed.clicked.connect(lambda: (
+                self.stack.setCurrentIndex(5),
+                hp.analisysPage(self),
+            ))
+
+        # Page "Live Feed" Actions
+        if self.btnRecord:
+            self.btnRecord.clicked.connect(lambda: hp.startRecording(self))
+        if self.btnStop:
+            self.btnStop.clicked.connect(lambda: hp.stopRecording(self))
+        if self.btnRepeatLive:
+            self.btnRepeatLive.clicked.connect(lambda: hp.repeatRecording(self))
+        if self.btnPlayback:
+            self.btnPlayback.clicked.connect(lambda: hp.togglePlayback(self))
+        if self.btnNextLive and self.stack:
+            self.btnNextLive.clicked.connect(lambda: (
+                hp.liveFeedPageLeave(self),
+                self.stack.setCurrentIndex(5),
+                hp.analisysPage(self),
+            ))
 
         # Page 5 Analysis Actions
         if self.btnGen and self.stack:
@@ -166,9 +241,9 @@ class MainWindow(QMainWindow):
             # render the trajectory plot at this point.
             self.btnPreview.clicked.connect(lambda: hp.preview(self))
         if self.btnRedo and self.stack:
-            self.btnRedo.clicked.connect(lambda: hp.redo(self)) 
-        if self.btnNext5 and self.stack:    
-            self.btnNext5.clicked.connect(lambda: self.stack.setCurrentIndex(5))
+            self.btnRedo.clicked.connect(lambda: hp.redo(self))
+        if self.btnNext5 and self.stack:
+            self.btnNext5.clicked.connect(lambda: self.stack.setCurrentIndex(6))
             
         if self.btnPreview and self.stack:
             self.btnPreview.setEnabled(False)
@@ -230,10 +305,24 @@ class MainWindow(QMainWindow):
             self._trajectory_resize_timer.timeout.connect(lambda: hp.apply_trajectory_pixmap(self))
         self._trajectory_resize_timer.start(120)
 
+        # Cheap (just a .move() on a small button), so unlike the trajectory
+        # pixmap rescale above this runs on every event rather than debounced.
+        hp.reposition_playback_button(self)
+
+    def closeEvent(self, event):
+        # Release the camera device / stop any playback loop cleanly instead
+        # of letting a background QThread get torn down mid-frame -- without
+        # this, closing the app while the Live Feed page's camera preview is
+        # still running leaves the device locked for whatever opens it next.
+        hp.liveFeedPageLeave(self)
+        super().closeEvent(event)
+
     # Thin bound-method wrappers around helper.py's logic, so hp.generate()
     # can connect DetectionWorker's cross-thread signals to genuine QObject
     # methods (required for Qt to correctly queue them onto this, the GUI,
-    # thread) instead of a bare lambda -- see hp.generate()'s comment.
+    # thread) instead of a bare lambda -- see hp.generate()'s comment. The
+    # CameraWorker/PlaybackWorker signals from cameraFeed.py follow the same
+    # rule.
     def _on_gen_progress(self, frame_idx, total_frames):
         hp._update_progress(self, frame_idx, total_frames)
 
@@ -246,6 +335,21 @@ class MainWindow(QMainWindow):
     def _on_log_line(self, line):
         if self.genLog:
             self.genLog.appendPlainText(line)
+
+    def _on_camera_frame(self, qimage):
+        hp._show_live_frame(self, qimage)
+
+    def _on_camera_error(self, message):
+        hp._camera_error(self, message)
+
+    def _on_recording_finished(self, measured_fps, frame_count):
+        hp._recording_finished(self, measured_fps, frame_count)
+
+    def _on_playback_frame(self, qimage):
+        hp._show_live_frame(self, qimage)
+
+    def _on_playback_finished(self):
+        hp._playback_finished(self)
 
     def select_video_file(self):
             """Opens file explorer, copies the video to workspace, and reads properties."""
