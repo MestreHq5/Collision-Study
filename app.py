@@ -1,7 +1,7 @@
 # Default Imports from PySide6 and the Qt framework
 import sys
 from PyQt6 import uic
-from PyQt6.QtCore import Qt, QSize, QTimer
+from PyQt6.QtCore import Qt, QSize, QTimer, QEvent
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QStackedWidget, QLineEdit, QProgressBar, QPlainTextEdit
 from pathlib import Path
@@ -106,6 +106,7 @@ class MainWindow(QMainWindow):
         
         # Page 6
         self.istlogo6: QLabel = self.findChild(QLabel, "istlogo6")
+        self.istlogo6b: QLabel = self.findChild(QLabel, "istlogo6b")
         
         # Tracking variables
         self.video_path = None
@@ -139,6 +140,15 @@ class MainWindow(QMainWindow):
         if page3_field_chain[-1] and self.btnValidate:
             page3_field_chain[-1].returnPressed.connect(self.btnValidate.click)
 
+        # Page 3: Up/Down arrows also move focus along the same chain (Up ->
+        # previous field, Down -> next field), same order as the Enter chain
+        # above. QLineEdit doesn't expose arrow keys as a signal the way it
+        # does returnPressed, so this needs an eventFilter (see
+        # MainWindow.eventFilter below) rather than a direct connect.
+        self._page3_field_chain = [f for f in page3_field_chain if f]
+        for field in self._page3_field_chain:
+            field.installEventFilter(self)
+
         # Page 4 Upload & File Selection Actions
         if self.btnSelectFile:
             self.btnSelectFile.clicked.connect(self.select_video_file)
@@ -166,9 +176,25 @@ class MainWindow(QMainWindow):
         if self.stack:
             self.stack.setCurrentIndex(0)
 
-        # Create and Update a Simple StatusBar
-        self._sb = self.statusBar()
-        self._sb.showMessage("Ready. Please submit a tracking video.")
+    def eventFilter(self, obj, event):
+        """
+        Page 3: Up/Down arrows move focus along `_page3_field_chain` (Up ->
+        previous field, Down -> next), mirroring the Enter-chain order set up
+        in __init__. Installed per-field rather than overriding each
+        QLineEdit's own keyPressEvent since these are stock QLineEdit
+        instances from gui.ui, not a custom subclass.
+        """
+        chain = getattr(self, "_page3_field_chain", None)
+        if chain and obj in chain and event.type() == QEvent.Type.KeyPress:
+            key = event.key()
+            if key in (Qt.Key.Key_Up, Qt.Key.Key_Down):
+                idx = chain.index(obj)
+                step = -1 if key == Qt.Key.Key_Up else 1
+                target = idx + step
+                if 0 <= target < len(chain):
+                    chain[target].setFocus()
+                return True
+        return super().eventFilter(obj, event)
 
     def resizeEvent(self, event):
         """
@@ -263,11 +289,8 @@ class MainWindow(QMainWindow):
                 # Enable navigation proceed button
                 if self.btnProceed:
                     self.btnProceed.setEnabled(True)
-                    
-                self._sb.showMessage(f"Loaded: Recording.mp4 @ {fps:.2f} FPS")
             else:
                 print("[INFO] Video selection cancelled")
-                self._sb.showMessage("File selection canceled.")
 
 
 def main():

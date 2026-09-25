@@ -651,15 +651,18 @@ def visualize_trajectories(
     # screen pixels; see figsize's docstring for why callers may override this)
     fig, ax = plt.subplots(figsize=figsize, dpi=150)
 
-    ax.plot(df0m["cx"], df0m["cy"], label="Disk 0 trajectory", linewidth=2)
-    ax.plot(df1m["cx"], df1m["cy"], label="Disk 1 trajectory", linewidth=2)
+    # Disk 0 = Green, Disk 1 = Blue (see CLAUDE.md, DISK_COLOR_NAMES) -- match
+    # the same identity colors the detection-video trail overlay uses
+    # (detector.py DISK_TRACE_COLOR_BGR) so both outputs read consistently.
+    ax.plot(df0m["cx"], df0m["cy"], label="Green disk trajectory", linewidth=2, color="green")
+    ax.plot(df1m["cx"], df1m["cy"], label="Blue disk trajectory", linewidth=2, color="blue")
 
     if not p0.empty:
-        ax.scatter(p0["cx"], p0["cy"], s=90, marker="o", edgecolors="k", zorder=5,
-                   label=f"collision @ disk 0 (f={cf})")
+        ax.scatter(p0["cx"], p0["cy"], s=90, marker="o", color="green", edgecolors="k", zorder=5,
+                   label=f"collision @ green disk (f={cf})")
     if not p1.empty:
-        ax.scatter(p1["cx"], p1["cy"], s=90, marker="s", edgecolors="k", zorder=5,
-                   label=f"collision @ disk 1 (f={cf})")
+        ax.scatter(p1["cx"], p1["cy"], s=90, marker="s", color="blue", edgecolors="k", zorder=5,
+                   label=f"collision @ blue disk (f={cf})")
 
     ax.set_xlabel("x [m]", fontsize=11)
     ax.set_ylabel("y [m]", fontsize=11)

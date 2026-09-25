@@ -1,5 +1,6 @@
 # Detection
 import cv2
+import os
 
 # Process Modules
 import numpy as np
@@ -46,11 +47,60 @@ MARKER_SEARCH_PAD_FACTOR = 3.5
 COLOR_ID_MAP = {"green": 0, "blue": 1}
 ALL_IDS = sorted(COLOR_ID_MAP.values())  # [0,1]
 
+# Detection-video trajectory overlay colors (BGR, cv2 convention). The
+# center-of-mass path trace uses each disk's own identity color (matches
+# trajectories.png, see Post_process.visualize_trajectories). No separate
+# marker/theta trace -- removed per user request, the center path alone is
+# the trajectory of interest for this overlay.
+DISK_TRACE_COLOR_BGR = {0: (0, 180, 0), 1: (200, 0, 0)}          # disk 0 = green, disk 1 = blue
+DISK_TRACE_THICKNESS_PX = 4
+COLLISION_DOT_RADIUS_PX = 10
+
 FALLBACK_MIN_RADIUS = 10
 FALLBACK_MAX_RADIUS = 200
 DEDUP_DIST_PX = 30        # merge duplicate detections closer than this
 FALLBACK_GATE_PX = 200    # only look for a missing disk within this radius of its last seen position
 FALLBACK_SEARCH_RADIUS_PX = 250  # how far from that last position a contour fallback candidate may be
+
+
+def _overlay_collision_dot(video_path, collision_frame, dot_positions, fps):
+    """
+    Bakes a filled dot at each disk's own recorded pixel position on
+    `collision_frame` into every frame of `video_path` from that frame
+    onward (persists for the rest of the clip, like the trajectory trail,
+    so it stays visible rather than flashing for one frame). Runs as a
+    separate re-encode pass over the already-written detection video
+    (rather than during the main detection loop) because the collision
+    frame -- the recorded minimum center-to-center distance -- isn't known
+    until the whole clip has been processed.
+    """
+    cap = cv2.VideoCapture(str(video_path))
+    if not cap.isOpened():
+        info("WARN", f"Could not reopen {video_path} to draw the collision dot -- skipping")
+        return
+
+    w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    tmp_path = f"{video_path}.collision_dot_tmp.mp4"
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    out = cv2.VideoWriter(tmp_path, fourcc, round(fps, 2), (w, h))
+
+    frame_idx = 0
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+        if frame_idx >= collision_frame:
+            for puck_id, (cx_px, cy_px) in dot_positions.items():
+                color = DISK_TRACE_COLOR_BGR.get(puck_id, (255, 255, 255))
+                cv2.circle(frame, (int(cx_px), int(cy_px)), COLLISION_DOT_RADIUS_PX, color, -1)
+                cv2.circle(frame, (int(cx_px), int(cy_px)), COLLISION_DOT_RADIUS_PX, (0, 0, 0), 2)
+        out.write(frame)
+        frame_idx += 1
+
+    cap.release()
+    out.release()
+    os.replace(tmp_path, video_path)
 
 
 def remove_duplicate_detections(disks, dist_threshold=DEDUP_DIST_PX):
@@ -654,6 +704,20 @@ def main(video_path, bg_path, dtc_path, csv_path, fps_eff, progress_callback=Non
     # `dt`/`fps` used for the physics stay full precision.
     out = cv2.VideoWriter(dtc_path, fourcc, round(fps, 2), (w, h))
 
+    # Persistent trajectory-trail overlay: a black canvas that accumulates
+    # every frame's new path-line segment so the trail is visible cumulative
+    # across the whole clip, not just the current frame -- `frame` itself is
+    # a fresh image on every cap.read() and can't carry drawing over on its
+    # own. Composited onto each frame via a mask-replace (see below) since it
+    # stays black everywhere except drawn line pixels.
+    trail_canvas = np.zeros((h, w, 3), dtype=np.uint8)
+    last_center_px = {}
+    # Pixel-space center position per (frame, disk_id), kept alongside
+    # all_detections' mm-space rows -- needed for the collision-dot overlay
+    # pass below, which draws at the exact pixel the disk was recorded at
+    # rather than re-deriving it from the mm values.
+    center_px_by_frame_id = {}
+
     # 3) Main loop --> through each frame
     while True:
         ret, frame = cap.read()
@@ -712,16 +776,11 @@ def main(video_path, bg_path, dtc_path, csv_path, fps_eff, progress_callback=Non
 
             mark, marker_color = resolve_marker(frame, d, scale_mm_per_px)
 
-            # 7) Drawing (disk & marker) on the original video
-            # Green edge = color-contour detection, orange edge = contour fallback (debug aid)
-            edge_color = (0, 255, 0) if d.get("source") == "color" else (0, 140, 255)
-            cv2.circle(frame, (int(cx_px), int(cy_px)), int(r_px), edge_color, 2)
-            cv2.circle(frame, (int(cx_px), int(cy_px)), 4, (0, 0, 255), -1)
-            if mark is not None:
-                mx_px, my_px = int(mark[0]), int(mark[1])
-                cv2.circle(frame, (mx_px, my_px), 4, (0, 0, 255), -1)
-            else:
-                mx_px = my_px = None
+            # 7) Drawing itself (disk outline/dots + trajectory trail) needs
+            # this frame's assigned disk_id (0=green/1=blue, see
+            # DISK_TRACE_COLOR_BGR) to color-code correctly, which isn't
+            # known until assigner.assign() runs below -- see the loop over
+            # `assigned` for the actual cv2 draw calls.
 
             # 8 Append this disk detection
             frame_dets.append({
@@ -735,7 +794,41 @@ def main(video_path, bg_path, dtc_path, csv_path, fps_eff, progress_callback=Non
         # Assign stable IDs (0/1) for this frame
         assigned = assigner.assign(frame_dets)
 
-        # 9) Save to CSV (mm units for centers & marker)
+        # 9) Extend this frame's trajectory-trail segment per disk (center
+        # path in the disk's own color, see DISK_TRACE_COLOR_BGR) before
+        # compositing the trail and drawing this frame's outline/dots on top.
+        for puck_id, det in assigned:
+            cx_px, cy_px = det["center"]
+
+            trace_color = DISK_TRACE_COLOR_BGR.get(puck_id, (255, 255, 255))
+            prev_c = last_center_px.get(puck_id)
+            if prev_c is not None:
+                cv2.line(trail_canvas, (int(prev_c[0]), int(prev_c[1])),
+                         (int(cx_px), int(cy_px)), trace_color, DISK_TRACE_THICKNESS_PX)
+            last_center_px[puck_id] = (cx_px, cy_px)
+            center_px_by_frame_id[(frame_idx, puck_id)] = (cx_px, cy_px)
+
+        # Composite the accumulated trail under this frame's disk outline/dots
+        # -- a plain mask-replace, not an alpha blend: trail_canvas is black
+        # everywhere except drawn line pixels, so this pastes the trail
+        # cleanly without needing to track a dirty region frame-to-frame.
+        trail_mask = np.any(trail_canvas != 0, axis=2)
+        frame[trail_mask] = trail_canvas[trail_mask]
+
+        # 10) Draw this frame's disk outline + center/marker dots on top of
+        # the trail. Green edge = color-contour detection, orange edge =
+        # contour fallback (debug aid) -- independent of disk identity color.
+        for puck_id, det in assigned:
+            cx_px, cy_px = det["center"]
+            r_px = det["radius"]
+            edge_color = (0, 255, 0) if det["source"] == "color" else (0, 140, 255)
+            cv2.circle(frame, (int(cx_px), int(cy_px)), int(r_px), edge_color, 2)
+            cv2.circle(frame, (int(cx_px), int(cy_px)), 4, (0, 0, 255), -1)
+            if det["marker_center"] is not None:
+                mx_px, my_px = det["marker_center"]
+                cv2.circle(frame, (int(mx_px), int(my_px)), 4, (0, 0, 255), -1)
+
+        # 11) Save to CSV (mm units for centers & marker)
         for puck_id, det in assigned:
             cx_px, cy_px = det["center"]
             r_px = det["radius"]
@@ -760,7 +853,7 @@ def main(video_path, bg_path, dtc_path, csv_path, fps_eff, progress_callback=Non
                 det["source"],
             ])
 
-        # 10) Write the frame down
+        # 12) Write the frame down
         out.write(frame)
 
 
@@ -783,4 +876,35 @@ def main(video_path, bg_path, dtc_path, csv_path, fps_eff, progress_callback=Non
         writer.writerows(all_detections)
 
     info("DONE", f"Saved {len(all_detections)} detections to disk_tracks.csv")
+
+    # 8) Mark the collision point on the detection video: same "recorded
+    # nearest approach" definition Post_process._find_collision_frame uses
+    # on the finished CSV (re-implemented locally, on the mm values already
+    # in hand, rather than importing that function -- it expects a pandas
+    # DataFrame built from the exported CSV, which doesn't exist yet at this
+    # point in main()).
+    positions_by_frame = {}
+    for row_frame, row_id, row_cx_mm, row_cy_mm, *_rest in all_detections:
+        positions_by_frame.setdefault(row_frame, {})[row_id] = (row_cx_mm, row_cy_mm)
+
+    collision_frame = None
+    best_dist = None
+    for f_idx, pos in positions_by_frame.items():
+        if 0 in pos and 1 in pos:
+            (x0, y0), (x1, y1) = pos[0], pos[1]
+            d = math.hypot(x1 - x0, y1 - y0)
+            if best_dist is None or d < best_dist:
+                best_dist = d
+                collision_frame = f_idx
+
+    if collision_frame is not None:
+        dot_positions = {
+            pid: center_px_by_frame_id[(collision_frame, pid)]
+            for pid in ALL_IDS
+            if (collision_frame, pid) in center_px_by_frame_id
+        }
+        if len(dot_positions) == len(ALL_IDS):
+            _overlay_collision_dot(dtc_path, collision_frame, dot_positions, fps)
+            info("DONE", f"Collision dot drawn at frame {collision_frame}")
+
     return

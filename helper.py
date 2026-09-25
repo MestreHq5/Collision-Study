@@ -123,7 +123,6 @@ def validator(self):
         
         # Go cleanly to Page 4 (Upload Page) instead of popping up files instantly
         self.stack.setCurrentIndex(3)
-        self._sb.showMessage("Data validated. Please select your tracking video.")
     else:
         self.warning_Label.setText(message)
         print(f"[WARN]: {message}")
@@ -217,7 +216,6 @@ def _generation_finished(self):
 
 def _generation_failed(self, message):
     self.btnGen.setEnabled(True)
-    self._sb.showMessage(f"Detection failed: {message}")
     print(f"[ERROR] Detection failed: {message}")
 
 
@@ -387,3 +385,8 @@ def scaler(self):
     self.istlogo6.setScaledContents(False)
     self.istlogo6.setAlignment(Qt.AlignmentFlag.AlignCenter)
     self.istlogo6.setPixmap(ist_logo)
+
+    if getattr(self, "istlogo6b", None) is not None:
+        self.istlogo6b.setScaledContents(False)
+        self.istlogo6b.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.istlogo6b.setPixmap(dem_logo)
