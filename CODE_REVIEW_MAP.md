@@ -6,7 +6,8 @@ counts are `total` / `code` where `code` = total minus blank lines minus lines t
 *entirely* a comment (a trailing `# ...` on a code line still counts as code) — a rough
 "how much is actually logic" number, not exact.
 
-Generated 2026-09-23 against `gr/tweaks`. Re-generate (`wc -l`, `grep '^def \|^class \|^    def '`)
+Generated 2026-09-23 against `gr/tweaks`; updated 2026-09-26 against `gr/cameraFeed` (adds
+`cameraFeed.py` and the Live Feed page). Re-generate (`wc -l`, `grep '^def \|^class \|^    def '`)
 if the file list or function set changes meaningfully before you finish the pass.
 
 ## Reading/runtime order
@@ -15,6 +16,8 @@ if the file list or function set changes meaningfully before you finish the pass
 initializer.py
   └─ app.py            (GUI shell: MainWindow, main())
        └─ helper.py     (button handlers -> backend calls)
+            ├─ cameraFeed.py     (Page "Live Feed": webcam -> Recording.mp4, optional
+            │                     alternative to uploading a file on Page 4)
             ├─ detector.py       (Page 5 "Generate": video -> disk_tracks.csv)
             │    └─ Pre_process.py   (CV primitives detector.py calls into)
             └─ Post_process.py  (Page 5 "Preview"/genData: csv -> plot / data.xlsx)
@@ -26,7 +29,7 @@ to the final `.xlsx`, so each file's callers are already fresh in mind before yo
 
 ---
 
-## 1. `initializer.py` — 18 / 7 lines
+## 1. `initializer.py` — 18 / 8 lines
 
 Entry point only. No functions defined.
 
@@ -35,7 +38,7 @@ Entry point only. No functions defined.
   environment at module load time — has to happen first or the notifier silently never sees it.
 - `if __name__ == "__main__": app.main()`
 
-## 2. `app.py` — 317 / 203 lines
+## 2. `app.py` — 428 / 268 lines
 
 The Qt GUI shell: window construction, widget lookup/wiring, page navigation. Almost no
 business logic lives here — that's `helper.py`.
@@ -45,13 +48,16 @@ business logic lives here — that's `helper.py`.
 | `resource_path(*parts)` | Resolves a bundled-resource path, dev vs. PyInstaller frozen (`sys._MEIPASS`) |
 | `_position_console_right(available, app_width)` | Best-effort: moves the auto-spawned console window into the right half of the screen for a built `--console` exe |
 | `class MainWindow(QMainWindow)` | | 
-| &nbsp;&nbsp;`__init__` | Loads `gui.ui`, sizes/positions window (left half of screen), installs `hp.PrintTee` on stdout, finds every named widget across Pages 1–6, wires nav/action button `clicked` signals, sets initial page/state |
-| &nbsp;&nbsp;`resizeEvent` | Debounced (120ms `QTimer.singleShot`) re-render of the trajectory preview on window resize, to avoid `QPainter` errors from resizing a pixmap mid-drag |
+| &nbsp;&nbsp;`__init__` | Loads `gui.ui`, opens maximized, installs `hp.PrintTee` on stdout, finds every named widget across all 7 pages, creates the Live Feed playback overlay button (`btnPlayback`, code-only — not in `gui.ui`), wires nav/action signals incl. Page 3's Enter-chain and the Live Feed combos/buttons, sets initial state. **Stack indices**: Live Feed is 4, Analysis/Generate 5, Finished 6 |
+| &nbsp;&nbsp;`eventFilter` | Page 3: Up/Down arrows move focus along the same field chain as Enter |
+| &nbsp;&nbsp;`resizeEvent` | Debounced (120ms) re-render of the trajectory preview on resize (avoids `QPainter` errors mid-drag); also re-pins the playback overlay button (cheap, not debounced) |
+| &nbsp;&nbsp;`closeEvent` | Calls `hp.liveFeedPageLeave` so the app never exits holding the camera device |
 | &nbsp;&nbsp;`_on_gen_progress/_on_gen_finished/_on_gen_failed/_on_log_line` | Thin bound-method wrappers so `DetectionWorker`'s cross-thread Qt signals land on real `QObject` methods (required for Qt's thread-affinity auto-detection) |
-| &nbsp;&nbsp;`select_video_file` | Opens file dialog, copies the chosen video into the run workspace, reads native FPS via OpenCV, updates the Page 4 status label, enables Proceed |
+| &nbsp;&nbsp;`_on_camera_frame/_on_camera_error/_on_recording_saving/_on_recording_finished/_on_camera_stats/_on_playback_frame/_on_playback_finished` | Same pattern for `cameraFeed.CameraWorker`/`PlaybackWorker` signals — forward to the matching `hp.*` handler |
+| &nbsp;&nbsp;`select_video_file` | Opens file dialog, copies the chosen video into the run workspace as `Recording.mp4`, reads native FPS via OpenCV, updates the Page 4 ("Video Input") status label, enables Proceed |
 | `main()` | Sets the HiDPI rounding policy, builds `QApplication`/`MainWindow`, runs the Qt event loop |
 
-## 3. `helper.py` — 370 / 275 lines
+## 3. `helper.py` — 782 / 579 lines
 
 The actual glue behind every button `app.py` wires up — reads/validates form fields, calls
 into `detector`/`Post_process`, updates widget state. This is where "what does clicking X
@@ -75,10 +81,52 @@ actually do" lives.
 | `apply_trajectory_pixmap(self)` | Re-renders/rescales the trajectory pixmap to `detectionLabel`'s current size (called on resize) |
 | `genData(self)` | Reads mass/radius fields, calls `Post_process.build_student_excel` to produce `data.xlsx`, updates button state |
 | `analisysPage(self)` | Resets Page 5's UI state when the user proceeds there |
-| `redo(self)` | Sends the user back to the data-input page (Page 2) |
-| `scaler(self)` | Scales/applies the IST logo pixmap onto Page 1 and Page 6 |
+| `redo(self)` | Sends the user back to the data-input page (Page 3, stack index 2) |
+| **Live Feed page** | *(page state + widget wiring only; capture logic is in `cameraFeed.py`)* |
+| `_live_feed_status_html(text)` | Formats the status line under the preview |
+| `_refresh_camera_list(self)` | Re-probes cameras (`camf.list_cameras`) into `cameraCombo`, restoring the previous choice by name. Runs on every page entry. **Uses `is None`, never truthiness** — an empty `QComboBox` is falsy in PyQt6 (this was the "no camera found" bug) |
+| `_populate_live_feed_combos(self)` | Fills the resolution/fps preset combos once, then refreshes the camera list |
+| `_stop_camera_worker/_stop_playback_worker(self)` | Synchronously stop a worker (device actually released) and drop the reference |
+| `_start_camera_preview(self)` | (Re)starts a `CameraWorker` with the current combo settings; warns if no camera is selectable |
+| `on_live_feed_settings_changed(self)` | Combo change → restart preview; no-op before page entry or while recording |
+| `reposition_playback_button(self)` | Pins the ▶ Play overlay to `liveFeedLabel`'s bottom-right corner |
+| `liveFeedPageEnter/liveFeedPageLeave(self)` | Reset button state + start preview / stop both workers (also called from `closeEvent`) |
+| `startRecording/stopRecording(self)` | Record/Stop buttons. Record retries camera detection if the worker is missing or dead |
+| `_recording_saving/_recording_finished(self, ...)` | "Saving…" status; then enable Repeat/Next/Play and set `video_path`/`parent_path`/`fps_eff` — same properties `select_video_file` sets, so Page 5 doesn't care which pipeline ran. Rejects a <2-frame take |
+| `_camera_stats(self, w, h, fps)` | Live "`WxH · N fps`" readout of what the camera actually delivers |
+| `repeatRecording(self)` | Discards the take, unlocks settings, resumes preview |
+| `togglePlayback(self)` / `_playback_finished(self)` | Swap between live preview and file playback (never both); resume preview when playback ends |
+| `_camera_error(self, message)` | Logs, drops the dead worker, resets buttons so Record can retry |
+| `_show_live_frame(self, qimage)` | Scales a frame into `liveFeedLabel` (shared by preview and playback) |
+| **Images** | |
+| `_load_scaled_image(self, filename, target_size)` | Loads `Images/<file>` scaled at the window's device pixel ratio (sharp on HiDPI) |
+| `load_plan_images(self)` | Fills Page 2's plan-image placeholders |
+| `scaler(self)` | Applies the IST logo onto Page 1 and the Finished page (both 560×280) |
 
-## 4. `detector.py` — 786 / 485 lines
+## 4. `cameraFeed.py` — 379 / 287 lines
+
+Webcam capture, recording and playback for the Live Feed page. No widget code — exposes Qt
+signals only (same split as `detector.main()`/`DetectionWorker`). Read the module constants'
+comments first: each one encodes a measured hardware fact.
+
+| Function/class | Purpose |
+|---|---|
+| *(module constants)* | `RESOLUTION_PRESETS`/`FPS_PRESETS` (first = 1080p/60 deployment spec), preview downscale/rate cap, `READ_FAILURE_TIMEOUT_S` (unplug detection), `FPS_HEADER_TOLERANCE`, `_ORPHANS` |
+| `list_cameras(max_probe=5)` | `[(index, name)]` of openable DirectShow cameras; names from `pygrabber`, paired by index (assumed, not guaranteed, same order) |
+| `_stop_qthread(thread, timeout_ms)` | `wait()` with a timeout; on timeout keeps the thread referenced so GC can't abort the process |
+| `_bgr_to_qimage(frame)` | Downscales (preview only) and converts a BGR frame to a detached `QImage` |
+| `_rewrite_with_fps(src, dst, fps)` | Re-encodes a file with a corrected container fps |
+| `class _FrameWriter` | `mp4v` encoding on its own thread with an unbounded queue (1080p encode ≈14 ms vs a 16.7 ms frame budget at 60 fps; never drops frames) |
+| &nbsp;&nbsp;`__init__/write/close/_run` | Open writer + start thread / enqueue / drain + release / consumer loop |
+| `class CameraWorker(QThread)` | One capture loop per page visit: preview always, recording between start/stop |
+| &nbsp;&nbsp;`__init__` | `_running=True` from construction so a `stop()` during the slow (0.4–4.6 s) device open is honored |
+| &nbsp;&nbsp;`start_recording/stop_recording` | GUI thread only sets request flags; the capture thread opens/closes the writer |
+| &nbsp;&nbsp;`stop` | Ends the loop and blocks until the device is released |
+| &nbsp;&nbsp;`_open` | Opens the device; **order matters**: size → fps → `MJPG` last (otherwise YUY2, 10 fps at 720p; 1080p60 is impossible over USB 2.0) |
+| &nbsp;&nbsp;`run` | Read loop: rolling fps estimate, writer created from the *actual* frame size with the measured fps as the header, rate-capped preview, `stats` once a second, unplug detection. Nested `finish_recording` drains the writer and re-encodes if the header fps is off by more than 1% — `detector.main()` trusts the container fps for dt |
+| `class PlaybackWorker(QThread)` | Replays `Recording.mp4` into the preview label at the file's own fps (clock-scheduled, not fixed sleeps) |
+
+## 5. `detector.py` — 910 / 560 lines
 
 The core detection pipeline: turns a video into `disk_tracks.csv` (+ an annotated
 `detection.mp4`). Heavily commented — most of the file's "non-code" lines are calibration
@@ -87,6 +135,7 @@ rationale for the constants block, not narrative filler.
 | Function/class | Purpose |
 |---|---|
 | *(module constants)* | Frame/blur/mass/geometry constants, HSV color ranges (`GREEN_/BLUE_LOWER/UPPER`), marker shape/darkness gates, fallback/ID-tracking gate distances — see CLAUDE.md "Marker detection" for the calibration numbers behind these |
+| `_overlay_collision_dot(video_path, collision_frame, dot_positions, fps)` | Second re-encode pass over `detection.mp4`: draws a persistent dot at each disk's position from the collision frame onward (collision frame is only known after the full pass) |
 | `remove_duplicate_detections(disks, dist_threshold)` | Keeps the highest-confidence detection among any cluster of near-duplicate boxes |
 | `fallback_contour_disks(frame, background, existing_disks, prev_pos, missing_ids, ...)` | Background-subtraction fallback, only searched near a missing disk's *predicted* position, radius-gated against glare blobs |
 | `resolve_marker(frame, det, scale_mm_per_px)` | Resolves a detection's disk identity (reusing `det["color"]` if already known) + its dimple marker position via `Pre_process` |
@@ -98,10 +147,10 @@ rationale for the constants block, not narrative filler.
 | &nbsp;&nbsp;`predicted_pos(pid)` | Extrapolates `pid`'s expected current position from its last known velocity × gap |
 | &nbsp;&nbsp;`assign(detections)` | The 4-step assignment: position-lock → color-first → velocity-gated nearest-neighbor to predicted position → deterministic left-right fallback for genuinely new tracks |
 | `info(info_type, message)` | `[TAG] message` print helper |
-| `main(video_path, bg_path, dtc_path, csv_path, fps_eff, progress_callback=None)` | Full pipeline entry: background estimate → open video → per-frame loop (detect → dedup → fallback → scale calibration → marker resolve → ID assign → annotate/write frame → CSV row) → write `disk_tracks.csv` |
+| `main(video_path, bg_path, dtc_path, csv_path, fps_eff, progress_callback=None)` | Full pipeline entry: background estimate → open video → per-frame loop (detect → dedup → fallback → scale calibration → marker resolve → ID assign → annotate/write frame → CSV row) → write `disk_tracks.csv` → `_overlay_collision_dot` |
 | &nbsp;&nbsp;`_puck_masker(frame)` *(nested in `main`)* | Closure passed to `estimate_background_median` so already-on-table pucks don't get baked into the background |
 
-## 5. `Pre_process.py` — 611 / 475 lines
+## 6. `Pre_process.py` — 611 / 476 lines
 
 Low-level CV primitives `detector.py` calls into. No knowledge of IDs/tracking/CSV — pure
 per-frame image operations.
@@ -117,7 +166,7 @@ per-frame image operations.
 | `calibrate_hsv_range(video_path, frame_index=0, box=6)` | Interactive dev tool: click a frame, prints a suggested HSV `(lower, upper)` range to paste into `detector.py` |
 | &nbsp;&nbsp;`on_click(event, x, y, flags, param)` *(nested)* | OpenCV mouse callback backing the tool above |
 
-## 6. `Post_process.py` — 900 / 687 lines
+## 7. `Post_process.py` — 906 / 690 lines
 
 Everything downstream of the CSV: kinematics, rotation fitting, collision metrics,
 trajectory plot, and the final Excel export. The largest and most math-dense file —
@@ -146,14 +195,16 @@ sections (dense docstrings recording *why*, worth checking they still match the 
 | `_fill_theta_gaps_per_disk(tbl, cf)` | Per-segment linear interpolation guaranteeing a `theta_deg` on every exported row; tags `theta_source` (`measured`/`interpolated`/`collision_nearest`/`None`) |
 | `build_student_excel(csv_path, output_xlsx_path, masses, radius, fps=30.0, include_metrics=False)` | Top-level export: builds the `Raw_Data` sheet, optionally computes metrics for the `Results` sheet (only written if `DEM_SHOW_RESULTS_SHEET=1`) and the notifier, calls `notify_run_complete`. Returns the collision frame |
 
-## 7. `notifier.py` — 76 / 52 lines
+## 8. `notifier.py` — 120 / 84 lines
 
 Best-effort ntfy.sh push notification, called from the very end of `build_student_excel`.
 
 | Function | Purpose |
 |---|---|
-| `_send(video_name, results_df, raw_summary)` | Builds the notification body from `results_df` + `raw_summary`, POSTs to `ntfy.sh`, swallows every failure |
-| `notify_run_complete(video_name, results_df, raw_summary)` | Public entry: no-op if `NTFY_TOPIC` unset, otherwise fires `_send` on a daemon thread (fire-and-forget) |
+| `_fmt_bool/_fmt_frac_pct/_fmt_pct(value)` | Formatting helpers (fraction vs. already-percent inputs; non-finite passed through) |
+| `_build_message(raw_summary, metrics, interpolated_pct)` | Builds the fixed-format body (row counts, measured/interpolated theta, e, momentum error, energy drop, collision gap) — format is pinned to ToDo.md's notifier spec |
+| `_send(group_name, raw_summary, metrics, interpolated_pct)` | POSTs to `ntfy.sh` with the group name in the `Title` header only; swallows every failure |
+| `notify_run_complete(group_name, raw_summary, metrics, interpolated_pct)` | Public entry: no-op if `NTFY_TOPIC` unset, otherwise fires `_send` on a daemon thread (fire-and-forget) |
 
 ---
 
@@ -175,9 +226,18 @@ looking at a function before you've seen where its inputs come from.
    sub-order, which is also click order: `validator` → `generate`/`DetectionWorker` →
    `preview`/`_trajectory_figsize_for_label`/`apply_trajectory_pixmap` → `genData`. The
    `PrintTee` class at the top is infrastructure or the other three pages — fine to review
-   last within this file.
+   last within this file. The Live Feed block (`_refresh_camera_list` … `_show_live_frame`)
+   is a separate state machine: read it together with `cameraFeed.py` (next step), in
+   click order `liveFeedPageEnter` → `startRecording` → `stopRecording` →
+   `_recording_finished` → `togglePlayback`/`repeatRecording` → `liveFeedPageLeave`.
 
-4. **`detector.py`** — the biggest comment-to-code ratio in the codebase (constants block
+4. **`cameraFeed.py`** — only runs when the student picks Record Video on Page 4. Read
+   `CameraWorker.run` slowly: it owns the thread-handoff rules (GUI thread only sets flags)
+   and the fps/size correctness that the detector depends on. Check that every comment's
+   measured number (MJPG ordering, encode time, open time) still matches if the lab camera
+   changes.
+
+5. **`detector.py`** — the biggest comment-to-code ratio in the codebase (constants block
    alone is ~90 lines of calibration history). Suggested split:
    - Pass A: the constants block — cross-check each numeric constant's comment against
      CLAUDE.md's "Marker detection"/"Standing objective" sections; these are the ones most
@@ -191,12 +251,12 @@ looking at a function before you've seen where its inputs come from.
    - Pass D: `main()` — ties everything above together frame-by-frame; short on its own,
      mostly a sequencing check once A–C are fresh.
 
-5. **`Pre_process.py`** — read right after `detector.py` since every function here exists
+6. **`Pre_process.py`** — read right after `detector.py` since every function here exists
    to be called by something you just read there. `_select_best_blob` is shared by
    `detect_dark_marker_center`'s two passes (strict + relaxed) — read it once, then both
    call sites will make sense without re-deriving the geometry math.
 
-6. **`Post_process.py`** — the other math-heavy file, triggered by `helper.preview()`
+7. **`Post_process.py`** — the other math-heavy file, triggered by `helper.preview()`
    (`visualize_trajectories`) and `helper.genData()` (`build_student_excel`). Suggested split:
    - Pass A: small helpers (`_ensure_sorted`, `_add_meter_cols`, `_unwrap_angle`,
      `_compute_vels`, `_safe_vxvy_mean`, `_safe_median`, `_find_collision_frame`) — quick,
@@ -213,7 +273,7 @@ looking at a function before you've seen where its inputs come from.
      `build_student_excel` — the output/export path; `build_student_excel` is the one
      function that ties A–C together into the final `.xlsx`.
 
-7. **`notifier.py`** — shortest file, last in the call chain (`build_student_excel`'s final
+8. **`notifier.py`** — shortest file, last in the call chain (`build_student_excel`'s final
    line). Quick read; the interesting design decision (metrics-only, fire-and-forget
    thread) is stated once in the module docstring.
 
@@ -228,6 +288,9 @@ looking at a function before you've seen where its inputs come from.
   `MARKER_*`/`*_LOWER`/`*_UPPER`, Pre_process's radius/circularity bounds) — worth
   flagging any that *aren't* justified by a comment yet, since CLAUDE.md implies all of
   them should be by now.
+- Qt widget guards: `if widget:` is wrong for any widget with a `count()` (`QComboBox`,
+  `QListWidget`, …) — empty means falsy in PyQt6. Worth grepping for `if self.<widget>`
+  patterns outside the Live Feed code during the pass.
 - `resource_path` is duplicated verbatim between `app.py` and `helper.py` — not a bug,
   but worth a deliberate "leave as-is" or "extract" decision during the pass rather than
   fixing it incidentally while touching comments nearby.

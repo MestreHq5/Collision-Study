@@ -15,14 +15,10 @@ Add a small area with the definitions of the camera (select camera if more than 
 
 For the camera related funcions create a new file called cameraFeed.py
 
-**Status (2026-09-25): Implemented, but blocked on a real-machine camera bug — paused, picking
-back up another day.** Page 4 has Select Video File / Record Video buttons; a new "Live Feed"
-page (Title, camera/resolution/fps dropdowns, live preview, Record/Stop/Repeat/Next, a Play/
-Stop overlay button on the video for reviewing a take) sits between Upload and Analysis/
-Generate. `cameraFeed.py` holds all capture/recording/playback logic.
-
-**Open, not yet root-caused**: first the webcam only delivered ~1 frame/second through OpenCV
-(likely this machine's lighting/auto-exposure, not this code). After closing other apps and a
-retry, the app now reports "no camera found" even though a plain script opened the same device
-fine moments later outside the app — not explained yet. See CLAUDE.md's "Page Live Feed"
-subsection (under "GUI / UX") for the full diagnostic and the next debugging steps to try.
+**Status (2026-09-26): Done on the laptop webcam -- pending a test on the external USB lab
+camera.** "No camera found" bug fixed (an empty QComboBox is falsy in PyQt6, so the camera list
+was never probed). Also fixed: MJPG negotiation (needed for 1080p60), writer size from the actual
+frames, container fps = measured fps (the detector trusts it), writer on its own thread, live
+"WxH @ fps" readout with warnings. Verified end to end in the real app with the laptop webcam
+(720p30). Remaining: plug in the lab camera and confirm the readout shows 1920x1080 @ ~60 fps.
+See CLAUDE.md "Page Live Feed".

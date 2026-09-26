@@ -128,7 +128,7 @@ class MainWindow(QMainWindow):
         # no-op until liveFeedPageEnter has actually run once (guards against
         # the combos' own initial population firing this).
         for combo in (self.cameraCombo, self.resolutionCombo, self.fpsCombo):
-            if combo:
+            if combo is not None:
                 combo.currentIndexChanged.connect(lambda _=None: hp.on_live_feed_settings_changed(self))
 
         if self.btnRecordVideo and self.stack:
@@ -342,8 +342,14 @@ class MainWindow(QMainWindow):
     def _on_camera_error(self, message):
         hp._camera_error(self, message)
 
-    def _on_recording_finished(self, measured_fps, frame_count):
-        hp._recording_finished(self, measured_fps, frame_count)
+    def _on_recording_finished(self, measured_fps, frame_count, width, height):
+        hp._recording_finished(self, measured_fps, frame_count, width, height)
+
+    def _on_recording_saving(self):
+        hp._recording_saving(self)
+
+    def _on_camera_stats(self, width, height, measured_fps):
+        hp._camera_stats(self, width, height, measured_fps)
 
     def _on_playback_frame(self, qimage):
         hp._show_live_frame(self, qimage)
@@ -390,8 +396,8 @@ class MainWindow(QMainWindow):
                 # Update Page 4 status message to show successful upload
                 video_name = os.path.basename(file_path)
                 self.lblUploadStatus.setText(
-                    f'<html><body><p align="center"><span style="font-size:18pt; color:#009de0; font-weight:bold;">'
-                    f'Loaded: {video_name}<br><span style="font-size:14pt; color:#555555; font-weight:normal;">'
+                    f'<html><body><p align="center"><span style="font-size:24pt; color:#009de0; font-weight:bold;">'
+                    f'Loaded: {video_name}<br><span style="font-size:18pt; color:#555555; font-weight:normal;">'
                     f'({fps:.2f} FPS)</span></span></p></body></html>'
                 )
                 

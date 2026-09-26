@@ -56,6 +56,9 @@
                                         </property>
                                         <item>
                                             <widget class="QLabel" name="title1">
+                                                <property name="styleSheet">
+                                                    <string notr="true">padding-top: 40px</string>
+                                                </property>
                                                 <property name="text">
                                                     <string>
                                                         &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p
@@ -862,20 +865,25 @@
                                             <string>
                                                 &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p
                                                 align=&quot;center&quot;&gt;&lt;span style=&quot;
-                                                font-size:36pt; font-weight:700;
-                                                color:#009de0;&quot;&gt;Upload Video
-                                                File&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                                                font-size:48pt; font-weight:700;
+                                                color:#009de0;&quot;&gt;Video Input&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                                         </property>
                                     </widget>
                                 </item>
                                 <item
                                     alignment="Qt::AlignmentFlag::AlignHCenter|Qt::AlignmentFlag::AlignTop">
                                     <widget class="QLabel" name="lblUploadStatus">
+                                        <property name="minimumSize">
+                                            <size>
+                                                <width>900</width>
+                                                <height>0</height>
+                                            </size>
+                                        </property>
                                         <property name="text">
                                             <string>
                                                 &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p
                                                 align=&quot;center&quot;&gt;&lt;span style=&quot;
-                                                font-size:18pt; color:#555555;&quot;&gt;No video
+                                                font-size:24pt; color:#555555;&quot;&gt;No video
                                                 file selected
                                                 yet.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                                         </property>
@@ -908,10 +916,10 @@
                                                     <string notr="true">QPushButton {
                                                         color: white;
                                                         background-color: #009de0;
-                                                        border-radius: 10px;
-                                                        padding: 10px 20px;
+                                                        border-radius: 14px;
+                                                        padding: 18px 40px;
                                                         font-weight: bold;
-                                                        font-size: 14px;
+                                                        font-size: 20px;
                                                         }
 
                                                         QPushButton:hover {
@@ -940,10 +948,10 @@
                                                     <string notr="true">QPushButton {
                                                         color: white;
                                                         background-color: #009de0;
-                                                        border-radius: 10px;
-                                                        padding: 10px 20px;
+                                                        border-radius: 14px;
+                                                        padding: 18px 40px;
                                                         font-weight: bold;
-                                                        font-size: 14px;
+                                                        font-size: 20px;
                                                         }
 
                                                         QPushButton:hover {
@@ -975,10 +983,10 @@
                                                     <string notr="true">QPushButton {
                                                         color: white;
                                                         background-color: #009de0;
-                                                        border-radius: 10px;
-                                                        padding: 10px 20px;
+                                                        border-radius: 14px;
+                                                        padding: 18px 40px;
                                                         font-weight: bold;
-                                                        font-size: 14px;
+                                                        font-size: 20px;
                                                         }
 
                                                         QPushButton:hover {
@@ -1535,6 +1543,22 @@
                             <layout class="QVBoxLayout" name="verticalLayout_2">
                                 <item>
                                     <layout class="QVBoxLayout" name="verticalLayout_7">
+                                        <item>
+                                            <spacer name="title6TopSpacer">
+                                                <property name="orientation">
+                                                    <enum>Qt::Orientation::Vertical</enum>
+                                                </property>
+                                                <property name="sizeType">
+                                                    <enum>QSizePolicy::Policy::Expanding</enum>
+                                                </property>
+                                                <property name="sizeHint" stdset="0">
+                                                    <size>
+                                                        <width>20</width>
+                                                        <height>40</height>
+                                                    </size>
+                                                </property>
+                                            </spacer>
+                                        </item>
                                         <item alignment="Qt::AlignmentFlag::AlignBottom">
                                             <widget class="QLabel" name="title6">
                                                 <property name="styleSheet">
@@ -1563,6 +1587,22 @@
                                                         Data&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                                                 </property>
                                             </widget>
+                                        </item>
+                                        <item>
+                                            <spacer name="logo6TopSpacer">
+                                                <property name="orientation">
+                                                    <enum>Qt::Orientation::Vertical</enum>
+                                                </property>
+                                                <property name="sizeType">
+                                                    <enum>QSizePolicy::Policy::Fixed</enum>
+                                                </property>
+                                                <property name="sizeHint" stdset="0">
+                                                    <size>
+                                                        <width>20</width>
+                                                        <height>30</height>
+                                                    </size>
+                                                </property>
+                                            </spacer>
                                         </item>
                                         <item>
                                             <layout class="QHBoxLayout" name="logoRow6">
@@ -1614,6 +1654,22 @@
                                             </layout>
                                         </item>
                                         <item>
+                                            <spacer name="creditsTopSpacer6">
+                                                <property name="orientation">
+                                                    <enum>Qt::Orientation::Vertical</enum>
+                                                </property>
+                                                <property name="sizeType">
+                                                    <enum>QSizePolicy::Policy::Expanding</enum>
+                                                </property>
+                                                <property name="sizeHint" stdset="0">
+                                                    <size>
+                                                        <width>20</width>
+                                                        <height>40</height>
+                                                    </size>
+                                                </property>
+                                            </spacer>
+                                        </item>
+                                        <item>
                                             <widget class="QLabel" name="credits">
                                                 <property name="sizePolicy">
                                                     <sizepolicy hsizetype="Preferred"
@@ -1626,12 +1682,28 @@
                                                     <string>
                                                         &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p
                                                         align=&quot;center&quot;&gt;&lt;span
-                                                        style=&quot; font-size:12pt;
+                                                        style=&quot; font-size:18pt;
                                                         font-weight:700;
                                                         color:#000000;&quot;&gt;Developed by Gonçalo
                                                         Rodrigues&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                                                 </property>
                                             </widget>
+                                        </item>
+                                        <item>
+                                            <spacer name="credits6BottomSpacer">
+                                                <property name="orientation">
+                                                    <enum>Qt::Orientation::Vertical</enum>
+                                                </property>
+                                                <property name="sizeType">
+                                                    <enum>QSizePolicy::Policy::Fixed</enum>
+                                                </property>
+                                                <property name="sizeHint" stdset="0">
+                                                    <size>
+                                                        <width>20</width>
+                                                        <height>30</height>
+                                                    </size>
+                                                </property>
+                                            </spacer>
                                         </item>
                                     </layout>
                                 </item>

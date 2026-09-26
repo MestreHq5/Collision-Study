@@ -388,8 +388,14 @@ def _refresh_camera_list(self):
     time. Signals blocked during the rebuild so the clear()+repopulate cycle
     doesn't fire on_live_feed_settings_changed for every intermediate state.
     """
-    if not self.cameraCombo:
+    # `is None`, never truthiness, for every combo in this section: PyQt6's
+    # QComboBox defines __len__ as count(), so an *empty* combo is falsy --
+    # `if not self.cameraCombo: return` used to bail out on exactly the first
+    # visit (combo still empty), so cameras were never probed and the page
+    # reported "no camera" no matter what was plugged in.
+    if self.cameraCombo is None:
         return
+    previous_name = self.cameraCombo.currentText()
     self.cameraCombo.blockSignals(True)
     self.cameraCombo.clear()
     cameras = camf.list_cameras()
@@ -398,6 +404,11 @@ def _refresh_camera_list(self):
         self.cameraCombo.addItem(name, idx)
     if not cameras:
         self.cameraCombo.addItem("No camera found", -1)
+    # Keep the student's camera choice across re-visits (indices can shift
+    # when a USB camera is plugged/unplugged, names don't).
+    restored = self.cameraCombo.findText(previous_name)
+    if restored >= 0:
+        self.cameraCombo.setCurrentIndex(restored)
     self.cameraCombo.blockSignals(False)
 
 
@@ -411,10 +422,10 @@ def _populate_live_feed_combos(self):
     (firing currentIndexChanged -> on_live_feed_settings_changed),
     resolutionCombo/fpsCombo already have valid currentData to read.
     """
-    if self.resolutionCombo and self.resolutionCombo.count() == 0:
+    if self.resolutionCombo is not None and self.resolutionCombo.count() == 0:
         for w, h in camf.RESOLUTION_PRESETS:
             self.resolutionCombo.addItem(f"{w}x{h}", (w, h))
-    if self.fpsCombo and self.fpsCombo.count() == 0:
+    if self.fpsCombo is not None and self.fpsCombo.count() == 0:
         for fps in camf.FPS_PRESETS:
             self.fpsCombo.addItem(f"{fps} fps", fps)
     _refresh_camera_list(self)
@@ -440,9 +451,9 @@ def _start_camera_preview(self):
     (synchronously, so the device is actually released) first."""
     _stop_camera_worker(self)
 
-    device_index = self.cameraCombo.currentData() if self.cameraCombo else None
-    resolution = self.resolutionCombo.currentData() if self.resolutionCombo else None
-    fps = self.fpsCombo.currentData() if self.fpsCombo else None
+    device_index = self.cameraCombo.currentData() if self.cameraCombo is not None else None
+    resolution = self.resolutionCombo.currentData() if self.resolutionCombo is not None else None
+    fps = self.fpsCombo.currentData() if self.fpsCombo is not None else None
     # device_index can legitimately be 0 (the first camera) -- checking
     # `is None`, not truthiness, matters here.
     if device_index is None or device_index < 0 or resolution is None or fps is None:
@@ -465,7 +476,11 @@ def _start_camera_preview(self):
     worker.frame_ready.connect(self._on_camera_frame)
     worker.error.connect(self._on_camera_error)
     worker.recording_finished.connect(self._on_recording_finished)
+    worker.recording_saving.connect(self._on_recording_saving)
+    worker.stats.connect(self._on_camera_stats)
     self._cameraWorker = worker
+    if self.lblLiveFeedStatus:
+        self.lblLiveFeedStatus.setText(_live_feed_status_html("Opening camera..."))
     worker.start()
 
 
@@ -512,7 +527,7 @@ def liveFeedPageEnter(self):
         self.btnPlayback.setText("▶ Play")
         self.btnPlayback.hide()
     for combo in (self.cameraCombo, self.resolutionCombo, self.fpsCombo):
-        if combo:
+        if combo is not None:
             combo.setEnabled(True)
     if self.lblLiveFeedStatus:
         self.lblLiveFeedStatus.setText(_live_feed_status_html("Ready to record."))
@@ -533,16 +548,20 @@ def liveFeedPageLeave(self):
 
 def startRecording(self):
     worker = getattr(self, "_cameraWorker", None)
-    if worker is None:
-        # No live camera yet -- most likely it wasn't available when the page
-        # was entered (another app had it open). Live Feed has no "back to
-        # Page 4" button to otherwise retry from, so Record itself retries
-        # detection once instead of silently doing nothing.
+    if worker is None or worker.isFinished():
+        # No live camera -- most likely it wasn't available when the page was
+        # entered (another app had it open) or it was unplugged since. Live
+        # Feed has no "back to Page 4" button to otherwise retry from, so
+        # Record itself retries detection once instead of silently doing
+        # nothing (or "recording" on a dead worker).
+        _stop_camera_worker(self)  # release before probing, or it probes as missing
         _refresh_camera_list(self)
         _start_camera_preview(self)
         worker = getattr(self, "_cameraWorker", None)
         if worker is None:
             return  # status label already explains why (_start_camera_preview)
+        # Recording starts on the worker's first frame, so the request is
+        # simply queued until the device finishes opening.
     self._is_recording = True
     worker.start_recording()
 
@@ -562,10 +581,41 @@ def stopRecording(self):
         return
     self._is_recording = False
     self.btnStop.setEnabled(False)
-    worker.stop_recording()  # -> recording_finished signal -> _recording_finished
+    worker.stop_recording()  # -> recording_saving, then recording_finished
 
 
-def _recording_finished(self, measured_fps, frame_count):
+def _recording_saving(self):
+    if self.lblLiveFeedStatus:
+        self.lblLiveFeedStatus.setText(_live_feed_status_html("Saving recording..."))
+
+
+def _camera_stats(self, width, height, measured_fps):
+    """Live readout of what the camera is *actually* delivering (resolution
+    and measured fps), so a camera stuck at a very low frame rate (e.g. the
+    ~1 fps auto-exposure stall seen in dim light on 2026-09-25) is visible
+    before a take is wasted on it."""
+    if self.lblLiveFeedStatus is None or getattr(self, "_has_recording", False):
+        return
+    prefix = "Recording" if getattr(self, "_is_recording", False) else "Live"
+    self.lblLiveFeedStatus.setText(_live_feed_status_html(
+        f"{prefix}: {width}x{height} &middot; {measured_fps:.1f} fps"))
+
+
+def _recording_finished(self, measured_fps, frame_count, width, height):
+    if frame_count < 2:
+        # Nothing usable was captured -- don't let the student proceed with
+        # an empty file.
+        self._has_recording = False
+        if self.btnRecord:
+            self.btnRecord.setEnabled(True)
+        for combo in (self.cameraCombo, self.resolutionCombo, self.fpsCombo):
+            if combo is not None:
+                combo.setEnabled(True)
+        if self.lblLiveFeedStatus:
+            self.lblLiveFeedStatus.setText(_live_feed_status_html(
+                "Recording too short -- no frames captured. Try again."))
+        return
+
     self._has_recording = True
     if self.btnRepeatLive:
         self.btnRepeatLive.setEnabled(True)
@@ -579,12 +629,14 @@ def _recording_finished(self, measured_fps, frame_count):
     if self.lblLiveFeedStatus:
         self.lblLiveFeedStatus.setText(_live_feed_status_html(
             f"Recorded {duration_s:.1f}s &middot; {frame_count} frames &middot; "
-            f"{measured_fps:.1f} fps measured."
+            f"{width}x{height} &middot; {measured_fps:.1f} fps measured."
         ))
 
     # Same properties select_video_file() sets for an uploaded file, at the
     # same destination path -- generate()/genData() on Page 5 don't need to
-    # know or care which pipeline produced this video.
+    # know or care which pipeline produced this video. The file's own
+    # container fps already equals measured_fps (CameraWorker rewrites the
+    # header if needed), which is what detector.main() actually reads.
     self.video_path = self.path / "Recording.mp4"
     self.parent_path = self.video_path.parent
     if measured_fps and measured_fps > 0:
@@ -606,7 +658,7 @@ def repeatRecording(self):
         self.btnPlayback.setText("▶ Play")
         self.btnPlayback.hide()
     for combo in (self.cameraCombo, self.resolutionCombo, self.fpsCombo):
-        if combo:
+        if combo is not None:
             combo.setEnabled(True)
     if self.lblLiveFeedStatus:
         self.lblLiveFeedStatus.setText(_live_feed_status_html("Ready to record."))
@@ -649,6 +701,18 @@ def _playback_finished(self):
 
 def _camera_error(self, message):
     print(f"[ERROR] Camera: {message}")
+    # The worker's run() returns right after emitting this; drop it so the
+    # next Record press retries from scratch. A take in progress is still
+    # finalized by the worker and arrives via recording_finished.
+    _stop_camera_worker(self)
+    self._is_recording = False
+    if self.btnRecord:
+        self.btnRecord.setEnabled(True)
+    if self.btnStop:
+        self.btnStop.setEnabled(False)
+    for combo in (self.cameraCombo, self.resolutionCombo, self.fpsCombo):
+        if combo is not None:
+            combo.setEnabled(True)
     if self.lblLiveFeedStatus:
         self.lblLiveFeedStatus.setText(_live_feed_status_html(f"Camera error: {message}"))
 
@@ -707,8 +771,8 @@ def load_plan_images(self):
 def scaler(self):
     # Each of these defaults to self.target_size (set in app.py). Give
     # either its own QSize(...) here to resize just that logo independently.
-    istlogo1_size = QSize(400, 200)
-    istlogo6_size = QSize(400, 200)
+    istlogo1_size = QSize(560, 280)
+    istlogo6_size = QSize(560, 280)
 
     self.istlogo1.setScaledContents(False)
     self.istlogo1.setAlignment(Qt.AlignmentFlag.AlignCenter)
